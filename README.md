@@ -1,4 +1,4 @@
-# ATLAS
+# BEV
 
 Single-page Firebase + Firestore project mind map app.
 

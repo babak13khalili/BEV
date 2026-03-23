@@ -1,9 +1,9 @@
-window.ATLAS_FIREBASE_CONFIG = null;
+window.BEV_FIREBASE_CONFIG = null;
 
 /*
 Paste your Firebase web app config here, for example:
 
-window.ATLAS_FIREBASE_CONFIG = {
+window.BEV_FIREBASE_CONFIG = {
   apiKey: "AIza...",
   authDomain: "your-project.firebaseapp.com",
   projectId: "your-project",

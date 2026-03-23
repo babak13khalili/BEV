@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ATLAS — Project Mind Map</title>
+<title>BEV — Bird Eye View</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Barlow:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -216,7 +216,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 
 <!-- LOADING -->
 <div id="screen-loading">
-  <div class="auth-logo">ATLAS</div>
+  <div class="auth-logo">BEV</div>
   <p>Connecting</p>
   <div class="loading-dots" style="margin-top:12px"><span></span><span></span><span></span></div>
 </div>
@@ -224,8 +224,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 <!-- SETUP (first time) -->
 <div id="screen-setup" style="display:none">
   <div class="auth-box">
-    <div class="auth-logo">ATLAS</div>
-    <div class="auth-tagline">Project Mind Space</div>
+    <div class="auth-logo">BEV</div>
+    <div class="auth-tagline">Bird Eye View</div>
     <div class="section-label">Connect Your Firebase Project</div>
     <div class="auth-hint" style="margin-top:0;margin-bottom:18px">
       Fastest setup: edit <code>firebase-config.js</code> in this folder, then refresh.<br>
@@ -255,8 +255,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 <!-- AUTH -->
 <div id="screen-auth" style="display:none">
   <div class="auth-box">
-    <div class="auth-logo">ATLAS</div>
-    <div class="auth-tagline">Project Mind Space</div>
+    <div class="auth-logo">BEV</div>
+    <div class="auth-tagline">Bird Eye View</div>
     <div class="auth-divider"></div>
     <div class="section-label">Sign in to continue</div>
     <button class="btn-google" onclick="signInWithGoogle()">
@@ -274,7 +274,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 <!-- DASHBOARD -->
 <div id="screen-dashboard" style="display:none">
   <div id="dashboard-header">
-    <div><div class="logo">ATLAS</div><div class="tagline">Project Mind Space</div></div>
+    <div><div class="logo">BEV</div><div class="tagline">Bird Eye View</div></div>
     <div class="header-right">
       <div class="user-badge">
         <div class="user-avatar" id="user-avatar">?</div>
@@ -411,12 +411,13 @@ let selectedColor=COLORS[0];
 
 // ===================== STARTUP =====================
 function startup() {
-  if (window.ATLAS_FIREBASE_CONFIG && typeof window.ATLAS_FIREBASE_CONFIG === 'object') {
-    localStorage.setItem('atlas_fb_config', JSON.stringify(window.ATLAS_FIREBASE_CONFIG));
-    initFirebase(window.ATLAS_FIREBASE_CONFIG);
+  const injectedConfig = window.BEV_FIREBASE_CONFIG || window.ATLAS_FIREBASE_CONFIG;
+  if (injectedConfig && typeof injectedConfig === 'object') {
+    localStorage.setItem('bev_fb_config', JSON.stringify(injectedConfig));
+    initFirebase(injectedConfig);
     return;
   }
-  const saved = localStorage.getItem('atlas_fb_config');
+  const saved = localStorage.getItem('bev_fb_config') || localStorage.getItem('atlas_fb_config');
   if (saved) { try { initFirebase(JSON.parse(saved)); } catch(e) { show('setup'); } }
   else show('setup');
 }
@@ -442,7 +443,8 @@ function connectFirebase() {
   } catch(e) { err.textContent='Cannot parse config — paste the full { ... } block.'; return; }
   const req=['apiKey','authDomain','projectId'];
   for(const k of req) if(!config[k]){err.textContent='Missing: '+k;return;}
-  localStorage.setItem('atlas_fb_config', JSON.stringify(config));
+  localStorage.setItem('bev_fb_config', JSON.stringify(config));
+  localStorage.removeItem('atlas_fb_config');
   initFirebase(config);
 }
 
@@ -461,7 +463,11 @@ function initFirebase(config) {
   }
 }
 
-function resetSetup() { localStorage.removeItem('atlas_fb_config'); show('setup'); }
+function resetSetup() {
+  localStorage.removeItem('bev_fb_config');
+  localStorage.removeItem('atlas_fb_config');
+  show('setup');
+}
 
 // ===================== AUTH =====================
 async function signInWithGoogle() {
@@ -547,10 +553,10 @@ function autosave() {
 }
 
 async function seedDefaultProject() {
-  const p = buildProject('Welcome to ATLAS','Your personal project mind space.');
+  const p = buildProject('Welcome to BEV','Your personal Bird Eye View workspace.');
   p.color='#44ff88';
   p.nodes=[
-    makeNode('heading',240,80,{text:'ATLAS Mind Map'}),
+    makeNode('heading',240,80,{text:'BEV Mind Map'}),
     makeNode('text',80,220,{text:'Double-click any node to edit. Drag to move.'}),
     makeNode('bullet',400,200,{items:['Add text, notes, images','Draw connections between nodes','Track progress','Organise your thoughts']}),
     makeNode('progress',80,380,{title:'Getting Started',value:30,steps:[
