@@ -356,10 +356,10 @@
         top: 86px;
         right: 0;
         bottom: 0;
-        width: 320px;
+        width: 248px;
         background: rgba(10, 10, 10, 0.97);
         border-left: 1px solid var(--border2);
-        padding: 14px;
+        padding: 12px;
         display: none;
         z-index: 120;
         overflow-y: auto;
@@ -428,12 +428,6 @@
         gap: 8px;
         color: var(--text2);
         font-size: 10px;
-      }
-      .workspace-help {
-        margin-top: 6px;
-        color: var(--text3);
-        font-size: 10px;
-        line-height: 1.5;
       }
       .workspace-category-list,
       .workspace-toggle-list {
@@ -1222,7 +1216,7 @@
         z-index: 100;
         background: var(--bg2);
         border: 1px solid var(--border);
-        padding: 6px;
+        padding: 4px;
       }
       #dashboard-toolbar {
         top: 38px;
@@ -1231,8 +1225,8 @@
         top: 106px;
       }
       .tool-btn {
-        width: 38px;
-        height: 38px;
+        width: 34px;
+        height: 34px;
         background: none;
         border: none;
         cursor: pointer;
@@ -1275,9 +1269,9 @@
       }
       #tdiv {
         width: 1px;
-        height: 24px;
+        height: 20px;
         background: var(--border);
-        margin: 0 4px;
+        margin: 0 3px;
       }
 
       /* canvas container */
@@ -1374,7 +1368,7 @@
         #dashboard-toolbar,
         #toolbar {
           gap: 1px;
-          padding: 4px;
+          padding: 3px;
         }
         #dashboard-toolbar {
           top: 26px;
@@ -1383,9 +1377,9 @@
           top: 98px;
         }
         .tool-btn {
-          width: 34px;
-          height: 34px;
-          font-size: 14px;
+          width: 30px;
+          height: 30px;
+          font-size: 13px;
         }
         .selection-indicator {
           top: 64px;
@@ -1396,8 +1390,8 @@
         }
         #dashboard-minimap,
         #minimap {
-          width: 132px;
-          height: 84px;
+          width: 72px;
+          height: 72px;
           right: 12px;
           bottom: 12px;
         }
@@ -1405,6 +1399,10 @@
         #zoom-controls {
           left: 12px;
           bottom: 12px;
+        }
+        #workspace-menu {
+          width: 220px;
+          padding: 10px;
         }
         #dashboard-info,
         #canvas-info {
@@ -1965,8 +1963,8 @@
         position: absolute;
         bottom: 20px;
         right: 20px;
-        width: 160px;
-        height: 100px;
+        width: 88px;
+        height: 88px;
         background: rgba(8, 8, 8, 0.9);
         border: 1px solid var(--border2);
         z-index: 100;
@@ -1998,17 +1996,25 @@
         z-index: 100;
       }
       .zoom-btn {
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
         background: var(--bg2);
         border: 1px solid var(--border);
         color: var(--text2);
         cursor: pointer;
-        font-size: 16px;
+        font-size: 14px;
         display: flex;
         align-items: center;
         justify-content: center;
         transition: all 0.15s;
+      }
+      .zoom-btn.zoom-fit {
+        width: auto;
+        min-width: 42px;
+        padding: 0 8px;
+        font-size: 10px;
+        font-family: "Syne", sans-serif;
+        letter-spacing: 0.06em;
       }
       .zoom-btn:hover {
         color: var(--text);
@@ -2016,8 +2022,8 @@
       }
       #dashboard-zoom-level,
       #zoom-level {
-        height: 32px;
-        padding: 0 12px;
+        height: 28px;
+        padding: 0 9px;
         background: var(--bg2);
         border: 1px solid var(--border);
         display: flex;
@@ -2028,6 +2034,11 @@
         letter-spacing: 0.1em;
         min-width: 52px;
         justify-content: center;
+      }
+      #screen-dashboard.workspace-menu-open #dashboard-toolbar,
+      #screen-dashboard.workspace-menu-open #dashboard-minimap,
+      #screen-dashboard.workspace-menu-open #dashboard-zoom-controls {
+        display: none;
       }
       #dashboard-info,
       #canvas-info {
@@ -2224,10 +2235,6 @@
               <div class="workspace-section">
                 <div class="workspace-label">Categories</div>
                 <div id="workspace-category-map"></div>
-                <div class="workspace-help">
-                  Toggle categories to filter what is visible. Change each label
-                  and color here, or add new ones.
-                </div>
               </div>
               <div class="workspace-section">
                 <div class="workspace-label">UI Management</div>
@@ -2342,24 +2349,15 @@
         <div id="dashboard-minimap">
           <canvas
             id="dashboard-minimap-canvas"
-            width="160"
-            height="100"></canvas>
+            width="88"
+            height="88"></canvas>
           <div id="dashboard-minimap-label">Overview</div>
         </div>
         <div id="dashboard-zoom-controls">
           <button class="zoom-btn" onclick="dashboardZoomBy(-0.2)">−</button>
           <div id="dashboard-zoom-level">100%</div>
           <button class="zoom-btn" onclick="dashboardZoomBy(0.2)">+</button>
-          <button
-            class="zoom-btn"
-            onclick="dashboardResetView()"
-            style="
-              font-size: 11px;
-              font-family: &quot;Syne&quot;, sans-serif;
-              letter-spacing: 0.06em;
-              width: auto;
-              padding: 0 10px;
-            ">
+          <button class="zoom-btn zoom-fit" onclick="dashboardResetView()">
             FIT
           </button>
         </div>
@@ -2559,23 +2557,14 @@
         <div id="canvas-world"><svg id="connections-svg"></svg></div>
       </div>
       <div id="minimap">
-        <canvas id="minimap-canvas" width="160" height="100"></canvas>
+        <canvas id="minimap-canvas" width="88" height="88"></canvas>
         <div id="minimap-label">Overview</div>
       </div>
       <div id="zoom-controls">
         <button class="zoom-btn" onclick="zoomBy(-0.2)">−</button>
         <div id="zoom-level">100%</div>
         <button class="zoom-btn" onclick="zoomBy(0.2)">+</button>
-        <button
-          class="zoom-btn"
-          onclick="resetView()"
-          style="
-            font-size: 11px;
-            font-family: &quot;Syne&quot;, sans-serif;
-            letter-spacing: 0.06em;
-            width: auto;
-            padding: 0 10px;
-          ">
+        <button class="zoom-btn zoom-fit" onclick="resetView()">
           FIT
         </button>
       </div>
@@ -2854,6 +2843,8 @@
         "Postponed",
         "On Hold",
       ];
+      const TOUCH_TAP_MOVE_THRESHOLD = 10;
+      const TOUCH_HOLD_DELAY = 280;
       let selectedColor = "#44ff88";
 
       // ===================== STARTUP =====================
@@ -3222,6 +3213,14 @@
           const el = document.getElementById(id);
           if (el) el.style.display = zoomDisplay;
         });
+      }
+
+      function syncWorkspaceMenuVisibility() {
+        const menu = document.getElementById("workspace-menu");
+        menu?.classList.toggle("open", workspaceMenuOpen);
+        document
+          .getElementById("screen-dashboard")
+          ?.classList.toggle("workspace-menu-open", workspaceMenuOpen);
       }
 
       function saveWorkspacePrefs() {
@@ -4291,8 +4290,8 @@
           })),
         ];
         if (!items.length) {
-          dashboardViewOffset = { x: 220, y: 140 };
-          dashboardScale = 1;
+          dashboardViewOffset = { x: 180, y: 110 };
+          dashboardScale = 0.85;
           applyDashboardTransform();
           return;
         }
@@ -4306,11 +4305,11 @@
           maxX = Math.max(maxX, it.x + it.w);
           maxY = Math.max(maxY, it.y + it.h);
         });
-        const pad = 120;
+        const pad = 180;
         const worldW = maxX - minX + pad * 2;
         const worldH = maxY - minY + pad * 2;
         dashboardScale = Math.min(
-          1.1,
+          0.85,
           Math.max(0.45, Math.min(rect.width / worldW, rect.height / worldH)),
         );
         dashboardViewOffset.x =
@@ -4455,9 +4454,7 @@
           ?.addEventListener("click", (e) => {
             e.stopPropagation();
             workspaceMenuOpen = !workspaceMenuOpen;
-            document
-              .getElementById("workspace-menu")
-              ?.classList.toggle("open", workspaceMenuOpen);
+            syncWorkspaceMenuVisibility();
           });
         const indicator = document.createElement("div");
         indicator.id = "dashboard-selection-indicator";
@@ -5833,7 +5830,7 @@
           document.getElementById("ctx-menu").classList.remove("visible");
           closeStatusMenus();
           workspaceMenuOpen = false;
-          document.getElementById("workspace-menu")?.classList.remove("open");
+          syncWorkspaceMenuVisibility();
           document
             .querySelectorAll(".node-settings.open")
             .forEach((panel) => panel.classList.remove("open"));
@@ -6056,8 +6053,8 @@
         const con = document.getElementById("canvas-container"),
           r = con.getBoundingClientRect();
         if (!nodes.length) {
-          viewOffset = { x: 80, y: 80 };
-          viewScale = targetScale = 1;
+          viewOffset = { x: 56, y: 56 };
+          viewScale = targetScale = 0.85;
           applyTransform();
           return;
         }
@@ -6074,11 +6071,11 @@
           maxX = Math.max(maxX, nd.x + w);
           maxY = Math.max(maxY, nd.y + h);
         });
-        const pad = 80,
+        const pad = 140,
           cw = maxX - minX + pad * 2,
           ch = maxY - minY + pad * 2;
         viewScale = targetScale = Math.min(
-          1.2,
+          0.9,
           Math.min(r.width / cw, r.height / ch),
         );
         viewOffset.x =
@@ -6112,9 +6109,11 @@
       function drawMinimap() {
         const canvas = document.getElementById("minimap-canvas"),
           ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, 160, 100);
+        const width = canvas.width;
+        const height = canvas.height;
+        ctx.clearRect(0, 0, width, height);
         ctx.fillStyle = "#0a0a0a";
-        ctx.fillRect(0, 0, 160, 100);
+        ctx.fillRect(0, 0, width, height);
         if (!nodes.length) return;
         let minX = Infinity,
           minY = Infinity,
@@ -6133,9 +6132,9 @@
             w: maxX - minX + pad * 2,
             h: maxY - minY + pad * 2,
           };
-        const s = Math.min(160 / rng.w, 100 / rng.h) * 0.9,
-          ox = (160 - rng.w * s) / 2,
-          oy = (100 - rng.h * s) / 2;
+        const s = Math.min(width / rng.w, height / rng.h) * 0.9,
+          ox = (width - rng.w * s) / 2,
+          oy = (height - rng.h * s) / 2;
         connections.forEach((c) => {
           const f = nodes.find((n) => n.id === c.fromId),
             t = nodes.find((n) => n.id === c.toId);
@@ -6172,9 +6171,11 @@
         const canvas = document.getElementById("dashboard-minimap-canvas");
         if (!canvas) return;
         const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, 160, 100);
+        const width = canvas.width;
+        const height = canvas.height;
+        ctx.clearRect(0, 0, width, height);
         ctx.fillStyle = "#0a0a0a";
-        ctx.fillRect(0, 0, 160, 100);
+        ctx.fillRect(0, 0, width, height);
         const items = [
           ...projects.map((p) => ({
             x: p.x || 0,
@@ -6209,9 +6210,9 @@
             w: maxX - minX + pad * 2,
             h: maxY - minY + pad * 2,
           };
-        const s = Math.min(160 / rng.w, 100 / rng.h) * 0.9,
-          ox = (160 - rng.w * s) / 2,
-          oy = (100 - rng.h * s) / 2;
+        const s = Math.min(width / rng.w, height / rng.h) * 0.9,
+          ox = (width - rng.w * s) / 2,
+          oy = (height - rng.h * s) / 2;
         items.forEach((it) => {
           ctx.fillStyle = it.color;
           ctx.globalAlpha = 0.6;
@@ -6270,7 +6271,9 @@
         let mousePointerId = null;
         let pinchState = null;
         let touchTapCandidate = null;
-        const TAP_MOVE_THRESHOLD = 10;
+        let holdTimer = null;
+        let activeTouchMode = null;
+        let touchPanStart = null;
 
         const dispatchMouse = (target, type, point) => {
           (target || el).dispatchEvent(
@@ -6296,6 +6299,31 @@
               buttons: 0,
             }),
           );
+        };
+
+        const clearHoldTimer = () => {
+          if (!holdTimer) return;
+          clearTimeout(holdTimer);
+          holdTimer = null;
+        };
+
+        const applySingleFingerPan = (point) => {
+          if (!touchPanStart) return;
+          const dx = point.clientX - touchPanStart.startX;
+          const dy = point.clientY - touchPanStart.startY;
+          if (kind === "dashboard") {
+            dashboardViewOffset = {
+              x: touchPanStart.offsetX + dx,
+              y: touchPanStart.offsetY + dy,
+            };
+            applyDashboardTransform();
+            return;
+          }
+          viewOffset = {
+            x: touchPanStart.offsetX + dx,
+            y: touchPanStart.offsetY + dy,
+          };
+          applyTransform();
         };
 
         const applyPinch = (points) => {
@@ -6356,6 +6384,7 @@
             });
             if (activePointers.size === 1) {
               mousePointerId = e.pointerId;
+              activeTouchMode = null;
               touchTapCandidate = {
                 pointerId: e.pointerId,
                 startX: e.clientX,
@@ -6363,15 +6392,38 @@
                 target: document.elementFromPoint(e.clientX, e.clientY) || e.target,
                 moved: false,
               };
-              dispatchMouse(
-                document.elementFromPoint(e.clientX, e.clientY) || e.target,
-                "mousedown",
-                e,
-              );
+              touchPanStart = {
+                startX: e.clientX,
+                startY: e.clientY,
+                offsetX:
+                  kind === "dashboard" ? dashboardViewOffset.x : viewOffset.x,
+                offsetY:
+                  kind === "dashboard" ? dashboardViewOffset.y : viewOffset.y,
+              };
+              const holdTarget = touchTapCandidate.target;
+              const canHoldToManipulate =
+                holdTarget === el ||
+                holdTarget?.id === "projects-world" ||
+                holdTarget?.id === "canvas-world" ||
+                holdTarget?.id === "connections-svg" ||
+                !!holdTarget?.closest?.(".project-card, .overview-item, .node");
+              if (canHoldToManipulate) {
+                holdTimer = setTimeout(() => {
+                  activeTouchMode = "hold";
+                  clearHoldTimer();
+                  dispatchMouse(holdTarget, "mousedown", {
+                    clientX: touchTapCandidate.startX,
+                    clientY: touchTapCandidate.startY,
+                  });
+                }, TOUCH_HOLD_DELAY);
+              }
             } else {
+              clearHoldTimer();
               mousePointerId = null;
               pinchState = null;
               touchTapCandidate = null;
+              activeTouchMode = "pinch";
+              touchPanStart = null;
             }
             e.preventDefault();
           },
@@ -6387,6 +6439,7 @@
               clientY: e.clientY,
             });
             if (activePointers.size >= 2) {
+              clearHoldTimer();
               applyPinch([...activePointers.values()].slice(0, 2));
             } else if (mousePointerId === e.pointerId) {
               if (touchTapCandidate?.pointerId === e.pointerId) {
@@ -6394,10 +6447,18 @@
                   e.clientX - touchTapCandidate.startX,
                   e.clientY - touchTapCandidate.startY,
                 );
-                if (movedDistance > TAP_MOVE_THRESHOLD)
+                if (movedDistance > TOUCH_TAP_MOVE_THRESHOLD)
                   touchTapCandidate.moved = true;
               }
-              dispatchMouse(window, "mousemove", e);
+              if (activeTouchMode === "hold") {
+                dispatchMouse(window, "mousemove", e);
+              } else {
+                if (touchTapCandidate?.moved) {
+                  clearHoldTimer();
+                  activeTouchMode = "pan";
+                }
+                if (activeTouchMode === "pan") applySingleFingerPan(e);
+              }
             }
             e.preventDefault();
           },
@@ -6408,22 +6469,42 @@
           if (!activePointers.has(e.pointerId)) return;
           activePointers.delete(e.pointerId);
           if (mousePointerId === e.pointerId) {
-            dispatchMouse(window, "mouseup", e);
+            clearHoldTimer();
+            if (activeTouchMode === "hold") dispatchMouse(window, "mouseup", e);
             if (
               touchTapCandidate?.pointerId === e.pointerId &&
-              !touchTapCandidate.moved
+              !touchTapCandidate.moved &&
+              activeTouchMode !== "hold"
             ) {
               const target =
                 document.elementFromPoint(e.clientX, e.clientY) ||
                 touchTapCandidate.target ||
                 e.target;
-              dispatchClick(target, e);
+              const isDirectControl = !!target?.closest?.(
+                "button, input, textarea, select, [contenteditable='true'], .card-status-menu, .node-settings",
+              );
+              const selectableTarget = target?.closest?.(
+                ".project-card, .overview-item, .node",
+              );
+              if (selectableTarget && !isDirectControl) {
+                dispatchMouse(selectableTarget, "mousedown", {
+                  clientX: touchTapCandidate.startX,
+                  clientY: touchTapCandidate.startY,
+                });
+                dispatchMouse(window, "mouseup", e);
+              } else {
+                dispatchClick(target, e);
+              }
             }
             mousePointerId = null;
           }
           if (activePointers.size < 2) pinchState = null;
           if (touchTapCandidate?.pointerId === e.pointerId)
             touchTapCandidate = null;
+          if (!activePointers.size) {
+            activeTouchMode = null;
+            touchPanStart = null;
+          }
           if (!activePointers.size && kind === "canvas" && currentProject)
             autosave();
           e.preventDefault();
