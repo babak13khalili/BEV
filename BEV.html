@@ -297,6 +297,7 @@
         background: rgba(10, 10, 10, 0.94);
         display: flex;
         align-items: center;
+        justify-content: space-between;
         padding: 0 20px;
         font-family: "Syne", sans-serif;
         font-size: 10px;
@@ -305,12 +306,278 @@
         color: var(--text3);
         z-index: 28;
       }
+      .path-left,
+      .path-center,
+      .path-right {
+        display: flex;
+        align-items: center;
+      }
+      .path-center {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        pointer-events: none;
+      }
+      .path-status {
+        display: none;
+        color: var(--text3);
+        white-space: nowrap;
+      }
+      .path-status.visible {
+        display: flex;
+      }
       .path-sep {
         margin: 0 8px;
         color: var(--text3);
       }
       .path-current {
         color: var(--text2);
+      }
+      .icon-btn {
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        color: var(--text3);
+        cursor: pointer;
+        transition: color 0.15s, background 0.15s;
+      }
+      .icon-btn:hover {
+        color: var(--text);
+        background: var(--bg3);
+      }
+      #workspace-menu {
+        position: fixed;
+        top: 86px;
+        right: 0;
+        bottom: 0;
+        width: 320px;
+        background: rgba(10, 10, 10, 0.97);
+        border-left: 1px solid var(--border2);
+        padding: 14px;
+        display: none;
+        z-index: 120;
+        overflow-y: auto;
+      }
+      #workspace-menu.open {
+        display: block;
+      }
+      .workspace-section {
+        padding-bottom: 10px;
+        margin-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+      }
+      .workspace-section:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+      .workspace-label {
+        margin-bottom: 8px;
+        color: var(--text3);
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .workspace-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+      .workspace-row:last-child {
+        margin-bottom: 0;
+      }
+      .workspace-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text2);
+        font-size: 10px;
+      }
+      .workspace-color {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: 0.5px solid var(--border2);
+      }
+      .workspace-input,
+      .workspace-select {
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        color: var(--text2);
+        padding: 7px 9px;
+        font: inherit;
+        width: 140px;
+      }
+      .workspace-input:focus,
+      .workspace-select:focus {
+        outline: none;
+        border-color: var(--border2);
+        color: var(--text);
+      }
+      .workspace-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text2);
+        font-size: 10px;
+      }
+      .workspace-help {
+        margin-top: 6px;
+        color: var(--text3);
+        font-size: 10px;
+        line-height: 1.5;
+      }
+      .workspace-category-list,
+      .workspace-toggle-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .workspace-category-row {
+        border: 1px solid var(--border);
+        background: rgba(18, 18, 18, 0.9);
+        padding: 8px 10px;
+      }
+      .workspace-row-main,
+      .workspace-row-fields,
+      .workspace-row-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .workspace-row-main {
+        justify-content: space-between;
+      }
+      .workspace-row-fields {
+        margin-top: 8px;
+      }
+      .workspace-check,
+      .workspace-toggle-btn,
+      .workspace-action-btn,
+      .workspace-add-btn {
+        border: 1px solid var(--border);
+        background: var(--bg3);
+        color: var(--text2);
+        font: inherit;
+        cursor: pointer;
+        transition: border-color 0.15s, color 0.15s, background 0.15s;
+      }
+      .workspace-check {
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        flex-shrink: 0;
+      }
+      .workspace-check.is-on {
+        border-color: var(--text2);
+        color: var(--text);
+      }
+      .workspace-check:hover,
+      .workspace-toggle-btn:hover,
+      .workspace-action-btn:hover,
+      .workspace-add-btn:hover {
+        border-color: var(--text3);
+        color: var(--text);
+      }
+      .workspace-action-btn,
+      .workspace-add-btn {
+        padding: 7px 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 10px;
+      }
+      .workspace-action-btn.danger {
+        color: var(--red);
+      }
+      .workspace-color-preview {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 0.5px solid var(--border2);
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+      .workspace-color-input {
+        width: 92px;
+        text-transform: uppercase;
+      }
+      .workspace-label-input {
+        flex: 1;
+      }
+      .workspace-category-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+      .workspace-category-title {
+        color: var(--text2);
+        font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: text;
+      }
+      .workspace-category-title.is-muted {
+        color: var(--text3);
+      }
+      .workspace-category-editor {
+        display: none;
+        margin-top: 8px;
+        gap: 8px;
+        align-items: center;
+      }
+      .workspace-category-row.color-editing .workspace-category-editor {
+        display: flex;
+      }
+      .workspace-category-row.label-editing .workspace-category-title {
+        display: none;
+      }
+      .workspace-inline-input {
+        display: none;
+        flex: 1;
+      }
+      .workspace-category-row.label-editing .workspace-inline-input {
+        display: block;
+      }
+      .workspace-icon-btn {
+        width: 22px;
+        height: 22px;
+        border: none;
+        background: none;
+        color: var(--text3);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: color 0.15s;
+        padding: 0;
+      }
+      .workspace-icon-btn:hover {
+        color: var(--text);
+      }
+      .workspace-icon-btn.danger:hover {
+        color: var(--red);
+      }
+      .workspace-toggle-btn {
+        width: 100%;
+        padding: 9px 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .workspace-toggle-btn.is-on {
+        border-color: var(--text2);
+        color: var(--text);
       }
       .logo {
         font-family: "Syne", sans-serif;
@@ -430,9 +697,10 @@
       }
       .project-card {
         width: 320px;
+        min-height: 320px;
         background: rgba(18, 18, 18, 0.98);
         border: 0.35px solid var(--card-accent, #2a2a2a);
-        padding: 16px 28px 24px;
+        padding: 16px 28px 56px;
         cursor: move;
         transition:
           border-color 0.15s,
@@ -441,6 +709,8 @@
         position: absolute;
         overflow: visible;
         box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+        display: flex;
+        flex-direction: column;
       }
       .project-card::before {
         display: none;
@@ -487,9 +757,33 @@
         font-size: 13px;
         color: var(--text2);
         line-height: 1.6;
-        margin-bottom: 18px;
-        min-height: 40px;
+        margin-bottom: 8px;
+        min-height: 62px;
         padding-right: 42px;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+        overflow: hidden;
+      }
+      .project-card.expanded .card-desc {
+        display: block;
+        overflow: visible;
+      }
+      .card-readmore {
+        align-self: flex-start;
+        margin-bottom: 14px;
+        padding: 0;
+        background: none;
+        border: none;
+        color: var(--text3);
+        cursor: pointer;
+        font-family: "Syne", sans-serif;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .card-readmore:hover {
+        color: var(--text);
       }
       .card-status {
         display: inline-flex;
@@ -506,11 +800,12 @@
         color: var(--text2);
         cursor: pointer;
         transition: all 0.15s;
-        appearance: none;
-        -webkit-appearance: none;
-        border-radius: 0;
       }
       .card-status:hover {
+        border-color: var(--border2);
+        color: var(--text);
+      }
+      .card-status.open {
         border-color: var(--border2);
         color: var(--text);
       }
@@ -520,6 +815,60 @@
         height: 7px;
         border-radius: 50%;
         background: var(--status-color, var(--text3));
+      }
+      .card-status::after {
+        content: "▾";
+        margin-left: 4px;
+        font-size: 10px;
+        color: var(--text3);
+      }
+      .card-status-wrap {
+        position: relative;
+        display: inline-flex;
+        margin-top: auto;
+        margin-bottom: 10px;
+      }
+      .card-status-menu {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        min-width: 180px;
+        background: rgba(10, 10, 10, 0.96);
+        border: 1px solid var(--border2);
+        padding: 6px;
+        display: none;
+        z-index: 12;
+      }
+      .card-status-menu.open {
+        display: block;
+      }
+      .card-status-option {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        background: none;
+        border: none;
+        color: var(--text2);
+        text-align: left;
+        cursor: pointer;
+        font-family: "Syne", sans-serif;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .card-status-option:hover,
+      .card-status-option.active {
+        background: var(--bg3);
+        color: var(--text);
+      }
+      .card-status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--status-color, var(--text3));
+        flex-shrink: 0;
       }
       .card-status[data-status="done"] {
         --status-color: var(--green);
@@ -827,6 +1176,7 @@
         letter-spacing: 0;
         flex: 1;
         line-height: 1.2;
+        display: none;
       }
       #canvas-project-title[contenteditable="true"]:focus {
         outline: none;
@@ -972,6 +1322,13 @@
       .conn-line.selected {
         stroke: var(--accent);
       }
+      .conn-preview {
+        stroke: rgba(255, 255, 255, 0.45);
+        stroke-width: 1;
+        fill: none;
+        stroke-dasharray: 5 5;
+        pointer-events: none;
+      }
 
       /* nodes */
       .node {
@@ -1093,6 +1450,53 @@
       .node-act-btn:hover {
         color: var(--text);
       }
+      .node-settings {
+        position: absolute;
+        top: 26px;
+        right: 10px;
+        min-width: 170px;
+        background: rgba(10, 10, 10, 0.97);
+        border: 1px solid var(--border2);
+        padding: 6px;
+        z-index: 15;
+        display: none;
+      }
+      .node-settings.open {
+        display: block;
+      }
+      .node-settings-empty {
+        padding: 8px 10px;
+        font-size: 10px;
+        color: var(--text3);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-family: "Syne", sans-serif;
+      }
+      .node-setting-toggle {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        background: none;
+        border: none;
+        color: var(--text2);
+        text-align: left;
+        cursor: pointer;
+        font-family: "Syne", sans-serif;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .node-setting-toggle:hover,
+      .node-setting-toggle.active {
+        background: var(--bg3);
+        color: var(--text);
+      }
+      .node-setting-toggle .state {
+        color: var(--text3);
+      }
       .node-body {
         padding: 10px 12px;
       }
@@ -1139,12 +1543,64 @@
         color: var(--text2);
         margin-bottom: 4px;
         line-height: 1.5;
+        position: relative;
       }
       .node-bullet .bullet-list li::before {
         content: "—";
         color: var(--text3);
         flex-shrink: 0;
         margin-top: 1px;
+      }
+      .node-bullet.has-checks .bullet-list li::before {
+        display: none;
+      }
+      .bullet-item-check {
+        width: 14px;
+        height: 14px;
+        border: 0.5px solid var(--border2);
+        flex-shrink: 0;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        color: var(--green);
+        margin-top: 1px;
+        background: transparent;
+        transition:
+          border-color 0.15s,
+          background 0.15s,
+          color 0.15s;
+      }
+      .bullet-item-check.done {
+        border-color: var(--green);
+        background: rgba(68, 255, 136, 0.06);
+      }
+      .bullet-item-text {
+        flex: 1;
+        min-width: 0;
+      }
+      .bullet-list li.is-done .bullet-item-text {
+        color: var(--text3);
+        text-decoration: line-through;
+        text-decoration-thickness: 0.5px;
+        text-decoration-color: rgba(240, 240, 240, 0.28);
+      }
+      .bullet-item-handle {
+        position: absolute;
+        right: -18px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--text3);
+        border: 1px solid var(--bg);
+        cursor: crosshair;
+        opacity: 0;
+      }
+      .node-bullet.has-connectors .bullet-item-handle {
+        opacity: 1;
       }
       .bullet-add-btn {
         font-size: 11px;
@@ -1319,8 +1775,8 @@
       }
       .conn-handle {
         position: absolute;
-        width: 10px;
-        height: 10px;
+        width: 8px;
+        height: 8px;
         border-radius: 50%;
         background: var(--text3);
         border: 1px solid var(--bg);
@@ -1333,6 +1789,9 @@
         transform: translate(-50%, -50%);
       }
       .node:hover .conn-handle {
+        opacity: 1;
+      }
+      .node.connect-target .conn-handle {
         opacity: 1;
       }
       .conn-handle:hover {
@@ -1426,11 +1885,30 @@
       #modal-overlay.visible {
         display: flex;
       }
+      #confirm-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 10001;
+        background: rgba(0, 0, 0, 0.72);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(2px);
+      }
+      #confirm-overlay.visible {
+        display: flex;
+      }
       #modal {
         background: var(--bg2);
         border: 1px solid var(--border2);
         width: 440px;
         padding: 36px;
+      }
+      #confirm-modal {
+        background: var(--bg2);
+        border: 1px solid var(--border2);
+        width: 380px;
+        padding: 30px;
       }
       #modal h3 {
         font-family: "Syne", sans-serif;
@@ -1438,6 +1916,18 @@
         font-weight: 700;
         color: var(--text);
         margin-bottom: 24px;
+      }
+      #confirm-modal h3 {
+        font-family: "Syne", sans-serif;
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 14px;
+      }
+      #confirm-message {
+        color: var(--text2);
+        line-height: 1.6;
+        margin-bottom: 18px;
       }
       .color-swatches {
         display: flex;
@@ -1685,12 +2175,65 @@
               id="user-name"
               style="font-size: 12px; color: var(--text3)"></span>
           </div>
-          <button class="link-btn" onclick="signOut()">Sign out</button>
+          <button class="icon-btn" onclick="signOut()" aria-label="Sign out">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5">
+              <path d="M6 3H3v10h3" />
+              <path d="M9 5l4 3-4 3" />
+              <path d="M13 8H6" /></svg>
+          </button>
         </div>
       </div>
       <div id="dashboard-pathbar">
-        <span>Home</span><span class="path-sep">/</span
-        ><span class="path-current">Overview</span>
+        <div class="path-left">
+          <span class="path-current">Home</span>
+        </div>
+        <div class="path-center">
+          <div class="path-status" id="dashboard-path-status"></div>
+        </div>
+        <div class="path-right">
+          <div id="workspace-menu-wrap">
+            <button class="icon-btn" id="workspace-menu-btn" aria-label="Workspace settings">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="currentColor">
+                <circle cx="3" cy="8" r="1.2" />
+                <circle cx="8" cy="8" r="1.2" />
+                <circle cx="13" cy="8" r="1.2" />
+              </svg>
+            </button>
+            <div id="workspace-menu">
+              <div class="workspace-section">
+                <div class="workspace-label">Categories</div>
+                <div id="workspace-category-map"></div>
+                <div class="workspace-help">
+                  Toggle categories to filter what is visible. Change each label
+                  and color here, or add new ones.
+                </div>
+              </div>
+              <div class="workspace-section">
+                <div class="workspace-label">UI Management</div>
+                <div id="workspace-ui-toggles"></div>
+              </div>
+              <div class="workspace-section">
+                <div class="workspace-label">Sort</div>
+                <select class="workspace-select" id="workspace-sort-select">
+                  <option value="created-desc">Newest First</option>
+                  <option value="created-asc">Oldest First</option>
+                  <option value="title-asc">Title A-Z</option>
+                  <option value="title-desc">Title Z-A</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div id="dashboard-body">
         <div id="dashboard-toolbar">
@@ -1701,20 +2244,6 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
               <path d="M2 2l5 12 2.5-4.5 4.5-2.5z" /></svg
             ><span class="tip">Select</span>
-          </button>
-          <button
-            class="tool-btn"
-            id="dashboard-tool-pan"
-            onclick="setDashboardTool('pan')">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <path d="M8 2v12M2 8h12" /></svg
-            ><span class="tip">Pan</span>
           </button>
           <div id="tdiv"></div>
           <button class="tool-btn" onclick="openNewProjectModal()">
@@ -1834,10 +2363,7 @@
     <div id="screen-canvas" style="display: none">
       <div id="canvas-header">
         <button id="back-btn" onclick="goToDashboard()">←</button>
-        <div
-          id="canvas-project-title"
-          contenteditable="true"
-          spellcheck="false"></div>
+        <div id="canvas-project-title" contenteditable="true" spellcheck="false"></div>
         <div style="flex: 1"></div>
         <div id="save-indicator">
           <div id="save-dot"></div>
@@ -1845,8 +2371,11 @@
         </div>
       </div>
       <div id="canvas-pathbar">
-        <span>Home</span><span class="path-sep">/</span
-        ><span class="path-current" id="canvas-path-current">Card</span>
+        <div class="path-left">
+          <span id="canvas-path-category">Projects</span
+          ><span class="path-sep">/</span
+          ><span class="path-current" id="canvas-path-current">Card</span>
+        </div>
       </div>
       <div id="toolbar">
         <button
@@ -1856,17 +2385,6 @@
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M2 2l5 12 2.5-4.5 4.5-2.5z" /></svg
           ><span class="tip">Select</span>
-        </button>
-        <button class="tool-btn" id="tool-pan" onclick="setTool('pan')">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <path d="M8 2v12M2 8h12" /></svg
-          ><span class="tip">Pan</span>
         </button>
         <button class="tool-btn" id="tool-connect" onclick="setTool('connect')">
           <svg
@@ -2150,6 +2668,23 @@
       </div>
     </div>
 
+    <div id="confirm-overlay">
+      <div id="confirm-modal">
+        <h3 id="confirm-title">Delete</h3>
+        <div id="confirm-message"></div>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeConfirmDialog()">Cancel</button>
+          <button
+            class="btn-primary"
+            id="confirm-action-btn"
+            style="width: auto; padding: 10px 22px"
+            onclick="runConfirmAction()">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div id="toast"></div>
     <input type="file" id="file-input" />
 
@@ -2187,6 +2722,9 @@
         zoomRAF = null,
         isZooming = false;
       let pendingConn = null,
+        pendingConnCursor = null,
+        pendingConnTarget = null,
+        pendingConnRenderRAF = null,
         ctxMenuNodeId = null,
         ctxMenuPos = { x: 0, y: 0 };
       let editingProjectId = null,
@@ -2227,24 +2765,39 @@
       let dashboardGroupDragProjects = null,
         dashboardGroupDragItems = null,
         dashboardGroupDragStart = null;
+      let expandedProjectIds = new Set();
+      let workspaceMenuOpen = false;
       let canvasSelectionRect = null,
         canvasSelectionStart = null,
         nodeGroupDragIds = null,
         nodeGroupDragStart = null;
+      const DEFAULT_PROJECT_CARD_WIDTH = 320;
+      const DEFAULT_PROJECT_CARD_HEIGHT = 320;
+      const DEFAULT_WORKSPACE_CATEGORIES = [
+        { id: "cat-general", color: "#ffffff", label: "General", enabled: true },
+        { id: "cat-urgent", color: "#ff4444", label: "Urgent", enabled: true },
+        { id: "cat-planning", color: "#ff8844", label: "Planning", enabled: true },
+        { id: "cat-ideas", color: "#ffcc44", label: "Ideas", enabled: true },
+        { id: "cat-projects", color: "#44ff88", label: "Projects", enabled: true },
+        { id: "cat-research", color: "#44ccff", label: "Research", enabled: true },
+        { id: "cat-resources", color: "#aa88ff", label: "Resources", enabled: true },
+        { id: "cat-personal", color: "#ff88cc", label: "Personal", enabled: true },
+      ];
+      let workspaceCategories = DEFAULT_WORKSPACE_CATEGORIES.map((category) => ({
+        ...category,
+      }));
+      let workspaceSort = "created-desc";
+      let workspaceUIPrefs = {
+        showZoomControls: true,
+        showMinimap: true,
+      };
+      let activeCategoryColorEditorId = null,
+        editingCategoryLabelId = null,
+        pendingConfirmAction = null;
       let undoStack = [],
         redoStack = [],
         lastHistorySnapshot = "",
         isRestoringHistory = false;
-      const COLORS = [
-        "#ffffff",
-        "#ff4444",
-        "#ff8844",
-        "#ffcc44",
-        "#44ff88",
-        "#44ccff",
-        "#aa88ff",
-        "#ff88cc",
-      ];
       const PROJECT_STATUSES = [
         "In Progress",
         "On Going",
@@ -2253,7 +2806,7 @@
         "Postponed",
         "On Hold",
       ];
-      let selectedColor = COLORS[0];
+      let selectedColor = "#44ff88";
 
       // ===================== STARTUP =====================
       function startup() {
@@ -2374,6 +2927,7 @@
           av.textContent = (currentUser.displayName ||
             currentUser.email ||
             "?")[0].toUpperCase();
+        loadWorkspacePrefs();
         initColorSwatches();
         setupCanvasEvents();
         setupDashboardEvents();
@@ -2459,8 +3013,9 @@
           viewOffset = state.canvas?.viewOffset || { x: 0, y: 0 };
           viewScale = state.canvas?.viewScale || 1;
           targetScale = state.canvas?.targetScale || viewScale;
-          document.getElementById("canvas-project-title").textContent =
-            currentProject.name || "Untitled";
+          const titleEl = document.getElementById("canvas-project-title");
+          if (titleEl) titleEl.textContent = currentProject.name || "Untitled";
+          updateCanvasPathbar();
           show("canvas");
           renderAll();
           applyTransform();
@@ -2500,7 +3055,11 @@
             pRef().orderBy("created", "asc").get(),
             dashboardRef().get(),
           ]);
-          projects = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          projects = snap.docs.map((d) => {
+            const project = { id: d.id, ...d.data() };
+            project.nodes = normalizeNodeDataList(project.nodes || []);
+            return project;
+          });
           overviewItems = dashboardSnap.exists
             ? dashboardSnap.data().items || []
             : [];
@@ -2572,11 +3131,396 @@
           .replace(/\s+/g, "-");
       }
 
+      function categoryFromColor(color) {
+        const normalized = String(color || "").toLowerCase();
+        return (
+          workspaceCategories.find(
+            (category) => category.color.toLowerCase() === normalized,
+          )?.label || "Projects"
+        );
+      }
+
+      function getCategoryColorList() {
+        return workspaceCategories.map((category) => category.color);
+      }
+
+      function getDefaultCategoryColor() {
+        return workspaceCategories[0]?.color || "#44ff88";
+      }
+
+      function sanitizeCategoryColor(value, fallback = "#44ff88") {
+        const raw = String(value || "").trim();
+        return /^#([0-9a-f]{6})$/i.test(raw) ? raw.toLowerCase() : fallback;
+      }
+
+      function makeCategoryId() {
+        return `cat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      }
+
+      function syncProjectCategories() {
+        projects.forEach((p) => {
+          p.category = categoryFromColor(p.color || getDefaultCategoryColor());
+        });
+      }
+
+      function applyWorkspaceUIPrefs() {
+        const minimapDisplay = workspaceUIPrefs.showMinimap ? "" : "none";
+        const zoomDisplay = workspaceUIPrefs.showZoomControls ? "" : "none";
+        ["dashboard-minimap", "minimap"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.style.display = minimapDisplay;
+        });
+        ["dashboard-zoom-controls", "zoom-controls"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.style.display = zoomDisplay;
+        });
+      }
+
+      function saveWorkspacePrefs() {
+        localStorage.setItem(
+          "bev_workspace_prefs",
+          JSON.stringify({
+            categories: workspaceCategories,
+            sort: workspaceSort,
+            uiPrefs: workspaceUIPrefs,
+          }),
+        );
+      }
+
+      function loadWorkspacePrefs() {
+        try {
+          const raw = localStorage.getItem("bev_workspace_prefs");
+          if (!raw) return;
+          const prefs = JSON.parse(raw);
+          if (Array.isArray(prefs.categories) && prefs.categories.length) {
+            workspaceCategories = prefs.categories.map((category, index) => ({
+              id: category.id || `cat-loaded-${index}`,
+              color: sanitizeCategoryColor(
+                category.color,
+                DEFAULT_WORKSPACE_CATEGORIES[index]?.color || "#44ff88",
+              ),
+              label:
+                String(category.label || "").trim() ||
+                DEFAULT_WORKSPACE_CATEGORIES[index]?.label ||
+                `Category ${index + 1}`,
+              enabled: category.enabled !== false,
+            }));
+          } else if (prefs.categoryMap) {
+            const disabled = Array.isArray(prefs.categoryFilters)
+              ? []
+              : [];
+            workspaceCategories = Object.entries(prefs.categoryMap).map(
+              ([color, label], index) => ({
+                id: `cat-migrated-${index}`,
+                color: sanitizeCategoryColor(color),
+                label: String(label || "").trim() || `Category ${index + 1}`,
+                enabled:
+                  !Array.isArray(prefs.categoryFilters) ||
+                  prefs.categoryFilters.includes(String(label || "").trim()),
+              }),
+            );
+          }
+          workspaceSort = prefs.sort || "created-desc";
+          workspaceUIPrefs = {
+            showZoomControls: prefs.uiPrefs?.showZoomControls !== false,
+            showMinimap: prefs.uiPrefs?.showMinimap !== false,
+          };
+        } catch {}
+        if (!workspaceCategories.length) {
+          workspaceCategories = DEFAULT_WORKSPACE_CATEGORIES.map((category) => ({
+            ...category,
+          }));
+        }
+        selectedColor = getCategoryColorList().includes(selectedColor)
+          ? selectedColor
+          : getDefaultCategoryColor();
+        applyWorkspaceUIPrefs();
+      }
+
+      function getAvailableCategories() {
+        return workspaceCategories.map((category) => category.label).filter(Boolean);
+      }
+
+      function getFilteredSortedProjects() {
+        let list = [...projects];
+        const enabledCategories = workspaceCategories
+          .filter((category) => category.enabled)
+          .map((category) => category.label);
+        if (enabledCategories.length !== workspaceCategories.length) {
+          list = list.filter((p) =>
+            enabledCategories.includes(
+              categoryFromColor(p.color || getDefaultCategoryColor()),
+            ),
+          );
+        }
+        list.sort((a, b) => {
+          if (workspaceSort === "created-asc") return (a.created || 0) - (b.created || 0);
+          if (workspaceSort === "title-asc")
+            return String(a.name || "").localeCompare(String(b.name || ""));
+          if (workspaceSort === "title-desc")
+            return String(b.name || "").localeCompare(String(a.name || ""));
+          return (b.created || 0) - (a.created || 0);
+        });
+        return list;
+      }
+
+      function updatePathStatus() {
+        const status = document.getElementById("dashboard-path-status");
+        if (!status) return;
+        const parts = [];
+        const hiddenCategories = workspaceCategories
+          .filter((category) => !category.enabled)
+          .map((category) => category.label);
+        if (hiddenCategories.length)
+          parts.push(`Hidden: ${hiddenCategories.join(", ")}`);
+        if (workspaceSort !== "created-desc") {
+          const sortLabels = {
+            "created-asc": "Oldest First",
+            "title-asc": "Title A-Z",
+            "title-desc": "Title Z-A",
+          };
+          parts.push(`Sort: ${sortLabels[workspaceSort] || "Newest First"}`);
+        }
+        status.textContent = parts.join(" | ");
+        status.classList.toggle("visible", parts.length > 0);
+      }
+
+      function renderWorkspaceMenu() {
+        const mapEl = document.getElementById("workspace-category-map");
+        const uiEl = document.getElementById("workspace-ui-toggles");
+        const sortEl = document.getElementById("workspace-sort-select");
+        if (!mapEl || !uiEl || !sortEl) return;
+        mapEl.innerHTML =
+          `<div class="workspace-category-list">` +
+          workspaceCategories
+            .map(
+              (category) => `<div class="workspace-category-row${editingCategoryLabelId === category.id ? " label-editing" : ""}${activeCategoryColorEditorId === category.id ? " color-editing" : ""}" data-category-id="${category.id}">
+                <div class="workspace-row-main">
+                  <div class="workspace-category-meta">
+                    <button class="workspace-check${category.enabled ? " is-on" : ""}" type="button" data-action="toggle-filter" data-category-id="${category.id}">${category.enabled ? "✓" : ""}</button>
+                    <button class="workspace-color-preview" type="button" data-action="edit-color" data-category-id="${category.id}" style="background:${category.color}"></button>
+                    <span class="workspace-category-title${category.enabled ? "" : " is-muted"}" data-action="edit-label" data-category-id="${category.id}">${esc(category.label)}</span>
+                    <input class="workspace-input workspace-inline-input" data-field="label" data-category-id="${category.id}" value="${esc(category.label)}" />
+                  </div>
+                  <button class="workspace-icon-btn danger" type="button" data-action="delete-category" data-category-id="${category.id}" aria-label="Delete category">✕</button>
+                </div>
+                <div class="workspace-category-editor">
+                  <input class="workspace-input workspace-color-input" data-field="color" data-category-id="${category.id}" value="${esc(category.color)}" />
+                  <input type="color" data-field="color-wheel" data-category-id="${category.id}" value="${esc(category.color)}" />
+                </div>
+                </div>
+              </div>`,
+            )
+            .join("") +
+          `</div><button class="workspace-add-btn" type="button" id="workspace-add-category">+ Add Category</button>`;
+        uiEl.innerHTML = `<div class="workspace-toggle-list">
+          <button class="workspace-toggle-btn${workspaceUIPrefs.showZoomControls ? " is-on" : ""}" type="button" data-ui-toggle="showZoomControls"><span>Zoom Controls</span><span>${workspaceUIPrefs.showZoomControls ? "On" : "Off"}</span></button>
+          <button class="workspace-toggle-btn${workspaceUIPrefs.showMinimap ? " is-on" : ""}" type="button" data-ui-toggle="showMinimap"><span>Minimap</span><span>${workspaceUIPrefs.showMinimap ? "On" : "Off"}</span></button>
+        </div>`;
+        sortEl.value = workspaceSort;
+        mapEl.querySelectorAll("[data-action='toggle-filter']").forEach((btn) =>
+          btn.addEventListener("click", () => {
+            const category = workspaceCategories.find(
+              (item) => item.id === btn.dataset.categoryId,
+            );
+            if (!category) return;
+            category.enabled = !category.enabled;
+            saveWorkspacePrefs();
+            updatePathStatus();
+            renderWorkspaceMenu();
+            renderDashboard();
+          }),
+        );
+        mapEl.querySelectorAll("[data-action='edit-label']").forEach((label) =>
+          label.addEventListener("dblclick", () => {
+            editingCategoryLabelId = label.dataset.categoryId;
+            activeCategoryColorEditorId = null;
+            renderWorkspaceMenu();
+            const input = mapEl.querySelector(
+              `[data-field='label'][data-category-id='${editingCategoryLabelId}']`,
+            );
+            input?.focus();
+            input?.select();
+          }),
+        );
+        mapEl.querySelectorAll("[data-field='label']").forEach((input) => {
+          const commit = () => {
+            const category = workspaceCategories.find(
+              (item) => item.id === input.dataset.categoryId,
+            );
+            if (!category) return;
+            category.label = input.value.trim() || category.label || "Category";
+            editingCategoryLabelId = null;
+            syncProjectCategories();
+            saveWorkspacePrefs();
+            updatePathStatus();
+            renderWorkspaceMenu();
+            renderDashboard();
+          };
+          input.addEventListener("blur", commit);
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") {
+              editingCategoryLabelId = null;
+              renderWorkspaceMenu();
+            }
+          });
+        });
+        mapEl.querySelectorAll("[data-action='edit-color']").forEach((btn) =>
+          btn.addEventListener("click", () => {
+            activeCategoryColorEditorId =
+              activeCategoryColorEditorId === btn.dataset.categoryId
+                ? null
+                : btn.dataset.categoryId;
+            editingCategoryLabelId = null;
+            renderWorkspaceMenu();
+          }),
+        );
+        const updateCategoryColor = (categoryId, rawValue) => {
+          const category = workspaceCategories.find((item) => item.id === categoryId);
+          if (!category) return;
+          const previousColor = category.color;
+          category.color = sanitizeCategoryColor(rawValue, previousColor);
+          projects.forEach((project) => {
+            if ((project.color || "").toLowerCase() === previousColor.toLowerCase()) {
+              project.color = category.color;
+            }
+          });
+          selectedColor =
+            selectedColor.toLowerCase() === previousColor.toLowerCase()
+              ? category.color
+              : selectedColor;
+          syncProjectCategories();
+          saveWorkspacePrefs();
+          initColorSwatches();
+          renderWorkspaceMenu();
+          renderDashboard();
+        };
+        mapEl.querySelectorAll("[data-field='color']").forEach((input) =>
+          input.addEventListener("change", () =>
+            updateCategoryColor(input.dataset.categoryId, input.value),
+          ),
+        );
+        mapEl.querySelectorAll("[data-field='color-wheel']").forEach((input) =>
+          input.addEventListener("input", () =>
+            updateCategoryColor(input.dataset.categoryId, input.value),
+          ),
+        );
+        mapEl.querySelectorAll("[data-action='delete-category']").forEach((btn) =>
+          btn.addEventListener("click", () => {
+            const categoryId = btn.dataset.categoryId;
+            const category = workspaceCategories.find((item) => item.id === categoryId);
+            if (!category || workspaceCategories.length <= 1) return;
+            openConfirmDialog({
+              title: "Delete Category",
+              message:
+                "Delete this category? Cards using it will move to the first available category.",
+              confirmLabel: "Delete",
+              onConfirm: () => {
+                workspaceCategories = workspaceCategories.filter(
+                  (item) => item.id !== categoryId,
+                );
+                const fallbackColor = getDefaultCategoryColor();
+                projects.forEach((project) => {
+                  if (
+                    (project.color || "").toLowerCase() ===
+                    category.color.toLowerCase()
+                  ) {
+                    project.color = fallbackColor;
+                  }
+                });
+                selectedColor =
+                  selectedColor.toLowerCase() === category.color.toLowerCase()
+                    ? fallbackColor
+                    : selectedColor;
+                activeCategoryColorEditorId = null;
+                editingCategoryLabelId = null;
+                syncProjectCategories();
+                saveWorkspacePrefs();
+                initColorSwatches();
+                updatePathStatus();
+                renderWorkspaceMenu();
+                renderDashboard();
+              },
+            });
+          }),
+        );
+        document
+          .getElementById("workspace-add-category")
+          ?.addEventListener("click", () => {
+            const baseColor = "#7fb3ff";
+            let color = baseColor;
+            let step = 1;
+            while (
+              workspaceCategories.some(
+                (category) => category.color.toLowerCase() === color.toLowerCase(),
+              )
+            ) {
+              const channel = Math.max(64, 179 - step * 12)
+                .toString(16)
+                .padStart(2, "0");
+              color = `#7f${channel}ff`;
+              step += 1;
+            }
+            workspaceCategories.push({
+              id: makeCategoryId(),
+              color,
+              label: `Category ${workspaceCategories.length + 1}`,
+              enabled: true,
+            });
+            activeCategoryColorEditorId = null;
+            editingCategoryLabelId = null;
+            saveWorkspacePrefs();
+            initColorSwatches();
+            renderWorkspaceMenu();
+          });
+        uiEl.querySelectorAll("[data-ui-toggle]").forEach((btn) =>
+          btn.addEventListener("click", () => {
+            const key = btn.dataset.uiToggle;
+            workspaceUIPrefs[key] = !workspaceUIPrefs[key];
+            saveWorkspacePrefs();
+            applyWorkspaceUIPrefs();
+            renderWorkspaceMenu();
+          }),
+        );
+        sortEl.onchange = () => {
+          workspaceSort = sortEl.value;
+          saveWorkspacePrefs();
+          updatePathStatus();
+          renderDashboard();
+        };
+      }
+
+      function normalizeNodeDataList(nodeList) {
+        return (nodeList || []).map((node) => {
+          if (node.type === "bullet") {
+            node.items = (node.items || []).map((item) =>
+              typeof item === "string" ? { text: item, done: false } : item,
+            );
+            node.bulletFeatures = {
+              checklist: !!node?.bulletFeatures?.checklist,
+              connectors: !!node?.bulletFeatures?.connectors,
+            };
+          }
+          if (typeof node.customTitle !== "string") node.customTitle = "";
+          return node;
+        });
+      }
+
       function cycleProjectStatus(p) {
         const idx = PROJECT_STATUSES.indexOf(p.status || "In Progress");
         p.status = PROJECT_STATUSES[(idx + 1) % PROJECT_STATUSES.length];
         queueProjectSave(p);
         renderDashboard();
+      }
+
+      function closeStatusMenus() {
+        document
+          .querySelectorAll(".card-status-menu.open")
+          .forEach((menu) => menu.classList.remove("open"));
+        document
+          .querySelectorAll(".card-status.open")
+          .forEach((btn) => btn.classList.remove("open"));
       }
 
       function autosave() {
@@ -2590,6 +3534,60 @@
         setSaveStatus("saving");
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => saveToFirestore(currentProject), 1200);
+      }
+
+      function updateCanvasPathbar() {
+        if (!currentProject) return;
+        document.getElementById("canvas-path-category").textContent =
+          categoryFromColor(currentProject.color || "#44ff88");
+        document.getElementById("canvas-path-current").textContent =
+          currentProject.name || "Card";
+      }
+
+      function requestConnectionRender() {
+        if (pendingConnRenderRAF) return;
+        pendingConnRenderRAF = requestAnimationFrame(() => {
+          pendingConnRenderRAF = null;
+          renderConnections();
+        });
+      }
+
+      function getPendingConnectionTarget(clientX, clientY) {
+        const target = document.elementFromPoint(clientX, clientY);
+        const handle = target?.closest?.(".conn-handle");
+        const node = handle?.closest?.(".node") || target?.closest?.(".node");
+        if (!node) return null;
+        const nodeId = handle?.dataset.node || node.id?.replace("node-", "");
+        if (!nodeId || nodeId === pendingConn?.nodeId) return null;
+        return {
+          nodeId,
+          nodeEl: node,
+          pos: handle?.dataset.pos || "left",
+          bulletIndex:
+            handle?.dataset.bulletIndex !== undefined
+              ? Number(handle.dataset.bulletIndex)
+              : null,
+        };
+      }
+
+      function syncPendingConnectionTarget(clientX, clientY) {
+        const nextTarget = getPendingConnectionTarget(clientX, clientY);
+        if (pendingConnTarget?.nodeEl !== nextTarget?.nodeEl) {
+          if (pendingConnTarget?.nodeEl)
+            pendingConnTarget.nodeEl.classList.remove("connect-target");
+          if (nextTarget?.nodeEl) nextTarget.nodeEl.classList.add("connect-target");
+        }
+        pendingConnTarget = nextTarget;
+      }
+
+      function clearPendingConnection() {
+        if (pendingConnTarget?.nodeEl)
+          pendingConnTarget.nodeEl.classList.remove("connect-target");
+        pendingConn = null;
+        pendingConnCursor = null;
+        pendingConnTarget = null;
+        setTool("select");
+        requestConnectionRender();
       }
 
       async function seedDefaultProject() {
@@ -2637,13 +3635,17 @@
         world.innerHTML = "";
         normalizeProjectLayout();
         updateDashboardInfo();
+        updatePathStatus();
+        renderWorkspaceMenu();
         applyDashboardTransform();
         overviewItems.forEach((item) =>
           world.appendChild(createOverviewItemEl(item)),
         );
-        projects.forEach((p) => {
+        getFilteredSortedProjects().forEach((p) => {
           const nc = p.nodes ? p.nodes.length : 0,
             cc = p.connections ? p.connections.length : 0;
+          const isExpanded = expandedProjectIds.has(p.id);
+          const needsReadMore = (p.desc || "").trim().length > 120;
           const date = new Date(p.created).toLocaleDateString("en-US", {
             month: "short",
             day: "numeric",
@@ -2651,6 +3653,7 @@
           });
           const el = document.createElement("div");
           el.className = "project-card";
+          if (isExpanded) el.classList.add("expanded");
           if (selectedProjectIds.has(p.id))
             el.classList.add(
               selectedProjectIds.size > 1 ? "multi-selected" : "selected",
@@ -2658,8 +3661,10 @@
           el.style.setProperty("--card-accent", p.color || "#fff");
           el.style.left = (p.x || 0) + "px";
           el.style.top = (p.y || 0) + "px";
-          el.style.width = (p.w || 320) + "px";
-          if (p.h) el.style.height = p.h + "px";
+          el.style.width = (p.w || DEFAULT_PROJECT_CARD_WIDTH) + "px";
+          el.style.height = isExpanded
+            ? "auto"
+            : (p.h || DEFAULT_PROJECT_CARD_HEIGHT) + "px";
           el.dataset.projectId = p.id;
           el.innerHTML = `
       <button class="card-del" title="Delete">✕</button>
@@ -2667,9 +3672,13 @@
       <div class="card-meta"><span class="card-date">${date}</span></div>
       <div class="card-title">${esc(p.name)}</div>
       <div class="card-desc">${esc(p.desc || "")}</div>
-      <select class="card-status" data-status="${statusSlug(p.status)}">
-        ${PROJECT_STATUSES.map(status=>`<option value="${esc(status)}"${status===(p.status||"In Progress")?" selected":""}>${esc(status)}</option>`).join("")}
-      </select>
+      ${needsReadMore ? `<button class="card-readmore" type="button">${isExpanded ? "Show less" : "Read more"}</button>` : ""}
+      <div class="card-status-wrap">
+        <button class="card-status" type="button" data-status="${statusSlug(p.status)}">${esc(p.status || "In Progress")}</button>
+        <div class="card-status-menu">
+          ${PROJECT_STATUSES.map(status=>`<button class="card-status-option${status===(p.status||"In Progress")?" active":""}" type="button" data-value="${esc(status)}" data-status="${statusSlug(status)}"><span class="card-status-dot" style="--status-color:${status==="Done"?"var(--green)":status==="On Going"?"var(--blue)":status==="In Progress"?"var(--yellow)":status==="Cancelled"?"var(--red)":status==="Postponed"?"var(--purple)":"var(--blue)"}"></span>${esc(status)}</button>`).join("")}
+        </div>
+      </div>
       <div class="card-stats"><div class="card-stat"><span>${nc}</span> nodes</div><div class="card-stat"><span>${cc}</span> connections</div></div>
       <button class="card-open" type="button" aria-label="Open card">→</button>
       <div class="card-resize-handle resize-tl" data-dir="tl"></div>
@@ -2684,23 +3693,69 @@
           );
           el.querySelector(".card-del").addEventListener("click", (e) => {
             e.stopPropagation();
-            if (confirm(`Delete "${p.name}"?`)) {
-              projects = projects.filter((x) => x.id !== p.id);
-              deleteFromFirestore(p.id);
-              renderDashboard();
-              showToast("Deleted");
-            }
+            openConfirmDialog({
+              title: "Delete Card",
+              message: `Delete "${p.name}"?`,
+              confirmLabel: "Delete",
+              onConfirm: () => {
+                projects = projects.filter((x) => x.id !== p.id);
+                deleteFromFirestore(p.id);
+                renderDashboard();
+                showToast("Deleted");
+              },
+            });
           });
           el.querySelector(".card-edit").addEventListener("click", (e) => {
             e.stopPropagation();
             openEditProjectModal(p.id);
           });
-          el.addEventListener("mousedown", (e) => startProjectDrag(e, p, el));
-          el.querySelector(".card-status").addEventListener("change", (e) => {
+          el.querySelector(".card-readmore")?.addEventListener("click", (e) => {
             e.stopPropagation();
-            p.status = e.target.value;
-            e.target.dataset.status = statusSlug(p.status);
-            queueProjectSave(p);
+            if (expandedProjectIds.has(p.id)) expandedProjectIds.delete(p.id);
+            else expandedProjectIds.add(p.id);
+            renderDashboard();
+          });
+          el.addEventListener("mousedown", (e) => startProjectDrag(e, p, el));
+          const statusBtn = el.querySelector(".card-status");
+          const statusMenu = el.querySelector(".card-status-menu");
+          statusBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            document
+              .querySelectorAll(".card-status-menu.open")
+              .forEach((menu) => {
+                if (menu !== statusMenu) menu.classList.remove("open");
+              });
+            document
+              .querySelectorAll(".card-status.open")
+              .forEach((btn) => {
+                if (btn !== statusBtn) btn.classList.remove("open");
+              });
+            statusBtn.classList.toggle("open");
+            statusMenu.classList.toggle("open");
+          });
+          statusMenu.querySelectorAll(".card-status-option").forEach((option) =>
+            option.addEventListener("click", (e) => {
+              e.stopPropagation();
+              p.status = option.dataset.value;
+              statusBtn.textContent = p.status;
+              statusBtn.dataset.status = statusSlug(p.status);
+              statusBtn.classList.remove("open");
+              statusMenu.classList.remove("open");
+              statusMenu
+                .querySelectorAll(".card-status-option")
+                .forEach((item) =>
+                  item.classList.toggle("active", item === option),
+                );
+              option.classList.add("active");
+              queueProjectSave(p);
+            }),
+          );
+          el.querySelector(".card-status-menu").addEventListener("click", (e) =>
+            e.stopPropagation(),
+          );
+          el.querySelector(".card-status").addEventListener("blur", () => {
+            statusBtn.classList.remove("open");
+            statusMenu.classList.remove("open");
           });
           el.querySelector(".card-open").addEventListener("click", (e) => {
             e.stopPropagation();
@@ -2742,8 +3797,11 @@
       // ===================== PROJECT MODAL =====================
       function initColorSwatches() {
         const el = document.getElementById("color-swatches");
-        if (!el || el.children.length) return;
-        COLORS.forEach((c) => {
+        if (!el) return;
+        el.innerHTML = "";
+        const colors = getCategoryColorList();
+        if (!colors.includes(selectedColor)) selectedColor = getDefaultCategoryColor();
+        colors.forEach((c) => {
           const sw = document.createElement("div");
           sw.className =
             "color-swatch" + (c === selectedColor ? " selected" : "");
@@ -2764,10 +3822,8 @@
         document.getElementById("proj-name-input").value = "";
         document.getElementById("proj-desc-input").value = "";
         document.getElementById("proj-status-input").value = "In Progress";
-        selectedColor = COLORS[0];
-        document
-          .querySelectorAll(".color-swatch")
-          .forEach((s, i) => s.classList.toggle("selected", i === 0));
+        selectedColor = getDefaultCategoryColor();
+        initColorSwatches();
         document.getElementById("modal-overlay").classList.add("visible");
         setTimeout(
           () => document.getElementById("proj-name-input").focus(),
@@ -2783,12 +3839,8 @@
         document.getElementById("proj-desc-input").value = p.desc || "";
         document.getElementById("proj-status-input").value =
           p.status || "In Progress";
-        selectedColor = p.color || COLORS[0];
-        document
-          .querySelectorAll(".color-swatch")
-          .forEach((s, i) =>
-            s.classList.toggle("selected", COLORS[i] === selectedColor),
-          );
+        selectedColor = p.color || getDefaultCategoryColor();
+        initColorSwatches();
         document.getElementById("modal-overlay").classList.add("visible");
         setTimeout(
           () => document.getElementById("proj-name-input").focus(),
@@ -2797,6 +3849,27 @@
       }
       function closeModal() {
         document.getElementById("modal-overlay").classList.remove("visible");
+      }
+      function openConfirmDialog({
+        title = "Delete",
+        message = "Are you sure?",
+        confirmLabel = "Delete",
+        onConfirm = null,
+      }) {
+        pendingConfirmAction = onConfirm;
+        document.getElementById("confirm-title").textContent = title;
+        document.getElementById("confirm-message").textContent = message;
+        document.getElementById("confirm-action-btn").textContent = confirmLabel;
+        document.getElementById("confirm-overlay").classList.add("visible");
+      }
+      function closeConfirmDialog() {
+        pendingConfirmAction = null;
+        document.getElementById("confirm-overlay").classList.remove("visible");
+      }
+      function runConfirmAction() {
+        const action = pendingConfirmAction;
+        closeConfirmDialog();
+        if (typeof action === "function") action();
       }
       async function saveProject() {
         const name =
@@ -2811,12 +3884,14 @@
             p.desc = desc;
             p.status = status;
             p.color = selectedColor;
+            p.category = categoryFromColor(selectedColor);
             await saveToFirestore(p);
           }
         } else {
           const p = buildProject(name, desc);
           p.color = selectedColor;
           p.status = status;
+          p.category = categoryFromColor(selectedColor);
           projects.push(p);
           await saveToFirestore(p);
         }
@@ -2833,12 +3908,14 @@
           desc: desc || "",
           status: "In Progress",
           color: selectedColor,
+          category: categoryFromColor(selectedColor),
           created: Date.now(),
           nodes: [],
           connections: [],
           x: pos.x,
           y: pos.y,
-          w: 320,
+          w: DEFAULT_PROJECT_CARD_WIDTH,
+          h: DEFAULT_PROJECT_CARD_HEIGHT,
         };
       }
 
@@ -2850,8 +3927,16 @@
             p.y = 140 + Math.floor(i / 4) * 260;
             changedProjects.push(p);
           }
-          if (typeof p.w !== "number") {
-            p.w = 320;
+          if (typeof p.w !== "number" || p.w < DEFAULT_PROJECT_CARD_WIDTH) {
+            p.w = DEFAULT_PROJECT_CARD_WIDTH;
+            if (!changedProjects.includes(p)) changedProjects.push(p);
+          }
+          if (typeof p.h !== "number" || p.h < DEFAULT_PROJECT_CARD_HEIGHT) {
+            p.h = DEFAULT_PROJECT_CARD_HEIGHT;
+            if (!changedProjects.includes(p)) changedProjects.push(p);
+          }
+          if (!p.category) {
+            p.category = categoryFromColor(p.color || "#44ff88");
             if (!changedProjects.includes(p)) changedProjects.push(p);
           }
           if (!p.status) {
@@ -2919,40 +4004,50 @@
       }
 
       function deleteOverviewSelection() {
-        captureHistory();
         if (
           !selectedProjectIds.size &&
           !selectedOverviewItemIds.size &&
           !overviewSelection
         )
           return;
-        if (selectedProjectIds.size) {
-          if (
-            confirm(
-              `Delete ${selectedProjectIds.size} card${selectedProjectIds.size !== 1 ? "s" : ""}?`,
-            )
-          ) {
-            const ids = [...selectedProjectIds];
-            projects = projects.filter((x) => !selectedProjectIds.has(x.id));
-            ids.forEach((id) => deleteFromFirestore(id));
-            selectedProjectIds.clear();
-          } else return;
-        }
-        if (selectedOverviewItemIds.size) {
-          overviewItems = overviewItems.filter(
-            (x) => !selectedOverviewItemIds.has(x.id),
-          );
-          selectedOverviewItemIds.clear();
-          queueOverviewSave();
-        } else if (overviewSelection?.type === "item") {
-          overviewItems = overviewItems.filter(
-            (x) => x.id !== overviewSelection.id,
-          );
-          queueOverviewSave();
-        }
-        overviewSelection = null;
-        applyOverviewSelectionClasses();
-        renderDashboard();
+        const cardCount = selectedProjectIds.size;
+        const itemCount = selectedOverviewItemIds.size
+          ? selectedOverviewItemIds.size
+          : overviewSelection?.type === "item"
+            ? 1
+            : 0;
+        const parts = [];
+        if (cardCount) parts.push(`${cardCount} card${cardCount !== 1 ? "s" : ""}`);
+        if (itemCount) parts.push(`${itemCount} item${itemCount !== 1 ? "s" : ""}`);
+        openConfirmDialog({
+          title: "Delete Selection",
+          message: `Delete ${parts.join(" and ")}?`,
+          confirmLabel: "Delete",
+          onConfirm: () => {
+            captureHistory();
+            if (selectedProjectIds.size) {
+              const ids = [...selectedProjectIds];
+              projects = projects.filter((x) => !selectedProjectIds.has(x.id));
+              ids.forEach((id) => deleteFromFirestore(id));
+              selectedProjectIds.clear();
+            }
+            if (selectedOverviewItemIds.size) {
+              overviewItems = overviewItems.filter(
+                (x) => !selectedOverviewItemIds.has(x.id),
+              );
+              selectedOverviewItemIds.clear();
+              queueOverviewSave();
+            } else if (overviewSelection?.type === "item") {
+              overviewItems = overviewItems.filter(
+                (x) => x.id !== overviewSelection.id,
+              );
+              queueOverviewSave();
+            }
+            overviewSelection = null;
+            applyOverviewSelectionClasses();
+            renderDashboard();
+          },
+        });
       }
 
       function makeOverviewItem(type, x, y) {
@@ -3030,6 +4125,7 @@
           )
             return;
           if (item.type === "heading" && e.detail > 1) return;
+          if (item.type === "heading") e.preventDefault();
           e.stopPropagation();
           setOverviewSelection(
             { type: "item", id: item.id },
@@ -3056,31 +4152,9 @@
           };
           if (
             selectedOverviewItemIds.has(item.id) &&
-            selectedOverviewItemIds.size > 1
+            selectedProjectIds.size + selectedOverviewItemIds.size > 1
           ) {
-            overviewDragItemId = null;
-            dashboardGroupDragItems = [...selectedOverviewItemIds]
-              .map((id) => {
-                const it = overviewItems.find((x) => x.id === id);
-                return it ? { id: it.id, startX: it.x, startY: it.y } : null;
-              })
-              .filter(Boolean);
-            dashboardGroupDragStart = {
-              x:
-                (e.clientX -
-                  document
-                    .getElementById("dashboard-canvas")
-                    .getBoundingClientRect().left -
-                  dashboardViewOffset.x) /
-                dashboardScale,
-              y:
-                (e.clientY -
-                  document
-                    .getElementById("dashboard-canvas")
-                    .getBoundingClientRect().top -
-                  dashboardViewOffset.y) /
-                dashboardScale,
-            };
+            beginDashboardGroupDrag(e);
           }
         });
         if (item.type === "heading") {
@@ -3136,8 +4210,8 @@
           ...projects.map((p) => ({
             x: p.x || 0,
             y: p.y || 0,
-            w: p.w || 320,
-            h: p.h || 190,
+            w: p.w || DEFAULT_PROJECT_CARD_WIDTH,
+            h: p.h || DEFAULT_PROJECT_CARD_HEIGHT,
           })),
           ...overviewItems.map((i) => ({
             x: i.x || 0,
@@ -3206,10 +4280,40 @@
           y: Math.max(
             60,
             Math.round(
-              (rect.height / 2 - dashboardViewOffset.y) / dashboardScale - 100,
+              (rect.height / 2 - dashboardViewOffset.y) / dashboardScale - 120,
             ),
           ),
         };
+      }
+
+      function beginDashboardGroupDrag(e) {
+        const rect = document
+          .getElementById("dashboard-canvas")
+          .getBoundingClientRect();
+        dashboardGroupDragProjects = [...selectedProjectIds]
+          .map((id) => {
+            const proj = projects.find((x) => x.id === id);
+            return proj ? { id: proj.id, startX: proj.x, startY: proj.y } : null;
+          })
+          .filter(Boolean);
+        dashboardGroupDragItems = [...selectedOverviewItemIds]
+          .map((id) => {
+            const item = overviewItems.find((x) => x.id === id);
+            return item ? { id: item.id, startX: item.x, startY: item.y } : null;
+          })
+          .filter(Boolean);
+        dashboardGroupDragStart = {
+          x: (e.clientX - rect.left - dashboardViewOffset.x) / dashboardScale,
+          y: (e.clientY - rect.top - dashboardViewOffset.y) / dashboardScale,
+        };
+        dashboardDragProjectId = null;
+        overviewDragItemId = null;
+        dashboardDragMoved = false;
+        selectedProjectIds.forEach((id) =>
+          document
+            .querySelector(`.project-card[data-project-id="${id}"]`)
+            ?.classList.add("dragging"),
+        );
       }
 
       function startProjectDrag(e, p, el) {
@@ -3225,26 +4329,11 @@
         const rect = document
           .getElementById("dashboard-canvas")
           .getBoundingClientRect();
-        if (selectedProjectIds.has(p.id) && selectedProjectIds.size > 1) {
-          dashboardGroupDragProjects = [...selectedProjectIds]
-            .map((id) => {
-              const proj = projects.find((x) => x.id === id);
-              return proj
-                ? { id: proj.id, startX: proj.x, startY: proj.y }
-                : null;
-            })
-            .filter(Boolean);
-          dashboardGroupDragStart = {
-            x: (e.clientX - rect.left - dashboardViewOffset.x) / dashboardScale,
-            y: (e.clientY - rect.top - dashboardViewOffset.y) / dashboardScale,
-          };
-          dashboardDragProjectId = null;
-          dashboardDragMoved = false;
-          selectedProjectIds.forEach((id) =>
-            document
-              .querySelector(`.project-card[data-project-id="${id}"]`)
-              ?.classList.add("dragging"),
-          );
+        if (
+          selectedProjectIds.has(p.id) &&
+          selectedProjectIds.size + selectedOverviewItemIds.size > 1
+        ) {
+          beginDashboardGroupDrag(e);
           return;
         }
         dashboardDragProjectId = p.id;
@@ -3281,6 +4370,21 @@
         if (dashboardReady) return;
         dashboardReady = true;
         const canvas = document.getElementById("dashboard-canvas");
+        document
+          .getElementById("workspace-menu")
+          ?.addEventListener("click", (e) => e.stopPropagation());
+        document
+          .getElementById("workspace-menu")
+          ?.addEventListener("mousedown", (e) => e.stopPropagation());
+        document
+          .getElementById("workspace-menu-btn")
+          ?.addEventListener("click", (e) => {
+            e.stopPropagation();
+            workspaceMenuOpen = !workspaceMenuOpen;
+            document
+              .getElementById("workspace-menu")
+              ?.classList.toggle("open", workspaceMenuOpen);
+          });
         const indicator = document.createElement("div");
         indicator.id = "dashboard-selection-indicator";
         indicator.className = "selection-indicator";
@@ -3321,7 +4425,7 @@
           dashboardSelectionRect.style.height = "0px";
         });
         canvas.addEventListener("dblclick", (e) => {
-          if (e.target.closest(".project-card")) return;
+          if (e.target !== canvas) return;
           const rect = canvas.getBoundingClientRect();
           newProjectPosition = {
             x: Math.max(
@@ -3329,7 +4433,7 @@
               Math.round(
                 (e.clientX - rect.left - dashboardViewOffset.x) /
                   dashboardScale -
-                  160,
+                  200,
               ),
             ),
             y: Math.max(
@@ -3337,7 +4441,7 @@
               Math.round(
                 (e.clientY - rect.top - dashboardViewOffset.y) /
                   dashboardScale -
-                  110,
+                  120,
               ),
             ),
           };
@@ -3529,17 +4633,29 @@
               x = dashboardResizeStart.startX,
               y = dashboardResizeStart.startY;
             if (dashboardResizeStart.dir.includes("r"))
-              w = Math.max(240, Math.round(dashboardResizeStart.w + dx));
+              w = Math.max(
+                DEFAULT_PROJECT_CARD_WIDTH,
+                Math.round(dashboardResizeStart.w + dx),
+              );
             if (dashboardResizeStart.dir.includes("l")) {
-              w = Math.max(240, Math.round(dashboardResizeStart.w - dx));
+              w = Math.max(
+                DEFAULT_PROJECT_CARD_WIDTH,
+                Math.round(dashboardResizeStart.w - dx),
+              );
               x = Math.round(
                 dashboardResizeStart.startX + (dashboardResizeStart.w - w),
               );
             }
             if (dashboardResizeStart.dir.includes("b"))
-              h = Math.max(160, Math.round(dashboardResizeStart.h + dy));
+              h = Math.max(
+                DEFAULT_PROJECT_CARD_HEIGHT,
+                Math.round(dashboardResizeStart.h + dy),
+              );
             if (dashboardResizeStart.dir.includes("t")) {
-              h = Math.max(160, Math.round(dashboardResizeStart.h - dy));
+              h = Math.max(
+                DEFAULT_PROJECT_CARD_HEIGHT,
+                Math.round(dashboardResizeStart.h - dy),
+              );
               y = Math.round(
                 dashboardResizeStart.startY + (dashboardResizeStart.h - h),
               );
@@ -3666,7 +4782,16 @@
           return { ...base, w: data.w || 220, h: data.h || 2 };
         if (type === "note") return { ...base, text: data.text || "Note..." };
         if (type === "bullet")
-          return { ...base, items: data.items || ["Item 1"] };
+          return {
+            ...base,
+            items: (data.items || ["Item 1"]).map((item) =>
+              typeof item === "string" ? { text: item, done: false } : item,
+            ),
+            bulletFeatures: {
+              checklist: !!data?.bulletFeatures?.checklist,
+              connectors: !!data?.bulletFeatures?.connectors,
+            },
+          };
         if (type === "progress")
           return {
             ...base,
@@ -3697,14 +4822,16 @@
             w: data.w || 260,
             h: data.h || 180,
           };
-        return base;
+        return { ...base, customTitle: data.customTitle || "" };
       }
 
       // ===================== CANVAS =====================
       function openProject(id) {
         currentProject = projects.find((p) => p.id === id);
         if (!currentProject) return;
-        nodes = JSON.parse(JSON.stringify(currentProject.nodes || []));
+        nodes = normalizeNodeDataList(
+          JSON.parse(JSON.stringify(currentProject.nodes || [])),
+        );
         connections = JSON.parse(
           JSON.stringify(currentProject.connections || []),
         );
@@ -3716,10 +4843,9 @@
           const num = parseInt(c.id.replace("c", ""));
           if (!isNaN(num) && num >= connIdCounter) connIdCounter = num + 1;
         });
-        document.getElementById("canvas-project-title").textContent =
-          currentProject.name;
-        document.getElementById("canvas-path-current").textContent =
-          currentProject.name || "Card";
+        const titleEl = document.getElementById("canvas-project-title");
+        if (titleEl) titleEl.textContent = currentProject.name || "";
+        updateCanvasPathbar();
         viewOffset = { x: 0, y: 0 };
         viewScale = targetScale = 1;
         show("canvas");
@@ -3814,13 +4940,15 @@
           note: "Note",
           frame: "Annotate",
         };
+        const nodeTitle = nd.customTitle ?? labels[nd.type] ?? nd.type;
         el.innerHTML = `
     <div class="node-accent-line" style="background:${currentProject?.color || "#333"}"></div>
-    <div class="node-header">
-      <span class="node-type-label">${labels[nd.type] || nd.type}</span>
-      <div class="node-actions"><button class="node-act-btn" onclick="deleteNodeById('${nd.id}')">✕</button></div>
+      <div class="node-header">
+      <span class="node-type-label" contenteditable="true" spellcheck="false">${esc(nodeTitle)}</span>
+      <div class="node-actions"><button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" onclick="requestDeleteNodeById('${nd.id}')">✕</button></div>
     </div>
     <div class="node-body">${nodeBodyHTML(nd)}</div>
+    <div class="node-settings">${nodeSettingsHTML(nd)}</div>
     <div class="conn-handle" data-node="${nd.id}" data-pos="top"></div>
     <div class="conn-handle" data-node="${nd.id}" data-pos="bottom"></div>
     <div class="conn-handle" data-node="${nd.id}" data-pos="left"></div>
@@ -3834,7 +4962,8 @@
           if (
             e.target.classList.contains("conn-handle") ||
             e.target.classList.contains("node-act-btn") ||
-            e.target.classList.contains("node-resize-handle")
+            e.target.classList.contains("node-resize-handle") ||
+            e.target.closest(".node-settings")
           )
             return;
           if (
@@ -3875,8 +5004,19 @@
         el.querySelectorAll(".conn-handle").forEach((h) => {
           h.addEventListener("mousedown", (e) => {
             e.stopPropagation();
-            pendingConn = { nodeId: nd.id, pos: h.dataset.pos };
+            e.preventDefault();
+            pendingConn = {
+              nodeId: nd.id,
+              pos: h.dataset.pos,
+              bulletIndex:
+                h.dataset.bulletIndex !== undefined
+                  ? Number(h.dataset.bulletIndex)
+                  : null,
+            };
+            pendingConnCursor = { x: e.clientX, y: e.clientY };
+            pendingConnTarget = null;
             setTool("connect");
+            requestConnectionRender();
           });
         });
         el.querySelectorAll(".node-resize-handle").forEach((h) =>
@@ -3897,6 +5037,16 @@
             };
           }),
         );
+        el.querySelector(".node-settings-btn")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          document
+            .querySelectorAll(".node-settings.open")
+            .forEach((panel) => {
+              if (panel !== el.querySelector(".node-settings"))
+                panel.classList.remove("open");
+            });
+          el.querySelector(".node-settings")?.classList.toggle("open");
+        });
         if (nd.type === "progress") {
           const bar = el.querySelector(".progress-bar-bg");
           if (bar)
@@ -3939,21 +5089,29 @@
             fi.click();
           });
         if (nd.type === "bullet") {
+          const body = el.querySelector(".node-body");
+          body.classList.toggle(
+            "has-checks",
+            !!nd.bulletFeatures?.checklist,
+          );
+          body.classList.toggle(
+            "has-connectors",
+            !!nd.bulletFeatures?.connectors,
+          );
           el.querySelector(".bullet-add-btn")?.addEventListener("click", () => {
-            nd.items.push("New item");
+            nd.items.push({ text: "New item", done: false });
             const li = document.createElement("li");
-            li.innerHTML = `<span contenteditable="true" class="node-content">${nd.items[nd.items.length - 1]}</span>`;
-            li.querySelector("span").addEventListener("blur", (e) => {
-              nd.items[nd.items.length - 1] = e.target.textContent;
-              autosave();
-            });
+            li.innerHTML = bulletItemHTML(nd, nd.items.length - 1);
             el.querySelector(".bullet-add-btn").before(li);
-            const span = li.querySelector("span");
+            bindBulletItem(el, nd, li, nd.items.length - 1);
+            const span = li.querySelector(".bullet-item-text");
             span.focus();
             saAll(span);
             autosave();
           });
+          bindBulletNode(nd, el);
         }
+        bindNodeSettings(nd, el);
         if (nd.type === "embed") {
           const input = el.querySelector(".embed-input");
           const preview = el.querySelector(".embed-preview");
@@ -4025,8 +5183,7 @@
         if (nd.type === "bullet") {
           const lis = (nd.items || [])
             .map(
-              (it, i) =>
-                `<li><span contenteditable="true" class="node-content" onblur="updBullet(event,'${nd.id}',${i})">${esc(it)}</span></li>`,
+              (_, i) => bulletItemHTML(nd, i),
             )
             .join("");
           return `<ul class="bullet-list">${lis}</ul><button class="bullet-add-btn">+ Add item</button>`;
@@ -4057,9 +5214,84 @@
         return "";
       }
 
+      function nodeSettingsHTML(nd) {
+        if (nd.type === "bullet") {
+          return `<button class="node-setting-toggle${nd.bulletFeatures?.checklist ? " active" : ""}" type="button" data-feature="checklist"><span>Checklist</span><span class="state">${nd.bulletFeatures?.checklist ? "On" : "Off"}</span></button>
+          <button class="node-setting-toggle${nd.bulletFeatures?.connectors ? " active" : ""}" type="button" data-feature="connectors"><span>Connectors</span><span class="state">${nd.bulletFeatures?.connectors ? "On" : "Off"}</span></button>`;
+        }
+        return `<div class="node-settings-empty">No extra settings</div>`;
+      }
+
+      function bindNodeSettings(nd, el) {
+        el.querySelectorAll(".node-setting-toggle").forEach((btn) =>
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const feature = btn.dataset.feature;
+            if (nd.type === "bullet") {
+              nd.bulletFeatures = nd.bulletFeatures || {
+                checklist: false,
+                connectors: false,
+              };
+              nd.bulletFeatures[feature] = !nd.bulletFeatures[feature];
+              el.querySelector(".node-body").innerHTML = nodeBodyHTML(nd);
+              el.querySelector(".node-settings").innerHTML = nodeSettingsHTML(nd);
+              bindBulletNode(nd, el);
+              bindNodeSettings(nd, el);
+              autosave();
+            }
+          }),
+        );
+      }
+
+      function bulletItemHTML(nd, index) {
+        const item = nd.items?.[index] || { text: "", done: false };
+        return `<li data-bullet-index="${index}">
+          ${nd.bulletFeatures?.checklist ? `<button class="bullet-item-check${item.done ? " done" : ""}" type="button">${item.done ? "✓" : ""}</button>` : ""}
+          <span contenteditable="true" class="node-content bullet-item-text">${esc(item.text || "")}</span>
+          ${nd.bulletFeatures?.connectors ? `<div class="conn-handle bullet-item-handle" data-node="${nd.id}" data-bullet-index="${index}" data-pos="right"></div>` : ""}
+        </li>`;
+      }
+
+      function bindBulletItem(el, nd, li, index) {
+        li.classList.toggle("is-done", !!nd.items[index]?.done);
+        li.querySelector(".bullet-item-text")?.addEventListener("blur", (e) => {
+          nd.items[index].text = e.target.textContent;
+          autosave();
+        });
+        li.querySelector(".bullet-item-check")?.addEventListener("click", () => {
+          nd.items[index].done = !nd.items[index].done;
+          const check = li.querySelector(".bullet-item-check");
+          li.classList.toggle("is-done", nd.items[index].done);
+          check.classList.toggle("done", nd.items[index].done);
+          check.textContent = nd.items[index].done ? "✓" : "";
+          autosave();
+        });
+        li.querySelector(".bullet-item-handle")?.addEventListener("mousedown", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          pendingConn = {
+            nodeId: nd.id,
+            pos: "right",
+            bulletIndex: Number(li.dataset.bulletIndex),
+          };
+          pendingConnCursor = { x: e.clientX, y: e.clientY };
+          pendingConnTarget = null;
+          setTool("connect");
+          requestConnectionRender();
+        });
+      }
+
+      function bindBulletNode(nd, el) {
+        el.querySelectorAll(".bullet-list li").forEach((li, index) =>
+          bindBulletItem(el, nd, li, index),
+        );
+      }
+
       function updateNodeFromEl(nd) {
         const el = document.getElementById(`node-${nd.id}`);
         if (!el) return;
+        const label = el.querySelector(".node-type-label");
+        if (label) nd.customTitle = label.textContent.trim();
         if (["text", "heading", "note"].includes(nd.type)) {
           const c = el.querySelector(".node-content");
           if (c) nd.text = c.textContent;
@@ -4143,8 +5375,8 @@
           const fn = nodes.find((n) => n.id === c.fromId),
             tn = nodes.find((n) => n.id === c.toId);
           if (!fn || !tn) return;
-          const f = getCenter(fn),
-            t = getCenter(tn);
+          const f = getConnectionPoint(fn, c.fromBulletIndex, c.fromPos),
+            t = getConnectionPoint(tn, c.toBulletIndex, c.toPos);
           const path = document.createElementNS(
             "http://www.w3.org/2000/svg",
             "path",
@@ -4181,10 +5413,45 @@
           arr.style.pointerEvents = "none";
           svg.appendChild(arr);
         });
+        if (pendingConn && pendingConnCursor) {
+          const fromNode = nodes.find((n) => n.id === pendingConn.nodeId);
+          if (fromNode) {
+            const from = getConnectionPoint(
+              fromNode,
+              pendingConn.bulletIndex ?? null,
+              pendingConn.pos || "right",
+            );
+            const to = s2w(pendingConnCursor.x, pendingConnCursor.y);
+            const preview = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "path",
+            );
+            preview.setAttribute("d", curve(from, to));
+            preview.setAttribute("class", "conn-preview");
+            svg.appendChild(preview);
+          }
+        }
       }
       function curve(f, t) {
         const dx = t.x - f.x;
         return `M${f.x},${f.y} C${f.x + dx * 0.5},${f.y} ${f.x + dx * 0.5},${t.y} ${t.x},${t.y}`;
+      }
+      function getConnectionPoint(nd, bulletIndex = null, pos = null) {
+        const el = document.getElementById(`node-${nd.id}`);
+        if (bulletIndex !== null && el) {
+          const bulletHandle = el.querySelector(
+            `.bullet-item-handle[data-bullet-index="${bulletIndex}"]`,
+          );
+          if (bulletHandle) {
+            const nodeRect = el.getBoundingClientRect();
+            const handleRect = bulletHandle.getBoundingClientRect();
+            return {
+              x: nd.x + (handleRect.left - nodeRect.left) + handleRect.width / 2,
+              y: nd.y + (handleRect.top - nodeRect.top) + handleRect.height / 2,
+            };
+          }
+        }
+        return getCenter(nd, pos);
       }
       function getCenter(nd) {
         const el = document.getElementById(`node-${nd.id}`);
@@ -4262,7 +5529,23 @@
           }
         });
 
+        con.addEventListener("dblclick", (e) => {
+          const onEmptySpace =
+            e.target === con ||
+            e.target === world ||
+            e.target.id === "connections-svg" ||
+            e.target.id === "canvas-world";
+          if (!onEmptySpace || !currentProject) return;
+          const point = s2w(e.clientX, e.clientY);
+          addNodeAt("text", point.x, point.y);
+        });
+
         window.addEventListener("mousemove", (e) => {
+          if (pendingConn) {
+            pendingConnCursor = { x: e.clientX, y: e.clientY };
+            syncPendingConnectionTarget(e.clientX, e.clientY);
+            requestConnectionRender();
+          }
           if (canvasSelectionStart && canvasSelectionRect) {
             const r = con.getBoundingClientRect();
             const x = Math.min(canvasSelectionStart.x, e.clientX - r.left);
@@ -4388,29 +5671,41 @@
             nodeResizeStart = null;
             autosave();
           }
-          if (pendingConn && e.target.classList.contains("conn-handle")) {
-            const toId = e.target.dataset.node;
+          if (pendingConn) syncPendingConnectionTarget(e.clientX, e.clientY);
+          if (pendingConn && pendingConnTarget) {
+            const toId = pendingConnTarget.nodeId;
+            const toBulletIndex = pendingConnTarget.bulletIndex;
             if (toId && toId !== pendingConn.nodeId) {
               const exists = connections.some(
                 (c) =>
-                  (c.fromId === pendingConn.nodeId && c.toId === toId) ||
-                  (c.fromId === toId && c.toId === pendingConn.nodeId),
+                  (c.fromId === pendingConn.nodeId &&
+                    c.toId === toId &&
+                    c.fromBulletIndex === (pendingConn.bulletIndex ?? null) &&
+                    c.toBulletIndex === toBulletIndex) ||
+                  (c.fromId === toId &&
+                    c.toId === pendingConn.nodeId &&
+                    c.fromBulletIndex === toBulletIndex &&
+                    c.toBulletIndex === (pendingConn.bulletIndex ?? null)),
               );
               if (!exists) {
                 connections.push({
                   id: "c" + connIdCounter++,
                   fromId: pendingConn.nodeId,
                   toId,
+                  fromPos: pendingConn.pos || "right",
+                  toPos: pendingConnTarget.pos || "left",
+                  fromBulletIndex: pendingConn.bulletIndex ?? null,
+                  toBulletIndex,
                 });
-                renderConnections();
+                requestConnectionRender();
                 autosave();
                 showToast("Connection created");
               }
             }
-            pendingConn = null;
-            setTool("select");
-          } else if (pendingConn && !e.target.classList.contains("conn-handle"))
-            pendingConn = null;
+            clearPendingConnection();
+          } else if (pendingConn) {
+            clearPendingConnection();
+          }
         });
 
         con.addEventListener(
@@ -4454,9 +5749,15 @@
           m.classList.add("visible");
         });
 
-        document.addEventListener("click", () =>
-          document.getElementById("ctx-menu").classList.remove("visible"),
-        );
+        document.addEventListener("click", () => {
+          document.getElementById("ctx-menu").classList.remove("visible");
+          closeStatusMenus();
+          workspaceMenuOpen = false;
+          document.getElementById("workspace-menu")?.classList.remove("open");
+          document
+            .querySelectorAll(".node-settings.open")
+            .forEach((panel) => panel.classList.remove("open"));
+        });
 
         document.addEventListener("keydown", (e) => {
           if (!currentProject) return;
@@ -4468,8 +5769,8 @@
             return;
           if (e.key === "Delete" || e.key === "Backspace") deleteSelected();
           if (e.key === "Escape") {
-            pendingConn = null;
-            setTool("select");
+            if (pendingConn) clearPendingConnection();
+            else setTool("select");
           }
           if (e.key === " ") {
             e.preventDefault();
@@ -4595,16 +5896,33 @@
       }
       function deleteSelected() {
         if (selectedNodeIds.size > 1) {
-          [...selectedNodeIds].forEach((id) => deleteNodeById(id, false));
-          selectedNodeIds.clear();
-          selectedNode = null;
-          renderConnections();
-          updateInfoBar();
-          autosave();
+          openConfirmDialog({
+            title: "Delete Nodes",
+            message: `Delete ${selectedNodeIds.size} selected nodes?`,
+            confirmLabel: "Delete",
+            onConfirm: () => {
+              [...selectedNodeIds].forEach((id) => deleteNodeById(id, false));
+              selectedNodeIds.clear();
+              selectedNode = null;
+              renderConnections();
+              updateInfoBar();
+              autosave();
+            },
+          });
           return;
         }
-        if (selectedNode) deleteNodeById(selectedNode.id);
+        if (selectedNode) requestDeleteNodeById(selectedNode.id);
         else if (selectedConn) deleteSelectedConnection();
+      }
+      function requestDeleteNodeById(id) {
+        const node = nodes.find((n) => n.id === id);
+        if (!node) return;
+        openConfirmDialog({
+          title: "Delete Node",
+          message: `Delete "${node.customTitle || node.type || "node"}"?`,
+          confirmLabel: "Delete",
+          onConfirm: () => deleteNodeById(id),
+        });
       }
       function deleteNodeById(id, saveNow = true) {
         if (saveNow) captureHistory();
@@ -4622,15 +5940,25 @@
       }
       function deleteSelectedConnection() {
         if (!selectedConn) return;
-        connections = connections.filter((c) => c.id !== selectedConn.id);
-        selectedConn = null;
-        renderConnections();
-        updateInfoBar();
-        autosave();
+        const connectionId = selectedConn.id;
+        openConfirmDialog({
+          title: "Delete Connection",
+          message: "Delete this connection?",
+          confirmLabel: "Delete",
+          onConfirm: () => {
+            connections = connections.filter((c) => c.id !== connectionId);
+            selectedConn = null;
+            renderConnections();
+            updateInfoBar();
+            autosave();
+          },
+        });
       }
       function startConnectionFromMenu() {
         if (ctxMenuNodeId) {
           pendingConn = { nodeId: ctxMenuNodeId };
+          pendingConnCursor = null;
+          pendingConnTarget = null;
           setTool("connect");
           showToast("Click a node handle to connect");
         }
@@ -4771,8 +6099,8 @@
           ...projects.map((p) => ({
             x: p.x || 0,
             y: p.y || 0,
-            w: p.w || 320,
-            h: p.h || 190,
+            w: p.w || DEFAULT_PROJECT_CARD_WIDTH,
+            h: p.h || DEFAULT_PROJECT_CARD_HEIGHT,
             color: p.color || "#555",
           })),
           ...overviewItems.map((i) => ({
@@ -4990,8 +6318,7 @@
           if (currentProject) {
             currentProject.name =
               this.textContent.trim() || currentProject.name;
-            document.getElementById("canvas-path-current").textContent =
-              currentProject.name || "Card";
+            updateCanvasPathbar();
             autosave();
           }
         });
