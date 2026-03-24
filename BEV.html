@@ -746,23 +746,27 @@
       }
       .card-title {
         font-family: "Syne", sans-serif;
-        font-size: 20px;
+        font-size: 60px;
         font-weight: 700;
         color: var(--text);
-        margin-bottom: 10px;
-        line-height: 1.2;
+        margin-bottom: 12px;
+        line-height: 0.95;
+        letter-spacing: -0.04em;
       }
       .card-desc {
-        font-size: 13px;
+        font-size: 10px;
         color: var(--text2);
-        line-height: 1.6;
-        margin-bottom: 8px;
-        min-height: 62px;
-        padding-right: 42px;
+        line-height: 1.35;
+        margin-bottom: 6px;
+        min-height: 28px;
+        max-width: 190px;
+        padding-right: 28px;
         display: -webkit-box;
         -webkit-box-orient: vertical;
-        -webkit-line-clamp: 3;
+        -webkit-line-clamp: 2;
         overflow: hidden;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
       }
       .project-card.expanded .card-desc {
         display: block;
@@ -1390,8 +1394,8 @@
         }
         #dashboard-minimap,
         #minimap {
-          width: 72px;
-          height: 72px;
+          width: 24px;
+          height: 24px;
           right: 12px;
           bottom: 12px;
         }
@@ -3223,6 +3227,10 @@
           ?.classList.toggle("workspace-menu-open", workspaceMenuOpen);
       }
 
+      function isMobileViewport() {
+        return window.innerWidth <= 820;
+      }
+
       function saveWorkspacePrefs() {
         localStorage.setItem(
           "bev_workspace_prefs",
@@ -4275,6 +4283,7 @@
       function dashboardResetView() {
         const canvas = document.getElementById("dashboard-canvas");
         const rect = canvas.getBoundingClientRect();
+        const isMobile = isMobileViewport();
         const items = [
           ...projects.map((p) => ({
             x: p.x || 0,
@@ -4290,8 +4299,8 @@
           })),
         ];
         if (!items.length) {
-          dashboardViewOffset = { x: 180, y: 110 };
-          dashboardScale = 0.85;
+          dashboardViewOffset = isMobile ? { x: 120, y: 84 } : { x: 180, y: 110 };
+          dashboardScale = isMobile ? 0.52 : 0.85;
           applyDashboardTransform();
           return;
         }
@@ -4305,11 +4314,11 @@
           maxX = Math.max(maxX, it.x + it.w);
           maxY = Math.max(maxY, it.y + it.h);
         });
-        const pad = 180;
+        const pad = isMobile ? 280 : 180;
         const worldW = maxX - minX + pad * 2;
         const worldH = maxY - minY + pad * 2;
         dashboardScale = Math.min(
-          0.85,
+          isMobile ? 0.52 : 0.85,
           Math.max(0.45, Math.min(rect.width / worldW, rect.height / worldH)),
         );
         dashboardViewOffset.x =
@@ -5547,7 +5556,7 @@
           return;
         }
         const prev = viewScale;
-        viewScale += diff * 0.18;
+        viewScale += diff * (isMobileViewport() ? 0.1 : 0.18);
         const ratio = viewScale / prev;
         viewOffset.x = zoomOrigin.x - ratio * (zoomOrigin.x - viewOffset.x);
         viewOffset.y = zoomOrigin.y - ratio * (zoomOrigin.y - viewOffset.y);
@@ -6052,9 +6061,10 @@
       function resetView() {
         const con = document.getElementById("canvas-container"),
           r = con.getBoundingClientRect();
+        const isMobile = isMobileViewport();
         if (!nodes.length) {
-          viewOffset = { x: 56, y: 56 };
-          viewScale = targetScale = 0.85;
+          viewOffset = isMobile ? { x: 40, y: 40 } : { x: 56, y: 56 };
+          viewScale = targetScale = isMobile ? 0.48 : 0.85;
           applyTransform();
           return;
         }
@@ -6071,11 +6081,11 @@
           maxX = Math.max(maxX, nd.x + w);
           maxY = Math.max(maxY, nd.y + h);
         });
-        const pad = 140,
+        const pad = isMobile ? 260 : 140,
           cw = maxX - minX + pad * 2,
           ch = maxY - minY + pad * 2;
         viewScale = targetScale = Math.min(
-          0.9,
+          isMobile ? 0.5 : 0.9,
           Math.min(r.width / cw, r.height / ch),
         );
         viewOffset.x =
@@ -6347,7 +6357,9 @@
             };
             return;
           }
-          const scaleRatio = distance / Math.max(1, pinchState.distance);
+          const pinchSpeed = isMobileViewport() ? 0.35 : 1;
+          const rawScaleRatio = distance / Math.max(1, pinchState.distance);
+          const scaleRatio = Math.pow(rawScaleRatio, pinchSpeed);
           const nextScale = Math.max(
             kind === "dashboard" ? 0.45 : 0.1,
             Math.min(
