@@ -748,7 +748,7 @@
       }
       .card-title {
         font-family: "Syne", sans-serif;
-        font-size: clamp(24px, calc(var(--card-width, 320px) * 0.16), 68px);
+        font-size: clamp(22px, calc(var(--card-width, 280px) * 0.16), 64px);
         font-weight: 700;
         color: var(--text);
         margin-bottom: 10px;
@@ -762,9 +762,9 @@
         font-size: 10px;
         color: var(--text2);
         line-height: 1.35;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         min-height: 0;
-        max-width: 150px;
+        max-width: 140px;
         padding-right: 0;
         display: -webkit-box;
         -webkit-box-orient: vertical;
@@ -779,14 +779,14 @@
       }
       .card-readmore {
         align-self: flex-start;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         padding: 0;
         background: none;
         border: none;
         color: var(--text3);
         cursor: pointer;
         font-family: "Syne", sans-serif;
-        font-size: 10px;
+        font-size: 9px;
         letter-spacing: 0.1em;
         text-transform: uppercase;
       }
@@ -2797,8 +2797,8 @@
         canvasSelectionStart = null,
         nodeGroupDragIds = null,
         nodeGroupDragStart = null;
-      const DEFAULT_PROJECT_CARD_WIDTH = 320;
-      const DEFAULT_PROJECT_CARD_HEIGHT = 260;
+      const DEFAULT_PROJECT_CARD_WIDTH = 280;
+      const DEFAULT_PROJECT_CARD_HEIGHT = 220;
       const DEFAULT_WORKSPACE_CATEGORIES = [
         {
           id: "cat-general",
@@ -3737,7 +3737,7 @@
           const nc = p.nodes ? p.nodes.length : 0,
             cc = p.connections ? p.connections.length : 0;
           const isExpanded = expandedProjectIds.has(p.id);
-          const needsReadMore = (p.desc || "").trim().length > 120;
+          const needsReadMore = (p.desc || "").trim().length > 72;
           const date = new Date(p.created).toLocaleDateString("en-US", {
             month: "short",
             day: "numeric",
@@ -4023,8 +4023,8 @@
         const changedProjects = [];
         projects.forEach((p, i) => {
           if (typeof p.x !== "number" || typeof p.y !== "number") {
-            p.x = 140 + (i % 4) * 360;
-            p.y = 140 + Math.floor(i / 4) * 260;
+            p.x = 100 + (i % 4) * 300;
+            p.y = 100 + Math.floor(i / 4) * 210;
             changedProjects.push(p);
           }
           if (typeof p.w !== "number" || p.w < DEFAULT_PROJECT_CARD_WIDTH) {
@@ -4377,13 +4377,15 @@
           x: Math.max(
             60,
             Math.round(
-              (rect.width / 2 - dashboardViewOffset.x) / dashboardScale - 160,
+              (rect.width / 2 - dashboardViewOffset.x) / dashboardScale -
+                DEFAULT_PROJECT_CARD_WIDTH / 2,
             ),
           ),
           y: Math.max(
             60,
             Math.round(
-              (rect.height / 2 - dashboardViewOffset.y) / dashboardScale - 120,
+              (rect.height / 2 - dashboardViewOffset.y) / dashboardScale -
+                DEFAULT_PROJECT_CARD_HEIGHT / 2,
             ),
           ),
         };
