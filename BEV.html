@@ -696,10 +696,10 @@
       }
       .project-card {
         width: 320px;
-        min-height: 320px;
+        min-height: 260px;
         background: rgba(18, 18, 18, 0.98);
         border: 0.35px solid var(--card-accent, #2a2a2a);
-        padding: 16px 28px 56px;
+        padding: 16px 18px 14px;
         cursor: move;
         transition:
           border-color 0.15s,
@@ -738,29 +738,34 @@
         display: flex;
         align-items: center;
         justify-content: flex-start;
-        margin-bottom: 18px;
+        margin-bottom: 12px;
       }
       .card-date {
-        font-size: 11px;
+        font-size: 9px;
         color: var(--text3);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
       }
       .card-title {
         font-family: "Syne", sans-serif;
-        font-size: 60px;
+        font-size: clamp(24px, calc(var(--card-width, 320px) * 0.16), 68px);
         font-weight: 700;
         color: var(--text);
-        margin-bottom: 12px;
+        margin-bottom: 10px;
         line-height: 0.95;
         letter-spacing: -0.04em;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        text-wrap: balance;
       }
       .card-desc {
         font-size: 10px;
         color: var(--text2);
         line-height: 1.35;
-        margin-bottom: 6px;
-        min-height: 28px;
-        max-width: 190px;
-        padding-right: 28px;
+        margin-bottom: 10px;
+        min-height: 0;
+        max-width: 150px;
+        padding-right: 0;
         display: -webkit-box;
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 2;
@@ -774,7 +779,7 @@
       }
       .card-readmore {
         align-self: flex-start;
-        margin-bottom: 14px;
+        margin-bottom: 10px;
         padding: 0;
         background: none;
         border: none;
@@ -791,13 +796,12 @@
       .card-status {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 14px;
-        padding: 7px 10px;
-        background: var(--bg3);
-        border: 1px solid var(--border);
+        gap: 6px;
+        padding: 0;
+        background: none;
+        border: none;
         font-family: "Syne", sans-serif;
-        font-size: 10px;
+        font-size: 9px;
         letter-spacing: 0.12em;
         text-transform: uppercase;
         color: var(--text2);
@@ -805,11 +809,9 @@
         transition: all 0.15s;
       }
       .card-status:hover {
-        border-color: var(--border2);
         color: var(--text);
       }
       .card-status.open {
-        border-color: var(--border2);
         color: var(--text);
       }
       .card-status::before {
@@ -828,8 +830,7 @@
       .card-status-wrap {
         position: relative;
         display: inline-flex;
-        margin-top: auto;
-        margin-bottom: 10px;
+        margin: 0;
       }
       .card-status-menu {
         position: absolute;
@@ -893,14 +894,30 @@
       }
       .card-stats {
         display: flex;
-        gap: 20px;
+        gap: 10px;
+        flex-wrap: wrap;
       }
       .card-stat {
-        font-size: 11px;
+        font-size: 9px;
         color: var(--text3);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
       }
       .card-stat span {
         color: var(--text2);
+      }
+      .card-bottom {
+        margin-top: auto;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .card-bottom-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
       }
       .card-del {
         position: absolute;
@@ -941,20 +958,20 @@
         color: var(--red);
       }
       .card-open {
-        position: absolute;
-        right: 22px;
-        bottom: 18px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        width: 24px;
+        height: 24px;
         padding: 0;
         background: none;
         border: none;
         font-family: "Syne", sans-serif;
-        font-size: 20px;
+        font-size: 16px;
         color: var(--text3);
         cursor: pointer;
         transition: color 0.15s;
+        flex-shrink: 0;
       }
       .card-open:hover {
         color: var(--text);
@@ -2781,7 +2798,7 @@
         nodeGroupDragIds = null,
         nodeGroupDragStart = null;
       const DEFAULT_PROJECT_CARD_WIDTH = 320;
-      const DEFAULT_PROJECT_CARD_HEIGHT = 320;
+      const DEFAULT_PROJECT_CARD_HEIGHT = 260;
       const DEFAULT_WORKSPACE_CATEGORIES = [
         {
           id: "cat-general",
@@ -3737,6 +3754,10 @@
           el.style.left = (p.x || 0) + "px";
           el.style.top = (p.y || 0) + "px";
           el.style.width = (p.w || DEFAULT_PROJECT_CARD_WIDTH) + "px";
+          el.style.setProperty(
+            "--card-width",
+            `${p.w || DEFAULT_PROJECT_CARD_WIDTH}px`,
+          );
           el.style.height = isExpanded
             ? "auto"
             : (p.h || DEFAULT_PROJECT_CARD_HEIGHT) + "px";
@@ -3748,14 +3769,18 @@
       <div class="card-title">${esc(p.name)}</div>
       <div class="card-desc">${esc(p.desc || "")}</div>
       ${needsReadMore ? `<button class="card-readmore" type="button">${isExpanded ? "Show less" : "Read more"}</button>` : ""}
-      <div class="card-status-wrap">
-        <button class="card-status" type="button" data-status="${statusSlug(p.status)}">${esc(p.status || "In Progress")}</button>
-        <div class="card-status-menu">
-          ${PROJECT_STATUSES.map((status) => `<button class="card-status-option${status === (p.status || "In Progress") ? " active" : ""}" type="button" data-value="${esc(status)}" data-status="${statusSlug(status)}"><span class="card-status-dot" style="--status-color:${status === "Done" ? "var(--green)" : status === "On Going" ? "var(--blue)" : status === "In Progress" ? "var(--yellow)" : status === "Cancelled" ? "var(--red)" : status === "Postponed" ? "var(--purple)" : "var(--blue)"}"></span>${esc(status)}</button>`).join("")}
+      <div class="card-bottom">
+        <div class="card-bottom-meta">
+          <div class="card-status-wrap">
+            <button class="card-status" type="button" data-status="${statusSlug(p.status)}">${esc(p.status || "In Progress")}</button>
+            <div class="card-status-menu">
+              ${PROJECT_STATUSES.map((status) => `<button class="card-status-option${status === (p.status || "In Progress") ? " active" : ""}" type="button" data-value="${esc(status)}" data-status="${statusSlug(status)}"><span class="card-status-dot" style="--status-color:${status === "Done" ? "var(--green)" : status === "On Going" ? "var(--blue)" : status === "In Progress" ? "var(--yellow)" : status === "Cancelled" ? "var(--red)" : status === "Postponed" ? "var(--purple)" : "var(--blue)"}"></span>${esc(status)}</button>`).join("")}
+            </div>
+          </div>
+          <div class="card-stats"><div class="card-stat"><span>${nc}</span> nodes</div><div class="card-stat"><span>${cc}</span> links</div></div>
         </div>
+        <button class="card-open" type="button" aria-label="Open card">→</button>
       </div>
-      <div class="card-stats"><div class="card-stat"><span>${nc}</span> nodes</div><div class="card-stat"><span>${cc}</span> connections</div></div>
-      <button class="card-open" type="button" aria-label="Open card">→</button>
       <div class="card-resize-handle resize-tl" data-dir="tl"></div>
       <div class="card-resize-handle resize-tr" data-dir="tr"></div>
       <div class="card-resize-handle resize-bl" data-dir="bl"></div>
@@ -4300,7 +4325,7 @@
         ];
         if (!items.length) {
           dashboardViewOffset = isMobile ? { x: 120, y: 84 } : { x: 180, y: 110 };
-          dashboardScale = isMobile ? 0.52 : 0.85;
+          dashboardScale = isMobile ? 0.34 : 0.52;
           applyDashboardTransform();
           return;
         }
@@ -4314,12 +4339,12 @@
           maxX = Math.max(maxX, it.x + it.w);
           maxY = Math.max(maxY, it.y + it.h);
         });
-        const pad = isMobile ? 280 : 180;
+        const pad = isMobile ? 360 : 260;
         const worldW = maxX - minX + pad * 2;
         const worldH = maxY - minY + pad * 2;
         dashboardScale = Math.min(
-          isMobile ? 0.52 : 0.85,
-          Math.max(0.45, Math.min(rect.width / worldW, rect.height / worldH)),
+          isMobile ? 0.34 : 0.52,
+          Math.max(0.18, Math.min(rect.width / worldW, rect.height / worldH)),
         );
         dashboardViewOffset.x =
           (rect.width - worldW * dashboardScale) / 2 -
@@ -4338,7 +4363,7 @@
         const py = rect.height / 2;
         const worldX = (px - dashboardViewOffset.x) / dashboardScale;
         const worldY = (py - dashboardViewOffset.y) / dashboardScale;
-        dashboardScale = Math.max(0.45, Math.min(2.5, dashboardScale + delta));
+        dashboardScale = Math.max(0.12, Math.min(2.5, dashboardScale + delta));
         dashboardViewOffset.x = px - worldX * dashboardScale;
         dashboardViewOffset.y = py - worldY * dashboardScale;
         applyDashboardTransform();
@@ -4539,7 +4564,7 @@
               const worldY = (py - dashboardViewOffset.y) / dashboardScale;
               const zoomFactor = Math.exp(-e.deltaY * 0.0025);
               dashboardScale = Math.max(
-                0.45,
+                0.12,
                 Math.min(2.5, dashboardScale * zoomFactor),
               );
               dashboardViewOffset.x = px - worldX * dashboardScale;
@@ -5806,7 +5831,7 @@
               const worldY = (py - viewOffset.y) / viewScale;
               const zoomFactor = Math.exp(-e.deltaY * 0.0025);
               viewScale = targetScale = Math.max(
-                0.1,
+                0.05,
                 Math.min(5, viewScale * zoomFactor),
               );
               viewOffset.x = px - worldX * viewScale;
@@ -6064,7 +6089,7 @@
         const isMobile = isMobileViewport();
         if (!nodes.length) {
           viewOffset = isMobile ? { x: 40, y: 40 } : { x: 56, y: 56 };
-          viewScale = targetScale = isMobile ? 0.48 : 0.85;
+          viewScale = targetScale = isMobile ? 0.28 : 0.48;
           applyTransform();
           return;
         }
@@ -6081,11 +6106,11 @@
           maxX = Math.max(maxX, nd.x + w);
           maxY = Math.max(maxY, nd.y + h);
         });
-        const pad = isMobile ? 260 : 140,
+        const pad = isMobile ? 340 : 220,
           cw = maxX - minX + pad * 2,
           ch = maxY - minY + pad * 2;
         viewScale = targetScale = Math.min(
-          isMobile ? 0.5 : 0.9,
+          isMobile ? 0.3 : 0.5,
           Math.min(r.width / cw, r.height / ch),
         );
         viewOffset.x =
@@ -6099,7 +6124,7 @@
           .getElementById("canvas-container")
           .getBoundingClientRect();
         zoomOrigin = { x: r.width / 2, y: r.height / 2 };
-        targetScale = Math.max(0.1, Math.min(5, targetScale + d));
+        targetScale = Math.max(0.05, Math.min(5, targetScale + d));
         if (!isZooming) {
           isZooming = true;
           if (zoomRAF) cancelAnimationFrame(zoomRAF);
@@ -6349,41 +6374,44 @@
               distance,
               centerX,
               centerY,
-              scale: kind === "dashboard" ? dashboardScale : viewScale,
-              offset:
-                kind === "dashboard"
-                  ? { ...dashboardViewOffset }
-                  : { ...viewOffset },
             };
             return;
           }
-          const pinchSpeed = isMobileViewport() ? 0.35 : 1;
+          const pinchSpeed = isMobileViewport() ? 0.2 : 1;
           const rawScaleRatio = distance / Math.max(1, pinchState.distance);
           const scaleRatio = Math.pow(rawScaleRatio, pinchSpeed);
+          const currentScale = kind === "dashboard" ? dashboardScale : viewScale;
+          const currentOffset =
+            kind === "dashboard" ? dashboardViewOffset : viewOffset;
           const nextScale = Math.max(
-            kind === "dashboard" ? 0.45 : 0.1,
+            kind === "dashboard" ? 0.12 : 0.05,
             Math.min(
               kind === "dashboard" ? 2.5 : 5,
-              pinchState.scale * scaleRatio,
+              currentScale * scaleRatio,
             ),
           );
-          const dx = centerX - pinchState.centerX;
-          const dy = centerY - pinchState.centerY;
+          const worldX = (centerX - currentOffset.x) / currentScale;
+          const worldY = (centerY - currentOffset.y) / currentScale;
           if (kind === "dashboard") {
             dashboardScale = nextScale;
             dashboardViewOffset = {
-              x: pinchState.offset.x + dx,
-              y: pinchState.offset.y + dy,
+              x: centerX - worldX * nextScale,
+              y: centerY - worldY * nextScale,
             };
             applyDashboardTransform();
           } else {
             viewScale = targetScale = nextScale;
             viewOffset = {
-              x: pinchState.offset.x + dx,
-              y: pinchState.offset.y + dy,
+              x: centerX - worldX * nextScale,
+              y: centerY - worldY * nextScale,
             };
             applyTransform();
           }
+          pinchState = {
+            distance,
+            centerX,
+            centerY,
+          };
         };
 
         el.addEventListener(
