@@ -343,7 +343,9 @@
         border: none;
         color: var(--text3);
         cursor: pointer;
-        transition: color 0.15s, background 0.15s;
+        transition:
+          color 0.15s,
+          background 0.15s;
       }
       .icon-btn:hover {
         color: var(--text);
@@ -466,7 +468,10 @@
         color: var(--text2);
         font: inherit;
         cursor: pointer;
-        transition: border-color 0.15s, color 0.15s, background 0.15s;
+        transition:
+          border-color 0.15s,
+          color 0.15s,
+          background 0.15s;
       }
       .workspace-check {
         width: 18px;
@@ -1046,7 +1051,9 @@
         z-index: 140;
         opacity: 0;
         transform: translateY(-6px);
-        transition: opacity 0.15s, transform 0.15s;
+        transition:
+          opacity 0.15s,
+          transform 0.15s;
         pointer-events: none;
       }
       .selection-indicator.visible {
@@ -2185,7 +2192,8 @@
               stroke-width="1.5">
               <path d="M6 3H3v10h3" />
               <path d="M9 5l4 3-4 3" />
-              <path d="M13 8H6" /></svg>
+              <path d="M13 8H6" />
+            </svg>
           </button>
         </div>
       </div>
@@ -2198,7 +2206,10 @@
         </div>
         <div class="path-right">
           <div id="workspace-menu-wrap">
-            <button class="icon-btn" id="workspace-menu-btn" aria-label="Workspace settings">
+            <button
+              class="icon-btn"
+              id="workspace-menu-btn"
+              aria-label="Workspace settings">
               <svg
                 width="16"
                 height="16"
@@ -2363,7 +2374,10 @@
     <div id="screen-canvas" style="display: none">
       <div id="canvas-header">
         <button id="back-btn" onclick="goToDashboard()">←</button>
-        <div id="canvas-project-title" contenteditable="true" spellcheck="false"></div>
+        <div
+          id="canvas-project-title"
+          contenteditable="true"
+          spellcheck="false"></div>
         <div style="flex: 1"></div>
         <div id="save-indicator">
           <div id="save-dot"></div>
@@ -2422,7 +2436,7 @@
             stroke="currentColor"
             stroke-width="1.5">
             <path d="M3 4v8M13 4v8M3 8h10" /></svg
-            ><span class="tip">Heading</span>
+          ><span class="tip">Heading</span>
         </button>
         <button class="tool-btn" onclick="addNodeCtx('line')">
           <svg
@@ -2673,7 +2687,9 @@
         <h3 id="confirm-title">Delete</h3>
         <div id="confirm-message"></div>
         <div class="modal-actions">
-          <button class="btn-ghost" onclick="closeConfirmDialog()">Cancel</button>
+          <button class="btn-ghost" onclick="closeConfirmDialog()">
+            Cancel
+          </button>
           <button
             class="btn-primary"
             id="confirm-action-btn"
@@ -2774,18 +2790,50 @@
       const DEFAULT_PROJECT_CARD_WIDTH = 320;
       const DEFAULT_PROJECT_CARD_HEIGHT = 320;
       const DEFAULT_WORKSPACE_CATEGORIES = [
-        { id: "cat-general", color: "#ffffff", label: "General", enabled: true },
+        {
+          id: "cat-general",
+          color: "#ffffff",
+          label: "General",
+          enabled: true,
+        },
         { id: "cat-urgent", color: "#ff4444", label: "Urgent", enabled: true },
-        { id: "cat-planning", color: "#ff8844", label: "Planning", enabled: true },
+        {
+          id: "cat-planning",
+          color: "#ff8844",
+          label: "Planning",
+          enabled: true,
+        },
         { id: "cat-ideas", color: "#ffcc44", label: "Ideas", enabled: true },
-        { id: "cat-projects", color: "#44ff88", label: "Projects", enabled: true },
-        { id: "cat-research", color: "#44ccff", label: "Research", enabled: true },
-        { id: "cat-resources", color: "#aa88ff", label: "Resources", enabled: true },
-        { id: "cat-personal", color: "#ff88cc", label: "Personal", enabled: true },
+        {
+          id: "cat-projects",
+          color: "#44ff88",
+          label: "Projects",
+          enabled: true,
+        },
+        {
+          id: "cat-research",
+          color: "#44ccff",
+          label: "Research",
+          enabled: true,
+        },
+        {
+          id: "cat-resources",
+          color: "#aa88ff",
+          label: "Resources",
+          enabled: true,
+        },
+        {
+          id: "cat-personal",
+          color: "#ff88cc",
+          label: "Personal",
+          enabled: true,
+        },
       ];
-      let workspaceCategories = DEFAULT_WORKSPACE_CATEGORIES.map((category) => ({
-        ...category,
-      }));
+      let workspaceCategories = DEFAULT_WORKSPACE_CATEGORIES.map(
+        (category) => ({
+          ...category,
+        }),
+      );
       let workspaceSort = "created-desc";
       let workspaceUIPrefs = {
         showZoomControls: true,
@@ -3206,9 +3254,7 @@
               enabled: category.enabled !== false,
             }));
           } else if (prefs.categoryMap) {
-            const disabled = Array.isArray(prefs.categoryFilters)
-              ? []
-              : [];
+            const disabled = Array.isArray(prefs.categoryFilters) ? [] : [];
             workspaceCategories = Object.entries(prefs.categoryMap).map(
               ([color, label], index) => ({
                 id: `cat-migrated-${index}`,
@@ -3227,9 +3273,11 @@
           };
         } catch {}
         if (!workspaceCategories.length) {
-          workspaceCategories = DEFAULT_WORKSPACE_CATEGORIES.map((category) => ({
-            ...category,
-          }));
+          workspaceCategories = DEFAULT_WORKSPACE_CATEGORIES.map(
+            (category) => ({
+              ...category,
+            }),
+          );
         }
         selectedColor = getCategoryColorList().includes(selectedColor)
           ? selectedColor
@@ -3238,7 +3286,9 @@
       }
 
       function getAvailableCategories() {
-        return workspaceCategories.map((category) => category.label).filter(Boolean);
+        return workspaceCategories
+          .map((category) => category.label)
+          .filter(Boolean);
       }
 
       function getFilteredSortedProjects() {
@@ -3254,7 +3304,8 @@
           );
         }
         list.sort((a, b) => {
-          if (workspaceSort === "created-asc") return (a.created || 0) - (b.created || 0);
+          if (workspaceSort === "created-asc")
+            return (a.created || 0) - (b.created || 0);
           if (workspaceSort === "title-asc")
             return String(a.name || "").localeCompare(String(b.name || ""));
           if (workspaceSort === "title-desc")
@@ -3294,7 +3345,9 @@
           `<div class="workspace-category-list">` +
           workspaceCategories
             .map(
-              (category) => `<div class="workspace-category-row${editingCategoryLabelId === category.id ? " label-editing" : ""}${activeCategoryColorEditorId === category.id ? " color-editing" : ""}" data-category-id="${category.id}">
+              (
+                category,
+              ) => `<div class="workspace-category-row${editingCategoryLabelId === category.id ? " label-editing" : ""}${activeCategoryColorEditorId === category.id ? " color-editing" : ""}" data-category-id="${category.id}">
                 <div class="workspace-row-main">
                   <div class="workspace-category-meta">
                     <button class="workspace-check${category.enabled ? " is-on" : ""}" type="button" data-action="toggle-filter" data-category-id="${category.id}">${category.enabled ? "✓" : ""}</button>
@@ -3377,12 +3430,17 @@
           }),
         );
         const updateCategoryColor = (categoryId, rawValue) => {
-          const category = workspaceCategories.find((item) => item.id === categoryId);
+          const category = workspaceCategories.find(
+            (item) => item.id === categoryId,
+          );
           if (!category) return;
           const previousColor = category.color;
           category.color = sanitizeCategoryColor(rawValue, previousColor);
           projects.forEach((project) => {
-            if ((project.color || "").toLowerCase() === previousColor.toLowerCase()) {
+            if (
+              (project.color || "").toLowerCase() ===
+              previousColor.toLowerCase()
+            ) {
               project.color = category.color;
             }
           });
@@ -3396,55 +3454,63 @@
           renderWorkspaceMenu();
           renderDashboard();
         };
-        mapEl.querySelectorAll("[data-field='color']").forEach((input) =>
-          input.addEventListener("change", () =>
-            updateCategoryColor(input.dataset.categoryId, input.value),
-          ),
-        );
-        mapEl.querySelectorAll("[data-field='color-wheel']").forEach((input) =>
-          input.addEventListener("input", () =>
-            updateCategoryColor(input.dataset.categoryId, input.value),
-          ),
-        );
-        mapEl.querySelectorAll("[data-action='delete-category']").forEach((btn) =>
-          btn.addEventListener("click", () => {
-            const categoryId = btn.dataset.categoryId;
-            const category = workspaceCategories.find((item) => item.id === categoryId);
-            if (!category || workspaceCategories.length <= 1) return;
-            openConfirmDialog({
-              title: "Delete Category",
-              message:
-                "Delete this category? Cards using it will move to the first available category.",
-              confirmLabel: "Delete",
-              onConfirm: () => {
-                workspaceCategories = workspaceCategories.filter(
-                  (item) => item.id !== categoryId,
-                );
-                const fallbackColor = getDefaultCategoryColor();
-                projects.forEach((project) => {
-                  if (
-                    (project.color || "").toLowerCase() ===
-                    category.color.toLowerCase()
-                  ) {
-                    project.color = fallbackColor;
-                  }
-                });
-                selectedColor =
-                  selectedColor.toLowerCase() === category.color.toLowerCase()
-                    ? fallbackColor
-                    : selectedColor;
-                activeCategoryColorEditorId = null;
-                editingCategoryLabelId = null;
-                syncProjectCategories();
-                saveWorkspacePrefs();
-                initColorSwatches();
-                updatePathStatus();
-                renderWorkspaceMenu();
-                renderDashboard();
-              },
-            });
-          }),
-        );
+        mapEl
+          .querySelectorAll("[data-field='color']")
+          .forEach((input) =>
+            input.addEventListener("change", () =>
+              updateCategoryColor(input.dataset.categoryId, input.value),
+            ),
+          );
+        mapEl
+          .querySelectorAll("[data-field='color-wheel']")
+          .forEach((input) =>
+            input.addEventListener("input", () =>
+              updateCategoryColor(input.dataset.categoryId, input.value),
+            ),
+          );
+        mapEl
+          .querySelectorAll("[data-action='delete-category']")
+          .forEach((btn) =>
+            btn.addEventListener("click", () => {
+              const categoryId = btn.dataset.categoryId;
+              const category = workspaceCategories.find(
+                (item) => item.id === categoryId,
+              );
+              if (!category || workspaceCategories.length <= 1) return;
+              openConfirmDialog({
+                title: "Delete Category",
+                message:
+                  "Delete this category? Cards using it will move to the first available category.",
+                confirmLabel: "Delete",
+                onConfirm: () => {
+                  workspaceCategories = workspaceCategories.filter(
+                    (item) => item.id !== categoryId,
+                  );
+                  const fallbackColor = getDefaultCategoryColor();
+                  projects.forEach((project) => {
+                    if (
+                      (project.color || "").toLowerCase() ===
+                      category.color.toLowerCase()
+                    ) {
+                      project.color = fallbackColor;
+                    }
+                  });
+                  selectedColor =
+                    selectedColor.toLowerCase() === category.color.toLowerCase()
+                      ? fallbackColor
+                      : selectedColor;
+                  activeCategoryColorEditorId = null;
+                  editingCategoryLabelId = null;
+                  syncProjectCategories();
+                  saveWorkspacePrefs();
+                  initColorSwatches();
+                  updatePathStatus();
+                  renderWorkspaceMenu();
+                  renderDashboard();
+                },
+              });
+            }),
+          );
         document
           .getElementById("workspace-add-category")
           ?.addEventListener("click", () => {
@@ -3453,7 +3519,8 @@
             let step = 1;
             while (
               workspaceCategories.some(
-                (category) => category.color.toLowerCase() === color.toLowerCase(),
+                (category) =>
+                  category.color.toLowerCase() === color.toLowerCase(),
               )
             ) {
               const channel = Math.max(64, 179 - step * 12)
@@ -3575,7 +3642,8 @@
         if (pendingConnTarget?.nodeEl !== nextTarget?.nodeEl) {
           if (pendingConnTarget?.nodeEl)
             pendingConnTarget.nodeEl.classList.remove("connect-target");
-          if (nextTarget?.nodeEl) nextTarget.nodeEl.classList.add("connect-target");
+          if (nextTarget?.nodeEl)
+            nextTarget.nodeEl.classList.add("connect-target");
         }
         pendingConnTarget = nextTarget;
       }
@@ -3676,7 +3744,7 @@
       <div class="card-status-wrap">
         <button class="card-status" type="button" data-status="${statusSlug(p.status)}">${esc(p.status || "In Progress")}</button>
         <div class="card-status-menu">
-          ${PROJECT_STATUSES.map(status=>`<button class="card-status-option${status===(p.status||"In Progress")?" active":""}" type="button" data-value="${esc(status)}" data-status="${statusSlug(status)}"><span class="card-status-dot" style="--status-color:${status==="Done"?"var(--green)":status==="On Going"?"var(--blue)":status==="In Progress"?"var(--yellow)":status==="Cancelled"?"var(--red)":status==="Postponed"?"var(--purple)":"var(--blue)"}"></span>${esc(status)}</button>`).join("")}
+          ${PROJECT_STATUSES.map((status) => `<button class="card-status-option${status === (p.status || "In Progress") ? " active" : ""}" type="button" data-value="${esc(status)}" data-status="${statusSlug(status)}"><span class="card-status-dot" style="--status-color:${status === "Done" ? "var(--green)" : status === "On Going" ? "var(--blue)" : status === "In Progress" ? "var(--yellow)" : status === "Cancelled" ? "var(--red)" : status === "Postponed" ? "var(--purple)" : "var(--blue)"}"></span>${esc(status)}</button>`).join("")}
         </div>
       </div>
       <div class="card-stats"><div class="card-stat"><span>${nc}</span> nodes</div><div class="card-stat"><span>${cc}</span> connections</div></div>
@@ -3725,11 +3793,9 @@
               .forEach((menu) => {
                 if (menu !== statusMenu) menu.classList.remove("open");
               });
-            document
-              .querySelectorAll(".card-status.open")
-              .forEach((btn) => {
-                if (btn !== statusBtn) btn.classList.remove("open");
-              });
+            document.querySelectorAll(".card-status.open").forEach((btn) => {
+              if (btn !== statusBtn) btn.classList.remove("open");
+            });
             statusBtn.classList.toggle("open");
             statusMenu.classList.toggle("open");
           });
@@ -3800,7 +3866,8 @@
         if (!el) return;
         el.innerHTML = "";
         const colors = getCategoryColorList();
-        if (!colors.includes(selectedColor)) selectedColor = getDefaultCategoryColor();
+        if (!colors.includes(selectedColor))
+          selectedColor = getDefaultCategoryColor();
         colors.forEach((c) => {
           const sw = document.createElement("div");
           sw.className =
@@ -3859,7 +3926,8 @@
         pendingConfirmAction = onConfirm;
         document.getElementById("confirm-title").textContent = title;
         document.getElementById("confirm-message").textContent = message;
-        document.getElementById("confirm-action-btn").textContent = confirmLabel;
+        document.getElementById("confirm-action-btn").textContent =
+          confirmLabel;
         document.getElementById("confirm-overlay").classList.add("visible");
       }
       function closeConfirmDialog() {
@@ -3959,7 +4027,9 @@
 
       function applyOverviewSelectionClasses() {
         const count = selectedProjectIds.size + selectedOverviewItemIds.size;
-        const indicator = document.getElementById("dashboard-selection-indicator");
+        const indicator = document.getElementById(
+          "dashboard-selection-indicator",
+        );
         document.querySelectorAll(".project-card").forEach((el) => {
           const isSelected = selectedProjectIds.has(el.dataset.projectId);
           el.classList.toggle(
@@ -3983,9 +4053,7 @@
           );
         });
         if (indicator) {
-          indicator.textContent = count
-            ? `${count} selected`
-            : "No selection";
+          indicator.textContent = count ? `${count} selected` : "No selection";
           indicator.classList.toggle("visible", count > 1);
         }
       }
@@ -4017,8 +4085,10 @@
             ? 1
             : 0;
         const parts = [];
-        if (cardCount) parts.push(`${cardCount} card${cardCount !== 1 ? "s" : ""}`);
-        if (itemCount) parts.push(`${itemCount} item${itemCount !== 1 ? "s" : ""}`);
+        if (cardCount)
+          parts.push(`${cardCount} card${cardCount !== 1 ? "s" : ""}`);
+        if (itemCount)
+          parts.push(`${itemCount} item${itemCount !== 1 ? "s" : ""}`);
         openConfirmDialog({
           title: "Delete Selection",
           message: `Delete ${parts.join(" and ")}?`,
@@ -4293,13 +4363,17 @@
         dashboardGroupDragProjects = [...selectedProjectIds]
           .map((id) => {
             const proj = projects.find((x) => x.id === id);
-            return proj ? { id: proj.id, startX: proj.x, startY: proj.y } : null;
+            return proj
+              ? { id: proj.id, startX: proj.x, startY: proj.y }
+              : null;
           })
           .filter(Boolean);
         dashboardGroupDragItems = [...selectedOverviewItemIds]
           .map((id) => {
             const item = overviewItems.find((x) => x.id === id);
-            return item ? { id: item.id, startX: item.x, startY: item.y } : null;
+            return item
+              ? { id: item.id, startX: item.x, startY: item.y }
+              : null;
           })
           .filter(Boolean);
         dashboardGroupDragStart = {
@@ -5037,16 +5111,19 @@
             };
           }),
         );
-        el.querySelector(".node-settings-btn")?.addEventListener("click", (e) => {
-          e.stopPropagation();
-          document
-            .querySelectorAll(".node-settings.open")
-            .forEach((panel) => {
-              if (panel !== el.querySelector(".node-settings"))
-                panel.classList.remove("open");
-            });
-          el.querySelector(".node-settings")?.classList.toggle("open");
-        });
+        el.querySelector(".node-settings-btn")?.addEventListener(
+          "click",
+          (e) => {
+            e.stopPropagation();
+            document
+              .querySelectorAll(".node-settings.open")
+              .forEach((panel) => {
+                if (panel !== el.querySelector(".node-settings"))
+                  panel.classList.remove("open");
+              });
+            el.querySelector(".node-settings")?.classList.toggle("open");
+          },
+        );
         if (nd.type === "progress") {
           const bar = el.querySelector(".progress-bar-bg");
           if (bar)
@@ -5090,10 +5167,7 @@
           });
         if (nd.type === "bullet") {
           const body = el.querySelector(".node-body");
-          body.classList.toggle(
-            "has-checks",
-            !!nd.bulletFeatures?.checklist,
-          );
+          body.classList.toggle("has-checks", !!nd.bulletFeatures?.checklist);
           body.classList.toggle(
             "has-connectors",
             !!nd.bulletFeatures?.connectors,
@@ -5182,9 +5256,7 @@
           return `<div class="node-content" spellcheck="false"></div>`;
         if (nd.type === "bullet") {
           const lis = (nd.items || [])
-            .map(
-              (_, i) => bulletItemHTML(nd, i),
-            )
+            .map((_, i) => bulletItemHTML(nd, i))
             .join("");
           return `<ul class="bullet-list">${lis}</ul><button class="bullet-add-btn">+ Add item</button>`;
         }
@@ -5234,7 +5306,8 @@
               };
               nd.bulletFeatures[feature] = !nd.bulletFeatures[feature];
               el.querySelector(".node-body").innerHTML = nodeBodyHTML(nd);
-              el.querySelector(".node-settings").innerHTML = nodeSettingsHTML(nd);
+              el.querySelector(".node-settings").innerHTML =
+                nodeSettingsHTML(nd);
               bindBulletNode(nd, el);
               bindNodeSettings(nd, el);
               autosave();
@@ -5258,27 +5331,33 @@
           nd.items[index].text = e.target.textContent;
           autosave();
         });
-        li.querySelector(".bullet-item-check")?.addEventListener("click", () => {
-          nd.items[index].done = !nd.items[index].done;
-          const check = li.querySelector(".bullet-item-check");
-          li.classList.toggle("is-done", nd.items[index].done);
-          check.classList.toggle("done", nd.items[index].done);
-          check.textContent = nd.items[index].done ? "✓" : "";
-          autosave();
-        });
-        li.querySelector(".bullet-item-handle")?.addEventListener("mousedown", (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          pendingConn = {
-            nodeId: nd.id,
-            pos: "right",
-            bulletIndex: Number(li.dataset.bulletIndex),
-          };
-          pendingConnCursor = { x: e.clientX, y: e.clientY };
-          pendingConnTarget = null;
-          setTool("connect");
-          requestConnectionRender();
-        });
+        li.querySelector(".bullet-item-check")?.addEventListener(
+          "click",
+          () => {
+            nd.items[index].done = !nd.items[index].done;
+            const check = li.querySelector(".bullet-item-check");
+            li.classList.toggle("is-done", nd.items[index].done);
+            check.classList.toggle("done", nd.items[index].done);
+            check.textContent = nd.items[index].done ? "✓" : "";
+            autosave();
+          },
+        );
+        li.querySelector(".bullet-item-handle")?.addEventListener(
+          "mousedown",
+          (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            pendingConn = {
+              nodeId: nd.id,
+              pos: "right",
+              bulletIndex: Number(li.dataset.bulletIndex),
+            };
+            pendingConnCursor = { x: e.clientX, y: e.clientY };
+            pendingConnTarget = null;
+            setTool("connect");
+            requestConnectionRender();
+          },
+        );
       }
 
       function bindBulletNode(nd, el) {
@@ -5446,7 +5525,8 @@
             const nodeRect = el.getBoundingClientRect();
             const handleRect = bulletHandle.getBoundingClientRect();
             return {
-              x: nd.x + (handleRect.left - nodeRect.left) + handleRect.width / 2,
+              x:
+                nd.x + (handleRect.left - nodeRect.left) + handleRect.width / 2,
               y: nd.y + (handleRect.top - nodeRect.top) + handleRect.height / 2,
             };
           }
@@ -6189,6 +6269,8 @@
         const activePointers = new Map();
         let mousePointerId = null;
         let pinchState = null;
+        let touchTapCandidate = null;
+        const TAP_MOVE_THRESHOLD = 10;
 
         const dispatchMouse = (target, type, point) => {
           (target || el).dispatchEvent(
@@ -6199,6 +6281,19 @@
               clientY: point.clientY,
               button: 0,
               buttons: type === "mouseup" ? 0 : 1,
+            }),
+          );
+        };
+
+        const dispatchClick = (target, point) => {
+          (target || el).dispatchEvent(
+            new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              clientX: point.clientX,
+              clientY: point.clientY,
+              button: 0,
+              buttons: 0,
             }),
           );
         };
@@ -6261,6 +6356,13 @@
             });
             if (activePointers.size === 1) {
               mousePointerId = e.pointerId;
+              touchTapCandidate = {
+                pointerId: e.pointerId,
+                startX: e.clientX,
+                startY: e.clientY,
+                target: document.elementFromPoint(e.clientX, e.clientY) || e.target,
+                moved: false,
+              };
               dispatchMouse(
                 document.elementFromPoint(e.clientX, e.clientY) || e.target,
                 "mousedown",
@@ -6269,6 +6371,7 @@
             } else {
               mousePointerId = null;
               pinchState = null;
+              touchTapCandidate = null;
             }
             e.preventDefault();
           },
@@ -6286,6 +6389,14 @@
             if (activePointers.size >= 2) {
               applyPinch([...activePointers.values()].slice(0, 2));
             } else if (mousePointerId === e.pointerId) {
+              if (touchTapCandidate?.pointerId === e.pointerId) {
+                const movedDistance = Math.hypot(
+                  e.clientX - touchTapCandidate.startX,
+                  e.clientY - touchTapCandidate.startY,
+                );
+                if (movedDistance > TAP_MOVE_THRESHOLD)
+                  touchTapCandidate.moved = true;
+              }
               dispatchMouse(window, "mousemove", e);
             }
             e.preventDefault();
@@ -6298,9 +6409,21 @@
           activePointers.delete(e.pointerId);
           if (mousePointerId === e.pointerId) {
             dispatchMouse(window, "mouseup", e);
+            if (
+              touchTapCandidate?.pointerId === e.pointerId &&
+              !touchTapCandidate.moved
+            ) {
+              const target =
+                document.elementFromPoint(e.clientX, e.clientY) ||
+                touchTapCandidate.target ||
+                e.target;
+              dispatchClick(target, e);
+            }
             mousePointerId = null;
           }
           if (activePointers.size < 2) pinchState = null;
+          if (touchTapCandidate?.pointerId === e.pointerId)
+            touchTapCandidate = null;
           if (!activePointers.size && kind === "canvas" && currentProject)
             autosave();
           e.preventDefault();
