@@ -1127,6 +1127,121 @@
         font-weight: 700;
         line-height: 1.1;
       }
+      .overview-item-category {
+        min-width: 220px;
+        max-width: 340px;
+        padding: 10px 12px;
+        border: 1px solid var(--border2);
+        background: rgba(14, 14, 14, 0.96);
+      }
+      .overview-item.selected.overview-item-category,
+      .overview-item.multi-selected.overview-item-category {
+        border-color: rgba(255, 255, 255, 0.22);
+      }
+      .overview-category-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .overview-category-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding-top: 1px;
+        flex-shrink: 0;
+        position: relative;
+      }
+      .overview-category-btn {
+        width: 14px;
+        height: 14px;
+        border: none;
+        background: transparent;
+        color: var(--text3);
+        font-family: "Syne", sans-serif;
+        font-size: 11px;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        transition: color 0.15s;
+      }
+      .overview-category-btn:hover {
+        color: var(--text);
+      }
+      .overview-category-picker {
+        position: absolute;
+        top: 0;
+        left: calc(100% + 8px);
+        min-width: 132px;
+        padding: 4px;
+        border: 1px solid var(--border2);
+        background: rgba(10, 10, 10, 0.98);
+        display: none;
+        flex-direction: column;
+        gap: 2px;
+        z-index: 60;
+      }
+      .overview-category-picker.open {
+        display: flex;
+      }
+      .overview-category-option {
+        border: none;
+        background: transparent;
+        color: var(--text2);
+        padding: 7px 8px;
+        text-align: left;
+        font-family: "Barlow", sans-serif;
+        font-size: 11px;
+        line-height: 1.2;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .overview-category-option:hover,
+      .overview-category-option.active {
+        background: var(--bg3);
+        color: var(--text);
+      }
+      .overview-category-option-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--option-color, #666);
+        flex-shrink: 0;
+      }
+      .overview-category-pill {
+        min-width: 0;
+        flex: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        padding: 0;
+        cursor: default;
+        text-align: left;
+      }
+      .overview-category-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--category-accent, #666);
+        flex-shrink: 0;
+      }
+      .overview-category-label {
+        font-family: "Syne", sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+        overflow-wrap: anywhere;
+        text-align: center;
+      }
       .overview-item-line {
         width: 220px;
         height: 2px;
@@ -2322,6 +2437,19 @@
               <path d="M3 4v8M13 4v8M3 8h10" /></svg
             ><span class="tip">Heading</span>
           </button>
+          <button class="tool-btn" onclick="addOverviewItem('category')">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5">
+              <rect x="2.5" y="3" width="11" height="10" rx="1" />
+              <circle cx="5.2" cy="8" r="0.9" fill="currentColor" stroke="none" />
+              <line x1="7.4" y1="8" x2="11.5" y2="8" /></svg
+            ><span class="tip">Category</span>
+          </button>
           <button class="tool-btn" onclick="addOverviewItem('line')">
             <svg
               width="16"
@@ -2680,6 +2808,11 @@
         </select>
         <label class="form-label">Accent Color</label>
         <div class="color-swatches" id="color-swatches"></div>
+        <label class="form-label">Main Category</label>
+        <select
+          class="form-input"
+          id="proj-category-input"
+          style="margin-bottom: 14px"></select>
         <div class="modal-actions">
           <button class="btn-ghost" onclick="closeModal()">Cancel</button>
           <button
@@ -2851,11 +2984,13 @@
       };
       let activeCategoryColorEditorId = null,
         editingCategoryLabelId = null,
+        activeCategoryPickerId = null,
         pendingConfirmAction = null;
       let undoStack = [],
         redoStack = [],
         lastHistorySnapshot = "",
         isRestoringHistory = false;
+      let selectedCategoryId = null;
       const PROJECT_STATUSES = [
         "In Progress",
         "On Going",
@@ -3191,6 +3326,168 @@
           .replace(/\s+/g, "-");
       }
 
+      function getCategoryById(categoryId) {
+        return (
+          workspaceCategories.find((category) => category.id === categoryId) ||
+          null
+        );
+      }
+
+      function getCategoryByColor(color) {
+        const normalized = String(color || "").toLowerCase();
+        return (
+          workspaceCategories.find(
+            (category) => category.color.toLowerCase() === normalized,
+          ) || null
+        );
+      }
+
+      function getCategoryByLabel(label) {
+        const normalized = String(label || "").trim().toLowerCase();
+        return (
+          workspaceCategories.find(
+            (category) => category.label.trim().toLowerCase() === normalized,
+          ) || null
+        );
+      }
+
+      function getProjectCategoryId(project) {
+        return (
+          getCategoryByColor(project?.color)?.id ||
+          getCategoryByLabel(project?.category)?.id ||
+          workspaceCategories[0]?.id ||
+          null
+        );
+      }
+
+      function getOverviewItemCategoryId(item) {
+        return (
+          getCategoryById(item?.categoryId)?.id ||
+          getCategoryByColor(item?.categoryColor)?.id ||
+          getCategoryByLabel(item?.categoryLabel)?.id ||
+          workspaceCategories[0]?.id ||
+          null
+        );
+      }
+
+      function assignProjectToCategory(project, categoryId) {
+        const category = getCategoryById(categoryId) || workspaceCategories[0];
+        if (!project || !category) return;
+        project.color = category.color;
+        project.category = category.label;
+      }
+
+      function normalizeProjectCategory(project) {
+        const categoryId = getProjectCategoryId(project);
+        if (categoryId) assignProjectToCategory(project, categoryId);
+      }
+
+      function setOverviewItemCategory(item, categoryId) {
+        const category = getCategoryById(categoryId) || workspaceCategories[0];
+        if (!item || !category) return;
+        item.categoryId = category.id;
+        item.categoryColor = category.color;
+        item.categoryLabel = category.label;
+      }
+
+      function getCategoryObjectLinkedProjectIds(item) {
+        if (item?.type !== "category") return [];
+        const categoryId = getOverviewItemCategoryId(item);
+        return projects
+          .filter((project) => getProjectCategoryId(project) === categoryId)
+          .map((project) => project.id);
+      }
+
+      function isCategoryHiddenByObject(categoryId) {
+        return overviewItems.some(
+          (item) =>
+            item.type === "category" &&
+            item.hidden === true &&
+            getOverviewItemCategoryId(item) === categoryId,
+        );
+      }
+
+      function getOverviewItemCenter(item) {
+        const el = document.querySelector(
+          `.overview-item[data-item-id="${item.id}"]`,
+        );
+        const width = el?.offsetWidth || item.w || 240;
+        const height = el?.offsetHeight || 36;
+        return {
+          x: item.x + width / 2,
+          y: item.y + height / 2,
+        };
+      }
+
+      function layoutCategoryCardsInCircle(item) {
+        const projectIds = getCategoryObjectLinkedProjectIds(item);
+        if (!projectIds.length) return;
+        const center = getOverviewItemCenter(item);
+        item.hidden = false;
+        const linkedProjects = projectIds
+          .map((projectId) => projects.find((entry) => entry.id === projectId))
+          .filter(Boolean);
+        const avgCardWidth =
+          linkedProjects.reduce(
+            (sum, project) => sum + (project.w || DEFAULT_PROJECT_CARD_WIDTH),
+            0,
+          ) / linkedProjects.length;
+        const avgCardHeight =
+          linkedProjects.reduce(
+            (sum, project) => sum + (project.h || DEFAULT_PROJECT_CARD_HEIGHT),
+            0,
+          ) / linkedProjects.length;
+        const ringSpacing = Math.max(avgCardHeight + 80, 280);
+        const baseRadius = Math.max(avgCardWidth * 0.9, 280);
+        let placedCount = 0;
+        let ringIndex = 0;
+
+        while (placedCount < linkedProjects.length) {
+          const radius = baseRadius + ringIndex * ringSpacing;
+          const circumference = Math.max(1, Math.PI * 2 * radius);
+          const slotArc = Math.max(avgCardWidth + 70, 180);
+          const ringCapacity = Math.max(4, Math.floor(circumference / slotArc));
+          const remaining = linkedProjects.length - placedCount;
+          const itemsInRing = Math.min(ringCapacity, remaining);
+
+          for (let i = 0; i < itemsInRing; i += 1) {
+            const project = linkedProjects[placedCount + i];
+            if (!project) continue;
+            const angle = -Math.PI / 2 + (Math.PI * 2 * i) / itemsInRing;
+            const width = project.w || DEFAULT_PROJECT_CARD_WIDTH;
+            const height = project.h || DEFAULT_PROJECT_CARD_HEIGHT;
+            project.x = Math.max(
+              20,
+              Math.round(center.x + Math.cos(angle) * radius - width / 2),
+            );
+            project.y = Math.max(
+              20,
+              Math.round(center.y + Math.sin(angle) * radius - height / 2),
+            );
+            queueProjectSave(project);
+          }
+
+          placedCount += itemsInRing;
+          ringIndex += 1;
+        }
+        queueOverviewSave();
+        renderDashboard();
+      }
+
+      function moveProjectsByIds(projectIds, dx, dy) {
+        [...new Set(projectIds)].forEach((projectId) => {
+          const project = projects.find((entry) => entry.id === projectId);
+          const el = document.querySelector(
+            `.project-card[data-project-id="${projectId}"]`,
+          );
+          if (!project || !el) return;
+          project.x = Math.max(20, Math.round(project.x + dx));
+          project.y = Math.max(20, Math.round(project.y + dy));
+          el.style.left = project.x + "px";
+          el.style.top = project.y + "px";
+        });
+      }
+
       function categoryFromColor(color) {
         const normalized = String(color || "").toLowerCase();
         return (
@@ -3219,7 +3516,7 @@
 
       function syncProjectCategories() {
         projects.forEach((p) => {
-          p.category = categoryFromColor(p.color || getDefaultCategoryColor());
+          normalizeProjectCategory(p);
         });
       }
 
@@ -3327,6 +3624,9 @@
             ),
           );
         }
+        list = list.filter(
+          (p) => !isCategoryHiddenByObject(getProjectCategoryId(p)),
+        );
         list.sort((a, b) => {
           if (workspaceSort === "created-asc")
             return (a.created || 0) - (b.created || 0);
@@ -3427,6 +3727,11 @@
             );
             if (!category) return;
             category.label = input.value.trim() || category.label || "Category";
+            overviewItems.forEach((item) => {
+              if (item.type === "category" && item.categoryId === category.id) {
+                item.categoryLabel = category.label;
+              }
+            });
             editingCategoryLabelId = null;
             syncProjectCategories();
             saveWorkspacePrefs();
@@ -3466,6 +3771,11 @@
               previousColor.toLowerCase()
             ) {
               project.color = category.color;
+            }
+          });
+          overviewItems.forEach((item) => {
+            if (item.type === "category" && item.categoryId === category.id) {
+              item.categoryColor = category.color;
             }
           });
           selectedColor =
@@ -3510,6 +3820,7 @@
                   workspaceCategories = workspaceCategories.filter(
                     (item) => item.id !== categoryId,
                   );
+                  const fallbackCategoryId = workspaceCategories[0]?.id || null;
                   const fallbackColor = getDefaultCategoryColor();
                   projects.forEach((project) => {
                     if (
@@ -3517,6 +3828,11 @@
                       category.color.toLowerCase()
                     ) {
                       project.color = fallbackColor;
+                    }
+                  });
+                  overviewItems.forEach((item) => {
+                    if (item.type === "category" && item.categoryId === categoryId) {
+                      setOverviewItemCategory(item, fallbackCategoryId);
                     }
                   });
                   selectedColor =
@@ -3559,11 +3875,15 @@
               label: `Category ${workspaceCategories.length + 1}`,
               enabled: true,
             });
+            if (!selectedCategoryId)
+              selectedCategoryId =
+                workspaceCategories[workspaceCategories.length - 1]?.id || null;
             activeCategoryColorEditorId = null;
             editingCategoryLabelId = null;
             saveWorkspacePrefs();
             initColorSwatches();
             renderWorkspaceMenu();
+            renderDashboard();
           });
         uiEl.querySelectorAll("[data-ui-toggle]").forEach((btn) =>
           btn.addEventListener("click", () => {
@@ -3726,6 +4046,11 @@
         if (!world) return;
         world.innerHTML = "";
         normalizeProjectLayout();
+        const visibleProjects = getFilteredSortedProjects();
+        const visibleProjectIds = new Set(visibleProjects.map((project) => project.id));
+        selectedProjectIds = new Set(
+          [...selectedProjectIds].filter((id) => visibleProjectIds.has(id)),
+        );
         updateDashboardInfo();
         updatePathStatus();
         renderWorkspaceMenu();
@@ -3733,7 +4058,7 @@
         overviewItems.forEach((item) =>
           world.appendChild(createOverviewItemEl(item)),
         );
-        getFilteredSortedProjects().forEach((p) => {
+        visibleProjects.forEach((p) => {
           const nc = p.nodes ? p.nodes.length : 0,
             cc = p.connections ? p.connections.length : 0;
           const isExpanded = expandedProjectIds.has(p.id);
@@ -3764,7 +4089,7 @@
           el.dataset.projectId = p.id;
           el.innerHTML = `
       <button class="card-del" title="Delete">✕</button>
-      <button class="card-edit" title="Edit">✎</button>
+      <button class="card-edit" title="Edit">⋯</button>
       <div class="card-meta"><span class="card-date">${date}</span></div>
       <div class="card-title">${esc(p.name)}</div>
       <div class="card-desc">${esc(p.desc || "")}</div>
@@ -3895,18 +4220,45 @@
       // ===================== PROJECT MODAL =====================
       function initColorSwatches() {
         const el = document.getElementById("color-swatches");
+        const select = document.getElementById("proj-category-input");
         if (!el) return;
         el.innerHTML = "";
-        const colors = getCategoryColorList();
-        if (!colors.includes(selectedColor))
-          selectedColor = getDefaultCategoryColor();
-        colors.forEach((c) => {
+        if (!getCategoryById(selectedCategoryId))
+          selectedCategoryId = workspaceCategories[0]?.id || null;
+        const activeCategory = getCategoryById(selectedCategoryId);
+        selectedColor = activeCategory?.color || getDefaultCategoryColor();
+        if (select) {
+          select.innerHTML = workspaceCategories
+            .map(
+              (category) =>
+                `<option value="${esc(category.id)}">${esc(category.label)}</option>`,
+            )
+            .join("");
+          select.value = selectedCategoryId || "";
+          select.onchange = () => {
+            selectedCategoryId = select.value;
+            const category = getCategoryById(selectedCategoryId);
+            if (!category) return;
+            selectedColor = category.color;
+            document.querySelectorAll(".color-swatch").forEach((swatch) => {
+              swatch.classList.toggle(
+                "selected",
+                swatch.dataset.categoryId === selectedCategoryId,
+              );
+            });
+          };
+        }
+        workspaceCategories.forEach((category) => {
           const sw = document.createElement("div");
+          sw.dataset.categoryId = category.id;
           sw.className =
-            "color-swatch" + (c === selectedColor ? " selected" : "");
-          sw.style.background = c;
+            "color-swatch" +
+            (category.id === selectedCategoryId ? " selected" : "");
+          sw.style.background = category.color;
           sw.addEventListener("click", () => {
-            selectedColor = c;
+            selectedCategoryId = category.id;
+            selectedColor = category.color;
+            if (select) select.value = category.id;
             document
               .querySelectorAll(".color-swatch")
               .forEach((s) => s.classList.remove("selected"));
@@ -3921,7 +4273,8 @@
         document.getElementById("proj-name-input").value = "";
         document.getElementById("proj-desc-input").value = "";
         document.getElementById("proj-status-input").value = "In Progress";
-        selectedColor = getDefaultCategoryColor();
+        selectedCategoryId = workspaceCategories[0]?.id || null;
+        selectedColor = getCategoryById(selectedCategoryId)?.color || getDefaultCategoryColor();
         initColorSwatches();
         document.getElementById("modal-overlay").classList.add("visible");
         setTimeout(
@@ -3938,7 +4291,11 @@
         document.getElementById("proj-desc-input").value = p.desc || "";
         document.getElementById("proj-status-input").value =
           p.status || "In Progress";
-        selectedColor = p.color || getDefaultCategoryColor();
+        selectedCategoryId = getProjectCategoryId(p);
+        selectedColor =
+          getCategoryById(selectedCategoryId)?.color ||
+          p.color ||
+          getDefaultCategoryColor();
         initColorSwatches();
         document.getElementById("modal-overlay").classList.add("visible");
         setTimeout(
@@ -3983,15 +4340,13 @@
             p.name = name;
             p.desc = desc;
             p.status = status;
-            p.color = selectedColor;
-            p.category = categoryFromColor(selectedColor);
+            assignProjectToCategory(p, selectedCategoryId);
             await saveToFirestore(p);
           }
         } else {
           const p = buildProject(name, desc);
-          p.color = selectedColor;
           p.status = status;
-          p.category = categoryFromColor(selectedColor);
+          assignProjectToCategory(p, selectedCategoryId);
           projects.push(p);
           await saveToFirestore(p);
         }
@@ -4007,8 +4362,10 @@
           name,
           desc: desc || "",
           status: "In Progress",
-          color: selectedColor,
-          category: categoryFromColor(selectedColor),
+          color: getCategoryById(selectedCategoryId)?.color || selectedColor,
+          category:
+            getCategoryById(selectedCategoryId)?.label ||
+            categoryFromColor(selectedColor),
           created: Date.now(),
           nodes: [],
           connections: [],
@@ -4036,9 +4393,10 @@
             if (!changedProjects.includes(p)) changedProjects.push(p);
           }
           if (!p.category) {
-            p.category = categoryFromColor(p.color || "#44ff88");
+            normalizeProjectCategory(p);
             if (!changedProjects.includes(p)) changedProjects.push(p);
           }
+          normalizeProjectCategory(p);
           if (!p.status) {
             p.status = "In Progress";
             if (!changedProjects.includes(p)) changedProjects.push(p);
@@ -4160,6 +4518,16 @@
           y,
         };
         if (type === "heading") return { ...base, text: "Section Heading" };
+        if (type === "category") {
+          const category = workspaceCategories[0] || null;
+          return {
+            ...base,
+            hidden: false,
+            categoryId: category?.id || null,
+            categoryColor: category?.color || null,
+            categoryLabel: category?.label || "Category",
+          };
+        }
         if (type === "line") return { ...base, w: 220 };
         if (type === "frame") return { ...base, text: "Group", w: 260, h: 180 };
         return { ...base, text: "Quick note" };
@@ -4212,8 +4580,36 @@
               };
             }),
           );
+        } else if (item.type === "category") {
+          el.classList.add("overview-item-category");
+          const category =
+            getCategoryById(getOverviewItemCategoryId(item)) ||
+            workspaceCategories[0];
+          if (category) {
+            setOverviewItemCategory(item, category.id);
+            el.style.setProperty("--category-accent", category.color);
+          }
+          el.innerHTML = `<div class="overview-category-row">
+            <div class="overview-category-controls">
+              <button class="overview-category-btn" type="button" data-action="toggle-visibility" title="${item.hidden ? "Unhide cards" : "Hide cards"}">${item.hidden ? ">" : "v"}</button>
+              <button class="overview-category-btn" type="button" data-action="resort-cards" title="Re-sort assigned cards">↻</button>
+              <button class="overview-category-btn" type="button" data-action="edit-category" title="Change category">⋯</button>
+              <div class="overview-category-picker${activeCategoryPickerId === item.id ? " open" : ""}">
+                ${workspaceCategories
+                  .map(
+                    (option) =>
+                      `<button class="overview-category-option${option.id === category?.id ? " active" : ""}" type="button" data-action="pick-category" data-category-id="${option.id}"><span class="overview-category-option-dot" style="--option-color:${option.color}"></span><span>${esc(option.label)}</span></button>`,
+                  )
+                  .join("")}
+              </div>
+            </div>
+            <div class="overview-category-pill">
+              <span class="overview-category-dot"></span>
+              <span class="overview-category-label">${esc(category?.label || item.categoryLabel || "Category")}</span>
+            </div>
+          </div>`;
         } else {
-          el.innerHTML = `<div class="content" contenteditable="true" spellcheck="false">${esc(item.text || "")}</div>`;
+          el.innerHTML = `<div class="content ${item.type === "heading" ? "overview-item-heading" : "overview-item-text"}" contenteditable="true" spellcheck="false">${esc(item.text || "")}</div>`;
           el.querySelector(".content").addEventListener("blur", (e) => {
             item.text = e.target.textContent;
             queueOverviewSave();
@@ -4221,13 +4617,12 @@
         }
         el.addEventListener("mousedown", (e) => {
           if (
-            (item.type !== "heading" &&
-              e.target.hasAttribute("contenteditable")) ||
+            e.target.closest(".overview-category-btn") ||
+            e.target.closest(".overview-category-picker") ||
+            e.target.hasAttribute("contenteditable") ||
             e.target.closest(".overview-resize-handle")
           )
             return;
-          if (item.type === "heading" && e.detail > 1) return;
-          if (item.type === "heading") e.preventDefault();
           e.stopPropagation();
           setOverviewSelection(
             { type: "item", id: item.id },
@@ -4259,7 +4654,7 @@
             beginDashboardGroupDrag(e);
           }
         });
-        if (item.type === "heading") {
+        if (item.type === "text" || item.type === "heading") {
           el.addEventListener("dblclick", (e) => {
             const content = el.querySelector(".content");
             if (!content) return;
@@ -4267,6 +4662,46 @@
             content.focus();
             saAll(content);
           });
+        }
+        if (item.type === "category") {
+          el.querySelector(".overview-category-picker")?.addEventListener(
+            "mousedown",
+            (e) => e.stopPropagation(),
+          );
+          el.querySelector("[data-action='toggle-visibility']")?.addEventListener(
+            "click",
+            (e) => {
+              e.stopPropagation();
+              item.hidden = !item.hidden;
+              queueOverviewSave();
+              renderDashboard();
+            },
+          );
+          el.querySelector("[data-action='resort-cards']")?.addEventListener(
+            "click",
+            (e) => {
+              e.stopPropagation();
+              layoutCategoryCardsInCircle(item);
+            },
+          );
+          el.querySelector("[data-action='edit-category']")?.addEventListener(
+            "click",
+            (e) => {
+              e.stopPropagation();
+              activeCategoryPickerId =
+                activeCategoryPickerId === item.id ? null : item.id;
+              renderDashboard();
+            },
+          );
+          el.querySelectorAll("[data-action='pick-category']").forEach((btn) =>
+            btn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              setOverviewItemCategory(item, btn.dataset.categoryId);
+              activeCategoryPickerId = null;
+              queueOverviewSave();
+              renderDashboard();
+            }),
+          );
         }
         return el;
       }
@@ -4395,7 +4830,14 @@
         const rect = document
           .getElementById("dashboard-canvas")
           .getBoundingClientRect();
-        dashboardGroupDragProjects = [...selectedProjectIds]
+        const linkedProjectIds = [...selectedOverviewItemIds].flatMap((id) =>
+          getCategoryObjectLinkedProjectIds(
+            overviewItems.find((item) => item.id === id),
+          ),
+        );
+        dashboardGroupDragProjects = [
+          ...new Set([...selectedProjectIds, ...linkedProjectIds]),
+        ]
           .map((id) => {
             const proj = projects.find((x) => x.id === id);
             return proj
@@ -4675,6 +5117,8 @@
               `.overview-item[data-item-id="${overviewDragItemId}"]`,
             );
             if (!item || !el) return;
+            const prevX = item.x;
+            const prevY = item.y;
             item.x = Math.round(
               (e.clientX - rect.left - dashboardViewOffset.x) / dashboardScale -
                 overviewDragOffset.x,
@@ -4685,6 +5129,13 @@
             );
             el.style.left = item.x + "px";
             el.style.top = item.y + "px";
+            if (item.type === "category") {
+              moveProjectsByIds(
+                getCategoryObjectLinkedProjectIds(item),
+                item.x - prevX,
+                item.y - prevY,
+              );
+            }
             return;
           }
           if (overviewResizeItemId) {
@@ -4819,12 +5270,15 @@
             canvas.classList.remove("panning");
           }
           if (dashboardGroupDragProjects) {
+            const movedProjectIds = dashboardGroupDragProjects.map(
+              (entry) => entry.id,
+            );
             dashboardGroupDragProjects = null;
             dashboardGroupDragStart = null;
             document
               .querySelectorAll(".project-card.dragging")
               .forEach((el) => el.classList.remove("dragging"));
-            [...selectedProjectIds].forEach((id) => {
+            movedProjectIds.forEach((id) => {
               const p = projects.find((x) => x.id === id);
               if (p) saveToFirestore(p);
             });
@@ -4853,7 +5307,14 @@
             dashboardResizeStart = null;
           }
           if (overviewDragItemId) {
+            const item = overviewItems.find((x) => x.id === overviewDragItemId);
             queueOverviewSave();
+            if (item?.type === "category") {
+              getCategoryObjectLinkedProjectIds(item).forEach((projectId) => {
+                const project = projects.find((entry) => entry.id === projectId);
+                if (project) queueProjectSave(project);
+              });
+            }
             overviewDragItemId = null;
           }
           if (overviewResizeItemId) {
@@ -5866,6 +6327,7 @@
           document.getElementById("ctx-menu").classList.remove("visible");
           closeStatusMenus();
           workspaceMenuOpen = false;
+          activeCategoryPickerId = null;
           syncWorkspaceMenuVisibility();
           document
             .querySelectorAll(".node-settings.open")
