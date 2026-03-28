@@ -22,7 +22,7 @@
         --border2: #333;
         --text: #f0f0f0;
         --text2: #888;
-        --text3: #555;
+        --text3: var(--text2);
         --accent: #ffffff;
         --red: #ff4444;
         --green: #44ff88;
@@ -1643,11 +1643,12 @@
       }
       .node-content {
         outline: none;
+        overflow-wrap: anywhere;
       }
       .node-text .node-content,
       .node-note .node-content {
         font-size: 13px;
-        color: var(--text);
+        color: var(--text2);
         line-height: 1.5;
         min-width: 100px;
       }
@@ -1720,6 +1721,7 @@
       .bullet-item-text {
         flex: 1;
         min-width: 0;
+        overflow-wrap: anywhere;
       }
       .bullet-list li.is-done .bullet-item-text {
         color: var(--text3);
@@ -1741,6 +1743,9 @@
         opacity: 0;
       }
       .node-bullet.has-connectors .bullet-item-handle {
+        opacity: 1;
+      }
+      .bullet-item-handle.has-connection {
         opacity: 1;
       }
       .bullet-add-btn {
@@ -1812,7 +1817,7 @@
         border-color: var(--green);
         background: rgba(68, 255, 136, 0.08);
       }
-      .node-image .img-wrap {
+      .node-file .img-wrap {
         width: 200px;
         height: 140px;
         display: flex;
@@ -1822,32 +1827,35 @@
         overflow: hidden;
         cursor: pointer;
       }
-      .node-image .img-wrap img {
+      .node-file .img-wrap img {
         width: 100%;
         height: 100%;
         object-fit: cover;
+        -webkit-user-drag: none;
+        user-select: none;
+        pointer-events: none;
       }
-      .node-image .img-placeholder {
+      .node-file .img-placeholder {
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 6px;
         color: var(--text3);
       }
-      .node-image .img-placeholder span {
+      .node-file .img-placeholder span {
         font-size: 24px;
       }
-      .node-image .img-placeholder p {
+      .node-file .img-placeholder p {
         font-size: 11px;
         letter-spacing: 0.08em;
       }
-      .node-doc .doc-wrap {
+      .node-file .doc-wrap {
         display: flex;
         align-items: center;
         gap: 12px;
         padding: 4px 0;
       }
-      .node-doc .doc-icon {
+      .node-file .doc-icon {
         width: 36px;
         height: 44px;
         background: var(--bg3);
@@ -1861,15 +1869,194 @@
         font-family: "Syne", sans-serif;
         font-weight: 700;
       }
-      .node-doc .doc-name {
+      .node-file .doc-name {
         font-size: 12px;
         color: var(--text);
         margin-bottom: 3px;
       }
-      .node-doc .doc-meta {
+      .node-file .doc-meta {
         font-size: 10px;
         color: var(--text3);
         letter-spacing: 0.08em;
+      }
+      .node-file.is-image-file {
+        background: transparent;
+        border: none;
+        overflow: hidden;
+        min-width: 0;
+      }
+      .node-file.is-image-file::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -28px;
+        height: 28px;
+      }
+      .node-file.is-image-file.selected,
+      .node-file.is-image-file.multi-selected {
+        border-color: transparent;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+      }
+      .node-file.is-image-file.multi-selected::after {
+        display: none;
+      }
+      .node-file.is-image-file:hover {
+        border-color: transparent;
+      }
+      .node-file.is-image-file .node-accent-line,
+      .node-file.is-image-file .node-header {
+        display: none;
+      }
+      .node-file.is-image-file .node-body {
+        padding: 0;
+      }
+      .node-file.is-image-file .img-wrap {
+        width: 100%;
+        height: 100%;
+        background: transparent;
+      }
+      .node-file.is-image-file .img-wrap img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .node-file.is-image-file .node-resize-handle {
+        opacity: 1;
+        width: 14px;
+        height: 14px;
+      }
+      .node-file.is-image-file .resize-br {
+        right: 0;
+        bottom: 0;
+      }
+      .node-file.is-image-file .resize-bl {
+        left: 0;
+        bottom: 0;
+      }
+      .node-file.is-image-file .resize-tr {
+        right: 0;
+        top: 0;
+      }
+      .node-file.is-image-file .resize-tl {
+        left: 0;
+        top: 0;
+      }
+      .node-file.is-image-file .resize-br::before {
+        right: 3px;
+        bottom: 3px;
+      }
+      .node-file.is-image-file .resize-bl::before {
+        left: 3px;
+        bottom: 3px;
+      }
+      .node-file.is-image-file .resize-tr::before {
+        right: 3px;
+        top: 3px;
+      }
+      .node-file.is-image-file .resize-tl::before {
+        left: 3px;
+        top: 3px;
+      }
+      .node-file-topbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -28px;
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 4px 6px;
+        background: rgba(8, 8, 8, 0.9);
+        border: 1px solid var(--border2);
+        z-index: 20;
+      }
+      .node-file.selected .node-file-topbar,
+      .node-file.multi-selected .node-file-topbar,
+      .node-file:hover .node-file-topbar {
+        display: flex;
+      }
+      .node-file-link {
+        min-width: 0;
+        color: var(--text2);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        text-decoration: none;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .node-file-link:hover {
+        color: var(--text);
+      }
+      .node-file-topbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex-shrink: 0;
+      }
+      .node-embed.is-live-embed .node-header {
+        display: none;
+      }
+      .node-embed.is-live-embed {
+        background: transparent;
+        border: none;
+        min-width: 0;
+      }
+      .node-embed.is-live-embed::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -28px;
+        height: 28px;
+      }
+      .node-embed.is-live-embed:hover {
+        border-color: transparent;
+      }
+      .node-embed.is-live-embed .node-body {
+        padding: 0;
+      }
+      .node-embed-topbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -28px;
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 2px;
+        background: none;
+        border: none;
+        z-index: 20;
+      }
+      .node-embed.selected .node-embed-topbar,
+      .node-embed.multi-selected .node-embed-topbar,
+      .node-embed:hover .node-embed-topbar {
+        display: flex;
+      }
+      .node-embed-link {
+        min-width: 0;
+        color: var(--text2);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-decoration: none;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .node-embed-link:hover {
+        color: var(--text);
+      }
+      .node-embed-topbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex-shrink: 0;
       }
       .node-embed .embed-wrap {
         display: flex;
@@ -1899,6 +2086,11 @@
         justify-content: center;
         overflow: hidden;
       }
+      .node-embed.is-live-embed .embed-preview {
+        min-height: 0;
+        background: transparent;
+        border: none;
+      }
       .node-embed .embed-preview iframe,
       .node-embed .embed-preview video,
       .node-embed .embed-preview img {
@@ -1906,6 +2098,11 @@
         height: 100%;
         border: 0;
         object-fit: cover;
+      }
+      .node-embed.is-live-embed .embed-preview iframe,
+      .node-embed.is-live-embed .embed-preview video,
+      .node-embed.is-live-embed .embed-preview img {
+        pointer-events: none;
       }
       .node-embed .embed-placeholder {
         padding: 18px;
@@ -2472,25 +2669,6 @@
               <rect x="2.5" y="2.5" width="11" height="11" rx="1" /></svg
             ><span class="tip">Annotate</span>
           </button>
-          <div id="tdiv"></div>
-          <button
-            class="tool-btn"
-            onclick="deleteOverviewSelection()"
-            style="color: var(--red)">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <polyline points="2,4 14,4" />
-              <path d="M5 4V3h6v1" />
-              <path d="M3 4l1 10h8l1-10" />
-              <line x1="6.5" y1="7" x2="6.5" y2="11" />
-              <line x1="9.5" y1="7" x2="9.5" y2="11" /></svg
-            ><span class="tip">Delete</span>
-          </button>
         </div>
         <div id="dashboard-canvas">
           <div id="projects-world"></div>
@@ -2596,22 +2774,6 @@
             <line x1="2" y1="8" x2="14" y2="8" /></svg
           ><span class="tip">Line</span>
         </button>
-        <button class="tool-btn" onclick="addNodeCtx('bullet')">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <circle cx="4" cy="5" r="1" fill="currentColor" stroke="none" />
-            <circle cx="4" cy="8" r="1" fill="currentColor" stroke="none" />
-            <circle cx="4" cy="11" r="1" fill="currentColor" stroke="none" />
-            <line x1="7" y1="5" x2="13" y2="5" />
-            <line x1="7" y1="8" x2="13" y2="8" />
-            <line x1="7" y1="11" x2="11" y2="11" /></svg
-          ><span class="tip">Bullet List</span>
-        </button>
         <button class="tool-btn" onclick="addNodeCtx('progress')">
           <svg
             width="16"
@@ -2631,20 +2793,7 @@
               stroke="none" /></svg
           ><span class="tip">Progress</span>
         </button>
-        <button class="tool-btn" onclick="addNodeCtx('image')">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <rect x="2" y="3" width="12" height="10" rx="1" />
-            <circle cx="6" cy="7" r="1.5" />
-            <path d="M2 12l3.5-3.5 2.5 2.5 2-2 4 4" /></svg
-          ><span class="tip">Image</span>
-        </button>
-        <button class="tool-btn" onclick="addNodeCtx('doc')">
+        <button class="tool-btn" onclick="addNodeCtx('file')">
           <svg
             width="16"
             height="16"
@@ -2656,7 +2805,7 @@
             <path d="M10 2v4h4" stroke-width="1.2" />
             <line x1="5" y1="9" x2="11" y2="9" />
             <line x1="5" y1="12" x2="9" y2="12" /></svg
-          ><span class="tip">Document</span>
+          ><span class="tip">File</span>
         </button>
         <button class="tool-btn" onclick="addNodeCtx('embed')">
           <svg
@@ -2681,25 +2830,6 @@
             stroke-width="1.5">
             <rect x="2.5" y="2.5" width="11" height="11" rx="1" /></svg
           ><span class="tip">Annotate</span>
-        </button>
-        <div id="tdiv"></div>
-        <button
-          class="tool-btn"
-          onclick="deleteSelected()"
-          style="color: var(--red)">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <polyline points="2,4 14,4" />
-            <path d="M5 4V3h6v1" />
-            <path d="M3 4l1 10h8l1-10" />
-            <line x1="6.5" y1="7" x2="6.5" y2="11" />
-            <line x1="9.5" y1="7" x2="9.5" y2="11" /></svg
-          ><span class="tip">Delete</span>
         </button>
       </div>
       <div id="canvas-container">
@@ -2742,11 +2872,8 @@
         <div class="ctx-item" onclick="addNodeFromMenu('progress')">
           <span class="ci">▣</span>Progress Block
         </div>
-        <div class="ctx-item" onclick="addNodeFromMenu('image')">
-          <span class="ci">⌖</span>Image
-        </div>
-        <div class="ctx-item" onclick="addNodeFromMenu('doc')">
-          <span class="ci">☐</span>Document
+        <div class="ctx-item" onclick="addNodeFromMenu('file')">
+          <span class="ci">☐</span>File
         </div>
         <div class="ctx-item" onclick="addNodeFromMenu('embed')">
           <span class="ci">↗</span>Embed Link
@@ -3904,6 +4031,23 @@
 
       function normalizeNodeDataList(nodeList) {
         return (nodeList || []).map((node) => {
+          if (node.type === "image") {
+            node.type = "file";
+            node.name = node.name || "Image";
+            node.ext = node.ext || "IMG";
+            node.size = node.size || "";
+            node.mime = node.mime || "";
+            node.fileKind = "image";
+          }
+          if (node.type === "doc") {
+            node.type = "file";
+            node.name = node.name || "Document";
+            node.ext = node.ext || "DOC";
+            node.size = node.size || "";
+            node.src = node.src || null;
+            node.mime = node.mime || "";
+            node.fileKind = "file";
+          }
           if (node.type === "bullet") {
             node.items = (node.items || []).map((item) =>
               typeof item === "string" ? { text: item, done: false } : item,
@@ -3912,6 +4056,15 @@
               checklist: !!node?.bulletFeatures?.checklist,
               connectors: !!node?.bulletFeatures?.connectors,
             };
+          }
+          if (node.type === "file") {
+            node.name = node.name || "File";
+            node.ext = node.ext || "FILE";
+            node.size = node.size || "";
+            node.src = node.src || null;
+            node.mime = node.mime || "";
+            node.fileKind =
+              node.fileKind || (node.src ? "image" : "file");
           }
           if (typeof node.customTitle !== "string") node.customTitle = "";
           return node;
@@ -3932,6 +4085,117 @@
         document
           .querySelectorAll(".card-status.open")
           .forEach((btn) => btn.classList.remove("open"));
+      }
+
+      function isImageFile(file) {
+        return !!file && String(file.type || "").startsWith("image/");
+      }
+
+      function populateFileNodeFromFile(nd, file, onDone = null) {
+        if (!nd || nd.type !== "file" || !file) {
+          if (onDone) onDone();
+          return;
+        }
+        nd.name = file.name || nd.name || "File";
+        nd.ext =
+          (file.name?.split(".").pop() || (isImageFile(file) ? "IMG" : "FILE"))
+            .toUpperCase()
+            .slice(0, 4);
+        nd.size = fmtBytes(file.size || 0);
+        nd.mime = file.type || "";
+        nd.fileKind = isImageFile(file) ? "image" : "file";
+        nd.manualImageSize = false;
+        if (nd.fileKind === "image") {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const src = ev.target.result;
+            const previewImage = new Image();
+            previewImage.onload = () => {
+              const maxWidth = 420;
+              const maxHeight = 320;
+              const minWidth = 140;
+              const scale = Math.min(
+                1,
+                maxWidth / Math.max(1, previewImage.naturalWidth),
+                maxHeight / Math.max(1, previewImage.naturalHeight),
+              );
+              nd.src = src;
+              nd.w = Math.max(
+                minWidth,
+                Math.round(previewImage.naturalWidth * scale),
+              );
+              nd.h = Math.max(
+                90,
+                Math.round(previewImage.naturalHeight * scale),
+              );
+              renderAll();
+              selectNode(nd.id);
+              autosave();
+              if (onDone) onDone();
+            };
+            previewImage.onerror = () => {
+              nd.src = src;
+              renderAll();
+              selectNode(nd.id);
+              autosave();
+              if (onDone) onDone();
+            };
+            previewImage.src = src;
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
+        nd.src = null;
+        renderAll();
+        selectNode(nd.id);
+        autosave();
+        if (onDone) onDone();
+      }
+
+      function getFileNodeLinkHref(nd) {
+        if (nd?.type !== "file") return "";
+        return String(nd.src || "").trim();
+      }
+
+      function getFileNodeLinkLabel(nd) {
+        const href = getFileNodeLinkHref(nd);
+        if (/^https?:\/\//i.test(href)) return href;
+        if (nd?.name) return nd.name;
+        if (href) return href;
+        return "File";
+      }
+
+      function syncImageFileNodeSize(nd, el) {
+        if (
+          !nd ||
+          nd.type !== "file" ||
+          nd.fileKind !== "image" ||
+          !nd.src ||
+          nd.manualImageSize
+        )
+          return;
+        const img = el?.querySelector(".img-wrap img");
+        if (!img) return;
+        const applySize = () => {
+          if (!img.naturalWidth || !img.naturalHeight) return;
+          const maxWidth = 420;
+          const maxHeight = 320;
+          const minWidth = 140;
+          const scale = Math.min(
+            1,
+            maxWidth / Math.max(1, img.naturalWidth),
+            maxHeight / Math.max(1, img.naturalHeight),
+          );
+          const width = Math.max(minWidth, Math.round(img.naturalWidth * scale));
+          const height = Math.max(90, Math.round(img.naturalHeight * scale));
+          if (nd.w === width && nd.h === height) return;
+          nd.w = width;
+          nd.h = height;
+          el.style.width = nd.w + "px";
+          el.style.height = nd.h + "px";
+        };
+        if (img.complete) applySize();
+        else img.addEventListener("load", applySize, { once: true });
       }
 
       function autosave() {
@@ -4055,14 +4319,25 @@
         updatePathStatus();
         renderWorkspaceMenu();
         applyDashboardTransform();
-        overviewItems.forEach((item) =>
-          world.appendChild(createOverviewItemEl(item)),
-        );
+        overviewItems.forEach((item) => {
+          const el = createOverviewItemEl(item);
+          world.appendChild(el);
+          enforceOverviewItemMinSize(item, el);
+        });
         visibleProjects.forEach((p) => {
           const nc = p.nodes ? p.nodes.length : 0,
             cc = p.connections ? p.connections.length : 0;
           const isExpanded = expandedProjectIds.has(p.id);
           const needsReadMore = (p.desc || "").trim().length > 72;
+          const autoSize = getProjectAutoSize(p, isExpanded, needsReadMore);
+          const cardWidth = Math.max(
+            p.w || DEFAULT_PROJECT_CARD_WIDTH,
+            autoSize.w,
+          );
+          const cardHeight = Math.max(
+            p.h || DEFAULT_PROJECT_CARD_HEIGHT,
+            autoSize.h,
+          );
           const date = new Date(p.created).toLocaleDateString("en-US", {
             month: "short",
             day: "numeric",
@@ -4078,14 +4353,14 @@
           el.style.setProperty("--card-accent", p.color || "#fff");
           el.style.left = (p.x || 0) + "px";
           el.style.top = (p.y || 0) + "px";
-          el.style.width = (p.w || DEFAULT_PROJECT_CARD_WIDTH) + "px";
+          el.style.width = cardWidth + "px";
           el.style.setProperty(
             "--card-width",
-            `${p.w || DEFAULT_PROJECT_CARD_WIDTH}px`,
+            `${cardWidth}px`,
           );
           el.style.height = isExpanded
             ? "auto"
-            : (p.h || DEFAULT_PROJECT_CARD_HEIGHT) + "px";
+            : cardHeight + "px";
           el.dataset.projectId = p.id;
           el.innerHTML = `
       <button class="card-del" title="Delete">✕</button>
@@ -4206,6 +4481,118 @@
           });
           world.appendChild(el);
         });
+      }
+
+      function getProjectAutoSize(
+        project,
+        isExpanded = false,
+        needsReadMore = false,
+      ) {
+        const title = String(project?.name || "Untitled");
+        const desc = String(project?.desc || "").trim();
+        const titleWidth = 190 + Math.min(title.length, 28) * 8;
+        const descWidth = desc ? 170 + Math.min(desc.length, 42) * 4 : 0;
+        const width = Math.max(
+          DEFAULT_PROJECT_CARD_WIDTH,
+          Math.min(520, Math.max(titleWidth, descWidth)),
+        );
+        const titleCharsPerLine = Math.max(8, Math.floor((width - 48) / 11));
+        const descCharsPerLine = Math.max(14, Math.floor((width - 72) / 7));
+        const titleLines = Math.max(1, Math.ceil(title.length / titleCharsPerLine));
+        const descVisibleLength = isExpanded
+          ? desc.length
+          : Math.min(desc.length, descCharsPerLine * 2);
+        const descLines = desc
+          ? Math.max(1, Math.ceil(descVisibleLength / descCharsPerLine))
+          : 0;
+        const height = Math.max(
+          DEFAULT_PROJECT_CARD_HEIGHT,
+          152 +
+            Math.max(0, titleLines - 1) * 34 +
+            descLines * 15 +
+            (needsReadMore ? 18 : 0),
+        );
+        return {
+          w: Math.round(width),
+          h: Math.round(height),
+        };
+      }
+
+      function getProjectMinSize(project) {
+        return getProjectAutoSize(
+          project,
+          expandedProjectIds.has(project.id),
+          (project.desc || "").trim().length > 72,
+        );
+      }
+
+      function getContentLines(text) {
+        return String(text || "")
+          .split(/\n+/)
+          .map((line) => line.trim())
+          .filter((line) => line.length);
+      }
+
+      function estimateTextMinWidth(
+        text,
+        {
+          min = 160,
+          max = 320,
+          base = 140,
+          charWidth = 4.5,
+        } = {},
+      ) {
+        const lines = getContentLines(text);
+        const longestLineLength = lines.reduce(
+          (maxLen, line) => Math.max(maxLen, line.length),
+          0,
+        );
+        const widthEstimate = base + Math.min(longestLineLength, 36) * charWidth;
+        return Math.max(min, Math.min(max, Math.ceil(widthEstimate)));
+      }
+
+      function getOverviewItemMinSize(item, el) {
+        if (item.type === "frame") {
+          const content = el?.querySelector(".content");
+          return {
+            w: estimateTextMinWidth(content?.textContent || item.text || "", {
+              min: 220,
+              max: 380,
+              base: 190,
+              charWidth: 5.5,
+            }),
+            h: Math.max(140, Math.ceil((content?.scrollHeight || 0) + 24)),
+          };
+        }
+        if (item.type === "line") {
+          return { w: 160, h: 2 };
+        }
+        return { w: 0, h: 0 };
+      }
+
+      function enforceOverviewItemMinSize(item, el) {
+        if (!item || !el || !["frame", "line"].includes(item.type)) return false;
+        const min = getOverviewItemMinSize(item, el);
+        let changed = false;
+        if (item.type === "line") {
+          if ((item.w || el.offsetWidth) < min.w) {
+            item.w = min.w;
+            el.style.width = item.w + "px";
+            changed = true;
+          }
+          return changed;
+        }
+        if ((item.w || el.offsetWidth) < min.w) {
+          item.w = min.w;
+          el.style.width = item.w + "px";
+          changed = true;
+        }
+        if ((item.h || el.offsetHeight) < min.h) {
+          item.h = min.h;
+          el.style.height = item.h + "px";
+          changed = true;
+        }
+        return changed;
       }
 
       function calcProgress(p) {
@@ -5168,6 +5555,13 @@
                 overviewResizeStart.startY + (overviewResizeStart.h - h),
               );
             }
+            const min = getOverviewItemMinSize(item, el);
+            w = Math.max(w, min.w || 0);
+            h = Math.max(h, min.h || 0);
+            if (overviewResizeStart.dir.includes("l"))
+              x = Math.round(overviewResizeStart.startX + (overviewResizeStart.w - w));
+            if (overviewResizeStart.dir.includes("t"))
+              y = Math.round(overviewResizeStart.startY + (overviewResizeStart.h - h));
             item.w = w;
             item.h = h;
             item.x = x;
@@ -5218,6 +5612,17 @@
                 dashboardResizeStart.startY + (dashboardResizeStart.h - h),
               );
             }
+            const min = getProjectMinSize(p);
+            w = Math.max(w, min.w);
+            h = Math.max(h, min.h);
+            if (dashboardResizeStart.dir.includes("l"))
+              x = Math.round(
+                dashboardResizeStart.startX + (dashboardResizeStart.w - w),
+              );
+            if (dashboardResizeStart.dir.includes("t"))
+              y = Math.round(
+                dashboardResizeStart.startY + (dashboardResizeStart.h - h),
+              );
             p.w = w;
             p.h = h;
             p.x = x;
@@ -5367,13 +5772,15 @@
             value: data.value || 0,
             steps: data.steps || [],
           };
-        if (type === "image") return { ...base, src: data.src || null };
-        if (type === "doc")
+        if (type === "file")
           return {
             ...base,
-            name: data.name || "Document",
-            ext: data.ext || "TXT",
+            name: data.name || "File",
+            ext: data.ext || "FILE",
             size: data.size || "",
+            src: data.src || null,
+            mime: data.mime || "",
+            fileKind: data.fileKind || (data.src ? "image" : "file"),
           };
         if (type === "embed")
           return {
@@ -5437,8 +5844,8 @@
 
       function renderAll() {
         applyTransform();
-        renderConnections();
         renderNodes();
+        renderConnections();
         updateInfoBar();
       }
 
@@ -5458,9 +5865,12 @@
       // ===================== NODE RENDERING =====================
       function renderNodes() {
         document.querySelectorAll(".node").forEach((n) => n.remove());
-        nodes.forEach((nd) =>
-          document.getElementById("canvas-world").appendChild(createNodeEl(nd)),
-        );
+        nodes.forEach((nd) => {
+          const el = createNodeEl(nd);
+          document.getElementById("canvas-world").appendChild(el);
+          enforceNodeMinSize(nd, el);
+          syncImageFileNodeSize(nd, el);
+        });
       }
 
       function applyNodeSelectionClasses() {
@@ -5487,6 +5897,11 @@
       function createNodeEl(nd) {
         const el = document.createElement("div");
         el.className = `node node-${nd.type}`;
+        const isFileNode = nd.type === "file";
+        const isImageFile = isFileNode && nd.fileKind === "image";
+        const isLiveEmbed = nd.type === "embed" && !!String(nd.url || "").trim();
+        if (isImageFile) el.classList.add("is-image-file");
+        if (isLiveEmbed) el.classList.add("is-live-embed");
         el.id = `node-${nd.id}`;
         el.style.left = nd.x + "px";
         el.style.top = nd.y + "px";
@@ -5502,15 +5917,36 @@
           line: "Line",
           bullet: "Bullets",
           progress: "Progress",
-          image: "Image",
-          doc: "Document",
+          file: "File",
           embed: "Embed",
           note: "Note",
           frame: "Annotate",
         };
         const nodeTitle = nd.customTitle ?? labels[nd.type] ?? nd.type;
+        const fileLinkHref = getFileNodeLinkHref(nd);
+        const fileLinkLabel = getFileNodeLinkLabel(nd);
         el.innerHTML = `
     <div class="node-accent-line" style="background:${currentProject?.color || "#333"}"></div>
+      ${
+        isFileNode
+          ? `<div class="node-file-topbar">
+      ${
+        fileLinkHref
+          ? `<a class="node-file-link" href="${esc(fileLinkHref)}" target="_blank" rel="noreferrer" title="${esc(fileLinkHref)}">${esc(fileLinkLabel)}</a>`
+          : `<span class="node-file-link" title="${esc(fileLinkLabel)}">${esc(fileLinkLabel)}</span>`
+      }
+      <div class="node-file-topbar-actions"><button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" onclick="requestDeleteNodeById('${nd.id}')">✕</button></div>
+    </div>`
+          : ""
+      }
+      ${
+        isLiveEmbed
+          ? `<div class="node-embed-topbar">
+      <a class="node-embed-link" href="${esc(nd.url)}" target="_blank" rel="noreferrer" title="${esc(nd.url)}">${esc(nd.url)}</a>
+      <div class="node-embed-topbar-actions"><button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" onclick="requestDeleteNodeById('${nd.id}')">✕</button></div>
+    </div>`
+          : ""
+      }
       <div class="node-header">
       <span class="node-type-label" contenteditable="true" spellcheck="false">${esc(nodeTitle)}</span>
       <div class="node-actions"><button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" onclick="requestDeleteNodeById('${nd.id}')">✕</button></div>
@@ -5531,12 +5967,15 @@
             e.target.classList.contains("conn-handle") ||
             e.target.classList.contains("node-act-btn") ||
             e.target.classList.contains("node-resize-handle") ||
-            e.target.closest(".node-settings")
+            e.target.closest(".node-settings") ||
+            e.target.closest(".node-file-topbar") ||
+            e.target.closest(".node-embed-topbar")
           )
             return;
           if (
             e.target.tagName === "INPUT" ||
             e.target.tagName === "TEXTAREA" ||
+            e.target.tagName === "A" ||
             e.target.hasAttribute("contenteditable")
           )
             return;
@@ -5645,15 +6084,11 @@
             });
           });
         }
-        if (nd.type === "image")
-          el.querySelector(".img-wrap")?.addEventListener("click", () => {
-            imageNodeTarget = nd.id;
-            const fi = document.getElementById("file-input");
-            fi.accept = "image/*";
-            fi.click();
-          });
-        if (nd.type === "doc")
-          el.querySelector(".doc-wrap")?.addEventListener("click", () => {
+        if (nd.type === "file")
+          el
+            .querySelector(nd.fileKind === "image" ? ".img-wrap" : ".doc-wrap")
+            ?.addEventListener("dblclick", (e) => {
+            e.stopPropagation();
             imageNodeTarget = nd.id;
             const fi = document.getElementById("file-input");
             fi.accept = "*";
@@ -5668,30 +6103,28 @@
           );
           el.querySelector(".bullet-add-btn")?.addEventListener("click", () => {
             nd.items.push({ text: "New item", done: false });
-            const li = document.createElement("li");
-            li.innerHTML = bulletItemHTML(nd, nd.items.length - 1);
-            el.querySelector(".bullet-add-btn").before(li);
-            bindBulletItem(el, nd, li, nd.items.length - 1);
-            const span = li.querySelector(".bullet-item-text");
-            span.focus();
-            saAll(span);
+            refreshBulletNodeContent(nd, el, nd.items.length - 1);
             autosave();
           });
           bindBulletNode(nd, el);
         }
         bindNodeSettings(nd, el);
         if (nd.type === "embed") {
-          const input = el.querySelector(".embed-input");
+          const input =
+            el.querySelector(".embed-input") ||
+            el.querySelector(".embed-settings-input");
           const preview = el.querySelector(".embed-preview");
           if (input && preview) {
             input.addEventListener("change", () => {
               nd.url = input.value.trim();
-              preview.innerHTML = embedPreviewHTML(nd.url);
+              renderAll();
+              applyNodeSelectionClasses();
               autosave();
             });
             input.addEventListener("blur", () => {
               nd.url = input.value.trim();
-              preview.innerHTML = embedPreviewHTML(nd.url);
+              renderAll();
+              applyNodeSelectionClasses();
               autosave();
             });
           }
@@ -5703,6 +6136,136 @@
           }),
         );
         return el;
+      }
+
+      function getNodeMinSize(nd, el) {
+        const headerHeight = el?.querySelector(".node-header")?.offsetHeight || 28;
+        const body = el?.querySelector(".node-body");
+        const bodyHeight = body?.scrollHeight || 0;
+        let contentWidth = 0;
+        const base = {
+          w: 160,
+          h: headerHeight + 44,
+        };
+        if (nd.type === "text" || nd.type === "note") {
+          base.w = 180;
+          base.h = headerHeight + 56;
+          contentWidth = estimateTextMinWidth(
+            body?.querySelector(".node-content")?.textContent || nd.text || "",
+            {
+              min: base.w,
+              max: 280,
+              base: 144,
+              charWidth: 4,
+            },
+          );
+        } else if (nd.type === "heading") {
+          base.w = 220;
+          base.h = headerHeight + 56;
+          contentWidth = estimateTextMinWidth(
+            body?.querySelector(".node-content")?.textContent || nd.text || "",
+            {
+              min: base.w,
+              max: 460,
+              base: 180,
+              charWidth: 8,
+            },
+          );
+        } else if (nd.type === "bullet") {
+          const list = body?.querySelector(".bullet-list");
+          const items = [...(list?.querySelectorAll("li") || [])];
+          const longestTextLength = items.reduce((maxLen, li) => {
+            const textEl = li.querySelector(".bullet-item-text");
+            const textLength = String(textEl?.textContent || "").trim().length;
+            return Math.max(maxLen, textLength);
+          }, 0);
+          const widthEstimate = 150 + Math.min(longestTextLength, 22) * 5;
+          base.w = Math.max(180, Math.min(280, Math.ceil(widthEstimate)));
+          base.h = headerHeight + 82;
+          contentWidth = base.w;
+        } else if (nd.type === "progress") {
+          base.w = 260;
+          base.h = headerHeight + 118;
+          const longestStepLength = (nd.steps || []).reduce(
+            (maxLen, step) =>
+              Math.max(maxLen, String(step?.label || "").trim().length),
+            0,
+          );
+          contentWidth = Math.max(
+            base.w,
+            estimateTextMinWidth(
+              [nd.title || "", " ".repeat(longestStepLength)].join("\n"),
+              {
+                min: base.w,
+                max: 360,
+                base: 188,
+                charWidth: 4.5,
+              },
+            ),
+          );
+        } else if (nd.type === "file") {
+          if (nd.fileKind === "image" && nd.src) {
+            return {
+              w: 80,
+              h: 80,
+            };
+          }
+          base.w = 220;
+          base.h =
+            nd.fileKind === "image" ? headerHeight + 160 : headerHeight + 84;
+          contentWidth =
+            nd.fileKind === "image"
+              ? 220
+              : estimateTextMinWidth(nd.name || "File", {
+                  min: 220,
+                  max: 340,
+                  base: 176,
+                  charWidth: 5,
+                });
+        } else if (nd.type === "embed") {
+          base.w = 320;
+          base.h = 220;
+          contentWidth = base.w;
+        } else if (nd.type === "frame") {
+          base.w = 220;
+          base.h = 140;
+          contentWidth = estimateTextMinWidth(
+            body?.querySelector(".node-content")?.textContent || nd.text || "",
+            {
+              min: base.w,
+              max: 380,
+              base: 184,
+              charWidth: 5.5,
+            },
+          );
+        } else if (nd.type === "line") {
+          base.w = 180;
+          base.h = 28;
+          contentWidth = base.w;
+        } else {
+          contentWidth = base.w;
+        }
+        return {
+          w: Math.max(base.w, contentWidth),
+          h: Math.max(base.h, Math.ceil(headerHeight + bodyHeight + 20)),
+        };
+      }
+
+      function enforceNodeMinSize(nd, el) {
+        if (!nd || !el) return false;
+        const min = getNodeMinSize(nd, el);
+        let changed = false;
+        if ((nd.w || el.offsetWidth) < min.w) {
+          nd.w = min.w;
+          el.style.width = nd.w + "px";
+          changed = true;
+        }
+        if ((nd.h || el.offsetHeight) < min.h) {
+          nd.h = min.h;
+          el.style.height = nd.h + "px";
+          changed = true;
+        }
+        return changed;
       }
 
       function normalizeEmbedUrl(raw) {
@@ -5768,22 +6331,92 @@
         }
         if (nd.type === "frame")
           return `<div class="node-content" contenteditable="true" spellcheck="false">${esc(nd.text || "Group")}</div>`;
-        if (nd.type === "image")
-          return `<div class="img-wrap">${nd.src ? `<img src="${nd.src}" alt="">` : '<div class="img-placeholder"><span>⌖</span><p>Click to add image</p></div>'}</div>`;
-        if (nd.type === "doc")
-          return `<div class="doc-wrap"><div class="doc-icon">${nd.ext || "DOC"}</div><div><div class="doc-name" contenteditable="true" spellcheck="false">${esc(nd.name || "Document")}</div><div class="doc-meta">${nd.size || "Click to attach file"}</div></div></div>`;
+        if (nd.type === "file")
+          return nd.fileKind === "image" && nd.src
+            ? `<div class="img-wrap"><img src="${nd.src}" alt="" draggable="false"></div>`
+            : `<div class="doc-wrap"><div class="doc-icon">${nd.ext || "FILE"}</div><div><div class="doc-name" contenteditable="true" spellcheck="false">${esc(nd.name || "File")}</div><div class="doc-meta">${nd.size || "Click to attach file"}</div></div></div>`;
         if (nd.type === "embed")
-          return `<div class="embed-wrap">
+          return nd.url
+            ? `<div class="embed-preview">${embedPreviewHTML(nd.url || "")}</div>`
+            : `<div class="embed-wrap">
             <input class="embed-input" type="url" placeholder="Paste image, video, YouTube, Vimeo, or embed URL" value="${esc(nd.url || "")}">
             <div class="embed-preview">${embedPreviewHTML(nd.url || "")}</div>
           </div>`;
         return "";
       }
 
+      function getBulletItemsFromText(text) {
+        const lines = String(text || "")
+          .split(/\n+/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+        return (lines.length ? lines : ["New item"]).map((line) => ({
+          text: line,
+          done: false,
+        }));
+      }
+
+      function removeBulletConnectionsForNode(nodeId) {
+        connections = connections.filter(
+          (connection) =>
+            !(
+              (connection.fromId === nodeId &&
+                connection.fromBulletIndex !== null &&
+                connection.fromBulletIndex !== undefined) ||
+              (connection.toId === nodeId &&
+                connection.toBulletIndex !== null &&
+                connection.toBulletIndex !== undefined)
+            ),
+        );
+        if (
+          pendingConn?.nodeId === nodeId &&
+          pendingConn?.bulletIndex !== null &&
+          pendingConn?.bulletIndex !== undefined
+        ) {
+          clearPendingConnection();
+        }
+      }
+
+      function convertNodeType(nd, targetType) {
+        if (!nd || nd.type === targetType) return;
+        updateNodeFromEl(nd);
+        if (targetType === "bullet") {
+          nd.type = "bullet";
+          nd.items = getBulletItemsFromText(nd.text || "");
+          nd.bulletFeatures = nd.bulletFeatures || {
+            checklist: false,
+            connectors: false,
+          };
+        } else if (targetType === "text") {
+          const bulletItems = Array.isArray(nd.items) ? nd.items : [];
+          nd.text = bulletItems
+            .map((item) =>
+              typeof item === "string" ? item : String(item?.text || "").trim(),
+            )
+            .filter(Boolean)
+            .join("\n");
+          nd.type = "text";
+          removeBulletConnectionsForNode(nd.id);
+        } else {
+          return;
+        }
+        renderAll();
+        applyNodeSelectionClasses();
+        autosave();
+      }
+
       function nodeSettingsHTML(nd) {
         if (nd.type === "bullet") {
           return `<button class="node-setting-toggle${nd.bulletFeatures?.checklist ? " active" : ""}" type="button" data-feature="checklist"><span>Checklist</span><span class="state">${nd.bulletFeatures?.checklist ? "On" : "Off"}</span></button>
-          <button class="node-setting-toggle${nd.bulletFeatures?.connectors ? " active" : ""}" type="button" data-feature="connectors"><span>Connectors</span><span class="state">${nd.bulletFeatures?.connectors ? "On" : "Off"}</span></button>`;
+          <button class="node-setting-toggle${nd.bulletFeatures?.connectors ? " active" : ""}" type="button" data-feature="connectors"><span>Connectors</span><span class="state">${nd.bulletFeatures?.connectors ? "On" : "Off"}</span></button>
+          <button class="node-setting-toggle" type="button" data-action="convert-to-text"><span>Convert to text</span><span class="state">Plain</span></button>`;
+        }
+        if (nd.type === "text" || nd.type === "note") {
+          return `<button class="node-setting-toggle" type="button" data-action="convert-to-bullet"><span>Convert to bullets</span><span class="state">List</span></button>`;
+        }
+        if (nd.type === "embed") {
+          return `<label class="form-label" style="margin-bottom:6px">URL</label>
+          <input class="embed-settings-input form-input" type="url" placeholder="Paste website URL" value="${esc(nd.url || "")}" style="margin-bottom:0">`;
         }
         return `<div class="node-settings-empty">No extra settings</div>`;
       }
@@ -5793,18 +6426,32 @@
           btn.addEventListener("click", (e) => {
             e.stopPropagation();
             const feature = btn.dataset.feature;
+            const action = btn.dataset.action;
             if (nd.type === "bullet") {
-              nd.bulletFeatures = nd.bulletFeatures || {
-                checklist: false,
-                connectors: false,
-              };
-              nd.bulletFeatures[feature] = !nd.bulletFeatures[feature];
-              el.querySelector(".node-body").innerHTML = nodeBodyHTML(nd);
-              el.querySelector(".node-settings").innerHTML =
-                nodeSettingsHTML(nd);
-              bindBulletNode(nd, el);
-              bindNodeSettings(nd, el);
-              autosave();
+              if (feature) {
+                nd.bulletFeatures = nd.bulletFeatures || {
+                  checklist: false,
+                  connectors: false,
+                };
+                nd.bulletFeatures[feature] = !nd.bulletFeatures[feature];
+                el.querySelector(".node-body").innerHTML = nodeBodyHTML(nd);
+                el.querySelector(".node-settings").innerHTML =
+                  nodeSettingsHTML(nd);
+                bindBulletNode(nd, el);
+                bindNodeSettings(nd, el);
+                autosave();
+                return;
+              }
+              if (action === "convert-to-text") {
+                convertNodeType(nd, "text");
+                return;
+              }
+            }
+            if (
+              (nd.type === "text" || nd.type === "note") &&
+              action === "convert-to-bullet"
+            ) {
+              convertNodeType(nd, "bullet");
             }
           }),
         );
@@ -5819,12 +6466,98 @@
         </li>`;
       }
 
+      function refreshBulletNodeContent(nd, el, focusIndex = null) {
+        const body = el?.querySelector(".node-body");
+        if (!body) return;
+        body.innerHTML = nodeBodyHTML(nd);
+        body.classList.toggle("has-checks", !!nd.bulletFeatures?.checklist);
+        body.classList.toggle(
+          "has-connectors",
+          !!nd.bulletFeatures?.connectors,
+        );
+        el.querySelector(".bullet-add-btn")?.addEventListener("click", () => {
+          nd.items.push({ text: "New item", done: false });
+          refreshBulletNodeContent(nd, el, nd.items.length - 1);
+          autosave();
+        });
+        bindBulletNode(nd, el);
+        if (focusIndex !== null) {
+          const target = el.querySelector(
+            `.bullet-list li[data-bullet-index="${focusIndex}"] .bullet-item-text`,
+          );
+          if (target) {
+            target.focus();
+            const range = document.createRange();
+            range.selectNodeContents(target);
+            range.collapse(false);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        }
+      }
+
+      function removeBulletItem(nd, el, index) {
+        if (!Array.isArray(nd.items) || index < 0 || index >= nd.items.length)
+          return;
+        nd.items.splice(index, 1);
+        connections = connections
+          .filter((connection) => {
+            if (
+              connection.fromId === nd.id &&
+              connection.fromBulletIndex === index
+            )
+              return false;
+            if (connection.toId === nd.id && connection.toBulletIndex === index)
+              return false;
+            return true;
+          })
+          .map((connection) => {
+            if (
+              connection.fromId === nd.id &&
+              typeof connection.fromBulletIndex === "number" &&
+              connection.fromBulletIndex > index
+            ) {
+              connection.fromBulletIndex -= 1;
+            }
+            if (
+              connection.toId === nd.id &&
+              typeof connection.toBulletIndex === "number" &&
+              connection.toBulletIndex > index
+            ) {
+              connection.toBulletIndex -= 1;
+            }
+            return connection;
+          });
+        const nextFocusIndex = nd.items.length
+          ? Math.min(index, nd.items.length - 1)
+          : null;
+        refreshBulletNodeContent(nd, el, nextFocusIndex);
+        requestConnectionRender();
+        autosave();
+      }
+
       function bindBulletItem(el, nd, li, index) {
         li.classList.toggle("is-done", !!nd.items[index]?.done);
         li.querySelector(".bullet-item-text")?.addEventListener("blur", (e) => {
-          nd.items[index].text = e.target.textContent;
+          const text = e.target.textContent.trim();
+          if (!text) {
+            removeBulletItem(nd, el, index);
+            return;
+          }
+          nd.items[index].text = text;
           autosave();
         });
+        li.querySelector(".bullet-item-text")?.addEventListener(
+          "keydown",
+          (e) => {
+            const text = e.target.textContent.trim();
+            if ((e.key === "Backspace" || e.key === "Delete") && !text) {
+              e.preventDefault();
+              removeBulletItem(nd, el, index);
+            }
+          },
+        );
         li.querySelector(".bullet-item-check")?.addEventListener(
           "click",
           () => {
@@ -5855,9 +6588,10 @@
       }
 
       function bindBulletNode(nd, el) {
-        el.querySelectorAll(".bullet-list li").forEach((li, index) =>
-          bindBulletItem(el, nd, li, index),
-        );
+        el.querySelectorAll(".bullet-list li").forEach((li, index) => {
+          li.dataset.bulletIndex = index;
+          bindBulletItem(el, nd, li, index);
+        });
       }
 
       function updateNodeFromEl(nd) {
@@ -5877,7 +6611,7 @@
           const t = el.querySelector(".progress-title");
           if (t) nd.title = t.textContent;
         }
-        if (nd.type === "doc") {
+        if (nd.type === "file") {
           const n = el.querySelector(".doc-name");
           if (n) nd.name = n.textContent;
         }
@@ -5944,10 +6678,27 @@
       function renderConnections() {
         const svg = document.getElementById("connections-svg");
         svg.innerHTML = "";
+        document
+          .querySelectorAll(".bullet-item-handle.has-connection")
+          .forEach((handle) => handle.classList.remove("has-connection"));
         connections.forEach((c) => {
           const fn = nodes.find((n) => n.id === c.fromId),
             tn = nodes.find((n) => n.id === c.toId);
           if (!fn || !tn) return;
+          if (c.fromBulletIndex !== null && c.fromBulletIndex !== undefined) {
+            document
+              .querySelector(
+                `#node-${c.fromId} .bullet-item-handle[data-bullet-index="${c.fromBulletIndex}"]`,
+              )
+              ?.classList.add("has-connection");
+          }
+          if (c.toBulletIndex !== null && c.toBulletIndex !== undefined) {
+            document
+              .querySelector(
+                `#node-${c.toId} .bullet-item-handle[data-bullet-index="${c.toBulletIndex}"]`,
+              )
+              ?.classList.add("has-connection");
+          }
           const f = getConnectionPoint(fn, c.fromBulletIndex, c.fromPos),
             t = getConnectionPoint(tn, c.toBulletIndex, c.toPos);
           const path = document.createElementNS(
@@ -6009,27 +6760,40 @@
         const dx = t.x - f.x;
         return `M${f.x},${f.y} C${f.x + dx * 0.5},${f.y} ${f.x + dx * 0.5},${t.y} ${t.x},${t.y}`;
       }
+      function getElementWorldCenter(el) {
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        return s2w(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      }
       function getConnectionPoint(nd, bulletIndex = null, pos = null) {
         const el = document.getElementById(`node-${nd.id}`);
         if (bulletIndex !== null && el) {
           const bulletHandle = el.querySelector(
             `.bullet-item-handle[data-bullet-index="${bulletIndex}"]`,
           );
-          if (bulletHandle) {
-            const nodeRect = el.getBoundingClientRect();
-            const handleRect = bulletHandle.getBoundingClientRect();
-            return {
-              x:
-                nd.x + (handleRect.left - nodeRect.left) + handleRect.width / 2,
-              y: nd.y + (handleRect.top - nodeRect.top) + handleRect.height / 2,
-            };
-          }
+          const point = getElementWorldCenter(bulletHandle);
+          if (point) return point;
+        }
+        if (el && pos) {
+          const handle = el.querySelector(
+            `.conn-handle[data-pos="${pos}"]:not([data-bullet-index])`,
+          );
+          const point = getElementWorldCenter(handle);
+          if (point) return point;
         }
         return getCenter(nd, pos);
       }
-      function getCenter(nd) {
+      function getCenter(nd, pos = null) {
         const el = document.getElementById(`node-${nd.id}`);
         if (!el) return { x: nd.x + 80, y: nd.y + 40 };
+        if (pos) {
+          const width = el.offsetWidth;
+          const height = el.offsetHeight;
+          if (pos === "top") return { x: nd.x + width / 2, y: nd.y };
+          if (pos === "bottom") return { x: nd.x + width / 2, y: nd.y + height };
+          if (pos === "left") return { x: nd.x, y: nd.y + height / 2 };
+          if (pos === "right") return { x: nd.x + width, y: nd.y + height / 2 };
+        }
         return { x: nd.x + el.offsetWidth / 2, y: nd.y + el.offsetHeight / 2 };
       }
 
@@ -6196,6 +6960,16 @@
                   nodeResizeStart.startY + (nodeResizeStart.h - h),
                 );
               }
+              const min = getNodeMinSize(nd, el);
+              w = Math.max(w, min.w);
+              h = Math.max(h, min.h);
+              if (nodeResizeStart.dir.includes("l"))
+                x = Math.round(nodeResizeStart.startX + (nodeResizeStart.w - w));
+              if (nodeResizeStart.dir.includes("t"))
+                y = Math.round(nodeResizeStart.startY + (nodeResizeStart.h - h));
+              if (nd.type === "file" && nd.fileKind === "image") {
+                nd.manualImageSize = true;
+              }
               nd.w = w;
               nd.h = h;
               nd.x = x;
@@ -6357,6 +7131,7 @@
             showToast("Saved");
           }
         });
+        document.addEventListener("paste", handleCanvasPaste);
 
         document
           .getElementById("file-input")
@@ -6365,34 +7140,10 @@
             if (!file || !imageNodeTarget) return;
             const nd = nodes.find((n) => n.id === imageNodeTarget);
             if (!nd) return;
-            if (nd.type === "image") {
-              const reader = new FileReader();
-              reader.onload = (ev) => {
-                nd.src = ev.target.result;
-                const wrap = document
-                  .getElementById(`node-${nd.id}`)
-                  ?.querySelector(".img-wrap");
-                if (wrap) wrap.innerHTML = `<img src="${nd.src}" alt="">`;
-                autosave();
-              };
-              reader.readAsDataURL(file);
-            } else if (nd.type === "doc") {
-              nd.name = file.name;
-              nd.ext = file.name.split(".").pop().toUpperCase().slice(0, 4);
-              nd.size = fmtBytes(file.size);
-              const el = document.getElementById(`node-${nd.id}`);
-              if (el) {
-                const ic = el.querySelector(".doc-icon");
-                if (ic) ic.textContent = nd.ext;
-                const nm = el.querySelector(".doc-name");
-                if (nm) nm.textContent = nd.name;
-                const mt = el.querySelector(".doc-meta");
-                if (mt) mt.textContent = nd.size;
-              }
-              autosave();
-            }
-            e.target.value = "";
-            imageNodeTarget = null;
+            populateFileNodeFromFile(nd, file, () => {
+              e.target.value = "";
+              imageNodeTarget = null;
+            });
           });
       }
 
@@ -6441,7 +7192,13 @@
       function addNodeFromMenu(type) {
         addNodeAt(type, ctxMenuPos.x, ctxMenuPos.y);
       }
-      function addNodeAt(type, x, y) {
+      function getCanvasViewportCenterWorld() {
+        const rect = document
+          .getElementById("canvas-container")
+          .getBoundingClientRect();
+        return s2w(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      }
+      function mergeNodeDefaults(type, data = {}) {
         const defs = {
           text: { text: "New note" },
           heading: { text: "Heading" },
@@ -6452,22 +7209,88 @@
             value: 0,
             steps: [{ label: "Step one", done: false }],
           },
-          image: { src: null },
-          doc: { name: "Document", ext: "DOC", size: "" },
+          file: {
+            name: "File",
+            ext: "FILE",
+            size: "",
+            src: null,
+            mime: "",
+            fileKind: "file",
+          },
           embed: { url: "", title: "Embed", w: 320, h: 220 },
           frame: { text: "Group", w: 260, h: 180 },
         };
+        return { ...(defs[type] || {}), ...data };
+      }
+      function addNodeAt(type, x, y, data = null) {
         const nd = makeNode(
           type,
           Math.round(x - (type === "line" ? 110 : 80)),
           Math.round(y - (type === "line" ? 1 : 40)),
-          defs[type] || {},
+          mergeNodeDefaults(type, data || {}),
         );
         nodes.push(nd);
-        document.getElementById("canvas-world").appendChild(createNodeEl(nd));
+        const el = createNodeEl(nd);
+        document.getElementById("canvas-world").appendChild(el);
+        enforceNodeMinSize(nd, el);
         selectNode(nd.id);
         updateInfoBar();
         autosave();
+        return nd;
+      }
+      function handlePastedImageFile(file, point) {
+        if (!file || !currentProject) return;
+        const nd = addNodeAt("file", point.x, point.y, {
+          name: file.name || "Image",
+          ext: "IMG",
+          fileKind: "image",
+          size: fmtBytes(file.size || 0),
+          mime: file.type || "",
+        });
+        populateFileNodeFromFile(nd, file);
+      }
+      function handleCanvasPaste(e) {
+        if (!currentProject) return;
+        const target = e.target;
+        if (
+          target?.tagName === "INPUT" ||
+          target?.tagName === "TEXTAREA" ||
+          target?.hasAttribute?.("contenteditable")
+        )
+          return;
+        const clipboard = e.clipboardData;
+        if (!clipboard) return;
+        const center = getCanvasViewportCenterWorld();
+        let offsetIndex = 0;
+        let handled = false;
+        [...(clipboard.items || [])].forEach((item) => {
+          if (!item || item.kind !== "file" || !item.type.startsWith("image/"))
+            return;
+          const file = item.getAsFile();
+          if (!file) return;
+          handled = true;
+          handlePastedImageFile(file, {
+            x: center.x + offsetIndex * 36,
+            y: center.y + offsetIndex * 36,
+          });
+          offsetIndex += 1;
+        });
+        if (handled) {
+          e.preventDefault();
+          return;
+        }
+        const text = String(clipboard.getData("text/plain") || "").trim();
+        if (!text) return;
+        e.preventDefault();
+        if (/^https?:\/\//i.test(text)) {
+          addNodeAt("embed", center.x, center.y, {
+            url: text,
+          });
+          return;
+        }
+        addNodeAt("text", center.x, center.y, {
+          text,
+        });
       }
       function deleteSelected() {
         if (selectedNodeIds.size > 1) {
