@@ -6289,7 +6289,12 @@
             type: "iframe",
             src: `https://player.vimeo.com/video/${vimeo[1]}`,
           };
-        if (/^https?:\/\//i.test(url)) return { type: "iframe", src: url };
+        if (/^https?:\/\//i.test(url))
+          return {
+            type: "website",
+            src: url,
+            preview: `https://image.thum.io/get/width/1600/noanimate/${url}`,
+          };
         return { type: "empty", src: "" };
       }
 
@@ -6301,6 +6306,8 @@
           return `<video src="${esc(embed.src)}" controls playsinline></video>`;
         if (embed.type === "iframe")
           return `<iframe src="${esc(embed.src)}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+        if (embed.type === "website")
+          return `<img src="${esc(embed.preview)}" alt="" draggable="false">`;
         return `<div class="embed-placeholder">Paste a direct image URL, video URL, YouTube, Vimeo, or embeddable link.</div>`;
       }
 
