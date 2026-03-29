@@ -1107,16 +1107,6 @@
       .overview-item .content {
         outline: none;
       }
-      .overview-item-text {
-        min-width: 120px;
-        max-width: 340px;
-        padding: 10px 12px;
-        background: rgba(18, 18, 18, 0.82);
-        border: 1px dashed var(--border2);
-        color: var(--text2);
-        font-size: 14px;
-        line-height: 1.6;
-      }
       .shared-heading-text,
       .overview-item-heading {
         display: inline-block;
@@ -1268,10 +1258,6 @@
         letter-spacing: 0.12em;
         text-transform: uppercase;
         color: var(--text3);
-      }
-      .overview-item.selected .overview-item-text,
-      .overview-item.multi-selected .overview-item-text {
-        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
       }
       .overview-item.selected .overview-item-line,
       .overview-item.selected .overview-item-frame,
@@ -1659,6 +1645,7 @@
         color: var(--text2);
         line-height: 1.5;
         min-width: 100px;
+        white-space: pre-wrap;
       }
       .node.node-heading {
         display: inline-block;
@@ -2895,7 +2882,7 @@
               <line x1="5" y1="8" x2="11" y2="8" /></svg
             ><span class="tip">Add Card</span>
           </button>
-          <button class="tool-btn" onclick="addOverviewItem('text')">
+          <button class="tool-btn" onclick="addOverviewItem('note')">
             <svg
               width="16"
               height="16"
@@ -3024,7 +3011,7 @@
           ><span class="tip">Connect</span>
         </button>
         <div id="tdiv"></div>
-        <button class="tool-btn" onclick="addNodeCtx('text')">
+        <button class="tool-btn" onclick="addNodeCtx('note')">
           <svg
             width="16"
             height="16"
@@ -3178,7 +3165,7 @@
     <div id="ctx-menu">
       <div class="ctx-section">
         <div class="ctx-label">Add Node</div>
-        <div class="ctx-item" onclick="addNodeFromMenu('text')">
+        <div class="ctx-item" onclick="addNodeFromMenu('note')">
           <span class="ci">Ⅱ</span>Text Note
         </div>
         <div class="ctx-item" onclick="addNodeFromMenu('heading')">
@@ -3679,7 +3666,12 @@
         const state = JSON.parse(snapshot);
         isRestoringHistory = true;
         projects = JSON.parse(JSON.stringify(state.projects || []));
-        overviewItems = JSON.parse(JSON.stringify(state.overviewItems || []));
+        projects.forEach((project) => {
+          project.nodes = normalizeNodeDataList(project.nodes || []);
+        });
+        overviewItems = normalizeOverviewItemDataList(
+          JSON.parse(JSON.stringify(state.overviewItems || [])),
+        );
         selectedProjectIds.clear();
         selectedOverviewItemIds.clear();
         selectedNodeIds.clear();
@@ -3692,6 +3684,7 @@
           nodes = JSON.parse(
             JSON.stringify(state.canvas?.nodes || currentProject.nodes || []),
           );
+          nodes = normalizeNodeDataList(nodes);
           connections = JSON.parse(
             JSON.stringify(
               state.canvas?.connections || currentProject.connections || [],
@@ -3748,7 +3741,7 @@
             return project;
           });
           overviewItems = dashboardSnap.exists
-            ? dashboardSnap.data().items || []
+            ? normalizeOverviewItemDataList(dashboardSnap.data().items || [])
             : [];
           if (!projects.length) await seedDefaultProject();
           setSyncStatus("synced");
@@ -4820,6 +4813,7 @@
 
       function normalizeNodeDataList(nodeList) {
         return (nodeList || []).map((node) => {
+          node.type = canonicalObjectType(node.type);
           if (node.type === "image") {
             node.type = "file";
             node.name = node.name || "Image";
@@ -4861,6 +4855,13 @@
           }
           if (typeof node.customTitle !== "string") node.customTitle = "";
           return node;
+        });
+      }
+
+      function normalizeOverviewItemDataList(itemList) {
+        return (itemList || []).map((item) => {
+          item.type = canonicalObjectType(item.type);
+          return item;
         });
       }
 
@@ -4970,15 +4971,245 @@
         selection.addRange(range);
       }
 
+      function insertPlainTextAtSelection(text) {
+        const selection = window.getSelection();
+        if (!selection || !selection.rangeCount) return;
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const normalized = String(text || "").replace(/\r\n?/g, "\n");
+        const fragment = document.createDocumentFragment();
+        normalized.split("\n").forEach((part, index, parts) => {
+          fragment.appendChild(document.createTextNode(part));
+          if (index < parts.length - 1) {
+            fragment.appendChild(document.createElement("br"));
+          }
+        });
+        const lastNode = fragment.lastChild;
+        range.insertNode(fragment);
+        selection.removeAllRanges();
+        const nextRange = document.createRange();
+        if (lastNode) {
+          nextRange.setStartAfter(lastNode);
+        } else {
+          nextRange.setStart(range.endContainer, range.endOffset);
+        }
+        nextRange.collapse(true);
+        selection.addRange(nextRange);
+      }
+
+      function bindPlainTextPaste(target) {
+        if (!target || target.dataset.plainPasteBound) return;
+        target.dataset.plainPasteBound = "1";
+        target.addEventListener("paste", (e) => {
+          const text = e.clipboardData?.getData("text/plain");
+          if (typeof text !== "string") return;
+          e.preventDefault();
+          insertPlainTextAtSelection(text);
+          target.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+      }
+
+      function getEditablePlainText(target) {
+        if (!target) return "";
+        const lines = [];
+        const walk = (node) => {
+          if (!node) return;
+          if (node.nodeType === Node.TEXT_NODE) {
+            lines.push(node.nodeValue || "");
+            return;
+          }
+          if (node.nodeType !== Node.ELEMENT_NODE) return;
+          const tag = node.tagName;
+          if (tag === "BR") {
+            lines.push("\n");
+            return;
+          }
+          const isBlockLike =
+            tag === "DIV" ||
+            tag === "P" ||
+            tag === "LI" ||
+            tag === "UL" ||
+            tag === "OL";
+          if (isBlockLike && lines.length && lines[lines.length - 1] !== "\n") {
+            lines.push("\n");
+          }
+          [...node.childNodes].forEach(walk);
+          if (isBlockLike && lines[lines.length - 1] !== "\n") {
+            lines.push("\n");
+          }
+        };
+        [...target.childNodes].forEach(walk);
+        return lines
+          .join("")
+          .replace(/\u00a0/g, " ")
+          .replace(/\n{3,}/g, "\n\n")
+          .replace(/^\n+|\n+$/g, "");
+      }
+
+      function renderMultilineTextHTML(text = "") {
+        return esc(String(text || "")).replace(/\n/g, "<br>");
+      }
+
+      function isSharedTextObjectType(type) {
+        return ["text", "note", "heading", "frame"].includes(type);
+      }
+
+      function isUnifiedTextNoteType(type) {
+        return type === "text" || type === "note";
+      }
+
+      function canonicalObjectType(type) {
+        return isUnifiedTextNoteType(type) ? "note" : type;
+      }
+
+      function createSharedTextObjectState(
+        id,
+        type,
+        x,
+        y,
+        data = {},
+        surface = "canvas",
+      ) {
+        type = canonicalObjectType(type);
+        const textDefaults = {
+          text: surface === "dashboard" ? "Quick note" : "New note",
+          note: "Note...",
+          heading: surface === "dashboard" ? "Section Heading" : "Heading",
+          frame: "Group",
+        };
+        const base = { id, type, x, y };
+        if (type === "frame") {
+          return {
+            ...base,
+            text: data.text ?? textDefaults.frame,
+            w: data.w || 260,
+            h: data.h || 180,
+          };
+        }
+        return {
+          ...base,
+          text: data.text ?? textDefaults[type] ?? "New note",
+        };
+      }
+
+      function renderSharedTextObjectHTML(
+        type,
+        text,
+        className = "content",
+      ) {
+        if (type === "heading") {
+          return `<div class="${className} shared-heading-text">${renderMultilineTextHTML(text || "")}</div>`;
+        }
+        return `<div class="${className}" contenteditable="true" spellcheck="false">${renderMultilineTextHTML(text || "")}</div>`;
+      }
+
+      function renderSharedTextNoteShellHTML({
+        type = "text",
+        text = "",
+        label = "Note",
+        accent = "#333",
+        contentClassName = "content node-content",
+        actionsHTML = "",
+        settingsHTML = "",
+      } = {}) {
+        return `
+    <div class="node-accent-line" style="background:${accent}"></div>
+    <div class="node-header">
+      <span class="node-type-label" contenteditable="false" spellcheck="false">${esc(label)}</span>
+      <div class="node-actions">${actionsHTML}</div>
+    </div>
+    <div class="node-body">${renderSharedTextObjectHTML(type, text, contentClassName)}</div>${settingsHTML}`;
+      }
+
+      function focusSharedNoteEditor(el) {
+        const content = el?.querySelector(".content") || el?.querySelector(".node-content");
+        if (!content) return;
+        content.focus();
+        saAll(content);
+      }
+
+      function toggleSharedNoteSettings(el) {
+        document
+          .querySelectorAll(".node-settings.open")
+          .forEach((panel) => {
+            if (panel !== el.querySelector(".node-settings")) {
+              panel.classList.remove("open");
+            }
+          });
+        el.querySelector(".node-settings")?.classList.toggle("open");
+      }
+
+      function bindUnifiedNoteObjectBehavior({
+        el,
+        type,
+        onCommit,
+        onPointerDown,
+        onResizeStart,
+      }) {
+        if (!el) return;
+        const content = el.querySelector(".content") || el.querySelector(".node-content");
+        bindSharedTextObjectEditor(content, type, onCommit);
+        el.querySelector(".node-settings-btn")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleSharedNoteSettings(el);
+        });
+        el.querySelectorAll(".node-resize-handle").forEach((h) =>
+          h.addEventListener("mousedown", (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onResizeStart(e, h.dataset.dir);
+          }),
+        );
+        el.addEventListener("mousedown", (e) => {
+          if (
+            e.target.classList.contains("conn-handle") ||
+            e.target.classList.contains("node-act-btn") ||
+            e.target.classList.contains("node-resize-handle") ||
+            e.target.closest(".node-settings")
+          )
+            return;
+          if (
+            e.target.tagName === "INPUT" ||
+            e.target.tagName === "TEXTAREA" ||
+            e.target.tagName === "A" ||
+            (e.target.hasAttribute("contenteditable") && !e.altKey)
+          )
+            return;
+          onPointerDown(e);
+        });
+        el.addEventListener("dblclick", (e) => {
+          if (e.target.hasAttribute("contenteditable")) return;
+          e.stopPropagation();
+          focusSharedNoteEditor(el);
+        });
+      }
+
+      function bindSharedTextObjectEditor(target, type, onCommit) {
+        if (!target || target.dataset.sharedObjectEditorBound) return;
+        target.dataset.sharedObjectEditorBound = "1";
+        if (type === "heading") {
+          bindSharedHeadingInteractions(target, onCommit);
+          return;
+        }
+        bindPlainTextPaste(target);
+        target.addEventListener("input", () => {
+          onCommit(getEditablePlainText(target));
+        });
+        target.addEventListener("blur", () => {
+          onCommit(getEditablePlainText(target));
+        });
+      }
+
       function bindHeadingLikeEditing(target, onCommit) {
         if (!target) return;
+        bindPlainTextPaste(target);
         target.addEventListener("dblclick", (e) => {
           e.stopPropagation();
           beginInlineTextEdit(target);
         });
         target.addEventListener("blur", () => {
           target.removeAttribute("contenteditable");
-          onCommit(target.textContent);
+          onCommit(getEditablePlainText(target));
         });
         target.addEventListener("keydown", (e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -4994,7 +5225,7 @@
       }
 
       function renderHeadingContentHTML(text = "") {
-        return `<div class="content node-content shared-heading-text">${esc(text || "")}</div>`;
+        return `<div class="content node-content shared-heading-text">${renderMultilineTextHTML(text || "")}</div>`;
       }
 
       function bindSharedHeadingInteractions(target, onCommit) {
@@ -5110,7 +5341,7 @@
         p.color = "#44ff88";
         p.nodes = [
           makeNode("heading", 240, 80, { text: "BEV Mind Map" }),
-          makeNode("text", 80, 220, {
+          makeNode("note", 80, 220, {
             text: "Double-click any node to edit. Drag to move.",
           }),
           makeNode("bullet", 400, 200, {
@@ -5388,6 +5619,18 @@
       }
 
       function getOverviewItemMinSize(item, el) {
+        if (isUnifiedTextNoteType(item.type)) {
+          const content = el?.querySelector(".node-content");
+          return {
+            w: estimateTextMinWidth(content?.textContent || item.text || "", {
+              min: 180,
+              max: 280,
+              base: 144,
+              charWidth: 4,
+            }),
+            h: Math.max(84, Math.ceil((content?.scrollHeight || 0) + 46)),
+          };
+        }
         if (item.type === "frame") {
           const content = el?.querySelector(".content");
           return {
@@ -5407,7 +5650,7 @@
       }
 
       function enforceOverviewItemMinSize(item, el) {
-        if (!item || !el || !["frame", "line"].includes(item.type)) return false;
+        if (!item || !el || ![...["frame", "line"], "text", "note"].includes(item.type)) return false;
         const min = getOverviewItemMinSize(item, el);
         let changed = false;
         if (item.type === "line") {
@@ -5733,27 +5976,47 @@
         });
       }
 
+      function requestDeleteOverviewItemById(id) {
+        const item = overviewItems.find((entry) => entry.id === id);
+        if (!item) return;
+        openConfirmDialog({
+          title: "Delete Object",
+          message: `Delete "${item.type}"?`,
+          confirmLabel: "Delete",
+          onConfirm: () => {
+            captureHistory();
+            overviewItems = overviewItems.filter((entry) => entry.id !== id);
+            selectedOverviewItemIds.delete(id);
+            if (overviewSelection?.type === "item" && overviewSelection.id === id) {
+              overviewSelection = null;
+            }
+            queueOverviewSave();
+            applyOverviewSelectionClasses();
+            renderDashboard();
+          },
+        });
+      }
+
       function makeOverviewItem(type, x, y) {
-        const base = {
-          id: "o" + Date.now() + Math.floor(Math.random() * 1000),
-          type,
-          x,
-          y,
-        };
-        if (type === "heading") return { ...base, text: "Section Heading" };
+        const id = "o" + Date.now() + Math.floor(Math.random() * 1000);
+        if (isSharedTextObjectType(type)) {
+          return createSharedTextObjectState(id, type, x, y, {}, "dashboard");
+        }
         if (type === "category") {
           const category = workspaceCategories[0] || null;
           return {
-            ...base,
+            id,
+            type,
+            x,
+            y,
             hidden: false,
             categoryId: category?.id || null,
             categoryColor: category?.color || null,
             categoryLabel: category?.label || "Category",
           };
         }
-        if (type === "line") return { ...base, w: 220 };
-        if (type === "frame") return { ...base, text: "Group", w: 260, h: 180 };
-        return { ...base, text: "Quick note" };
+        if (type === "line") return { id, type, x, y, w: 220 };
+        return { id, type, x, y, text: "Quick note" };
       }
 
       function addOverviewItem(type) {
@@ -5767,6 +6030,9 @@
       function createOverviewItemEl(item) {
         const el = document.createElement("div");
         el.className = `overview-item overview-item-${item.type}`;
+        if (isUnifiedTextNoteType(item.type)) {
+          el.classList.add("node", `node-${item.type}`);
+        }
         if (selectedOverviewItemIds.has(item.id))
           el.classList.add(
             selectedOverviewItemIds.size > 1 ? "multi-selected" : "selected",
@@ -5778,12 +6044,12 @@
           el.innerHTML = `<div class="content overview-item-line"></div>`;
           el.style.width = (item.w || 220) + "px";
         } else if (item.type === "frame") {
-          el.innerHTML = `<div class="content" contenteditable="true" spellcheck="false">${esc(item.text || "Group")}</div>
+          el.innerHTML = `${renderSharedTextObjectHTML(item.type, item.text || "Group")}
     <div class="overview-resize-handle resize-tl" data-dir="tl"></div><div class="overview-resize-handle resize-tr" data-dir="tr"></div><div class="overview-resize-handle resize-bl" data-dir="bl"></div><div class="overview-resize-handle resize-br" data-dir="br"></div>`;
           el.style.width = (item.w || 260) + "px";
           el.style.height = (item.h || 180) + "px";
-          el.querySelector(".content").addEventListener("blur", (e) => {
-            item.text = e.target.textContent;
+          bindSharedTextObjectEditor(el.querySelector(".content"), item.type, (text) => {
+            item.text = text;
             queueOverviewSave();
           });
           el.querySelectorAll(".overview-resize-handle").forEach((h) =>
@@ -5834,26 +6100,93 @@
         } else {
           el.innerHTML =
             item.type === "heading"
-              ? renderHeadingContentHTML(item.text || "")
-              : `<div class="content overview-item-text" contenteditable="true" spellcheck="false">${esc(item.text || "")}</div>`;
-          const contentEl = el.querySelector(".content");
-          if (item.type === "heading") {
-            bindSharedHeadingInteractions(contentEl, (text) => {
-              item.text = text;
-              queueOverviewSave();
+              ? renderSharedTextObjectHTML(item.type, item.text || "", "content")
+              : renderSharedTextNoteShellHTML({
+                  type: item.type,
+                  text: item.text || "",
+                  label: "Note",
+                  accent: "#333",
+                  contentClassName: "content node-content",
+                  actionsHTML: `<button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" type="button" onclick="requestDeleteOverviewItemById('${item.id}')">✕</button>`,
+                  settingsHTML: `<div class="node-settings"><div class="node-settings-empty">No extra settings</div></div>`,
+                }) +
+                `<div class="node-resize-handle resize-tl" data-dir="tl"></div><div class="node-resize-handle resize-tr" data-dir="tr"></div><div class="node-resize-handle resize-bl" data-dir="bl"></div><div class="node-resize-handle resize-br" data-dir="br"></div>`;
+          if (isUnifiedTextNoteType(item.type)) {
+            if (item.w) el.style.width = item.w + "px";
+            if (item.h) el.style.height = item.h + "px";
+          }
+          if (isUnifiedTextNoteType(item.type)) {
+            bindUnifiedNoteObjectBehavior({
+              el,
+              type: item.type,
+              onCommit: (text) => {
+                item.text = text;
+                queueOverviewSave();
+              },
+              onPointerDown: (e) => {
+                e.stopPropagation();
+                setOverviewSelection(
+                  { type: "item", id: item.id },
+                  e.shiftKey || selectedOverviewItemIds.has(item.id),
+                );
+                if (e.altKey && duplicateDashboardSelectionForDrag(e)) return;
+                overviewDragItemId = item.id;
+                overviewDragOffset = {
+                  x:
+                    (e.clientX -
+                      document
+                        .getElementById("dashboard-canvas")
+                        .getBoundingClientRect().left -
+                      dashboardViewOffset.x) /
+                      dashboardScale -
+                    item.x,
+                  y:
+                    (e.clientY -
+                      document
+                        .getElementById("dashboard-canvas")
+                        .getBoundingClientRect().top -
+                      dashboardViewOffset.y) /
+                      dashboardScale -
+                    item.y,
+                };
+                if (
+                  selectedOverviewItemIds.has(item.id) &&
+                  selectedProjectIds.size + selectedOverviewItemIds.size > 1
+                ) {
+                  beginDashboardGroupDrag(e);
+                }
+              },
+              onResizeStart: (e, dir) => {
+                setOverviewSelection({ type: "item", id: item.id });
+                overviewResizeItemId = item.id;
+                overviewResizeStart = {
+                  x: e.clientX,
+                  y: e.clientY,
+                  w: item.w || el.offsetWidth,
+                  h: item.h || el.offsetHeight,
+                  dir,
+                  startX: item.x,
+                  startY: item.y,
+                };
+              },
             });
           } else {
-            contentEl.addEventListener("blur", (e) => {
-              item.text = e.target.textContent;
+            const contentEl = el.querySelector(".content");
+            bindSharedTextObjectEditor(contentEl, item.type, (text) => {
+              item.text = text;
               queueOverviewSave();
             });
           }
         }
         el.addEventListener("mousedown", (e) => {
+          if (isUnifiedTextNoteType(item.type)) return;
           if (
             e.target.closest(".overview-category-btn") ||
             e.target.closest(".overview-category-picker") ||
-            e.target.closest(".overview-resize-handle")
+            e.target.closest(".overview-resize-handle") ||
+            e.target.closest(".node-resize-handle") ||
+            e.target.closest(".node-act-btn") ||
+            e.target.closest(".node-settings")
           )
             return;
           if (e.target.hasAttribute("contenteditable") && !e.altKey) return;
@@ -5889,15 +6222,6 @@
             beginDashboardGroupDrag(e);
           }
         });
-        if (item.type === "text") {
-          el.addEventListener("dblclick", (e) => {
-            const content = el.querySelector(".content");
-            if (!content) return;
-            e.stopPropagation();
-            content.focus();
-            saAll(content);
-          });
-        }
         if (item.type === "category") {
           el.querySelector(".overview-category-picker")?.addEventListener(
             "mousedown",
@@ -6661,17 +6985,18 @@
 
       // ===================== NODES =====================
       function makeNode(type, x, y, data) {
-        const id = "n" + nodeIdCounter++,
-          base = { id, type, x, y };
-        if (type === "text") return { ...base, text: data.text || "New note" };
-        if (type === "heading")
-          return { ...base, text: data.text || "Heading" };
+        const id = "n" + nodeIdCounter++;
+        if (isSharedTextObjectType(type)) {
+          return createSharedTextObjectState(id, type, x, y, data, "canvas");
+        }
         if (type === "line")
-          return { ...base, w: data.w || 220, h: data.h || 2 };
-        if (type === "note") return { ...base, text: data.text || "Note..." };
+          return { id, type, x, y, w: data.w || 220, h: data.h || 2 };
         if (type === "bullet")
           return {
-            ...base,
+            id,
+            type,
+            x,
+            y,
             items: (data.items || ["Item 1"]).map((item) =>
               typeof item === "string" ? { text: item, done: false } : item,
             ),
@@ -6682,14 +7007,20 @@
           };
         if (type === "progress")
           return {
-            ...base,
+            id,
+            type,
+            x,
+            y,
             title: data.title || "Progress",
             value: data.value || 0,
             steps: data.steps || [],
           };
         if (type === "file")
           return {
-            ...base,
+            id,
+            type,
+            x,
+            y,
             name: data.name || "File",
             ext: data.ext || "FILE",
             size: data.size || "",
@@ -6699,20 +7030,16 @@
           };
         if (type === "embed")
           return {
-            ...base,
+            id,
+            type,
+            x,
+            y,
             url: data.url || "",
             title: data.title || "Embed",
             w: data.w || 320,
             h: data.h || 220,
           };
-        if (type === "frame")
-          return {
-            ...base,
-            text: data.text || "Group",
-            w: data.w || 260,
-            h: data.h || 180,
-          };
-        return { ...base, customTitle: data.customTitle || "" };
+        return { id, type, x, y, customTitle: data.customTitle || "" };
       }
 
       function duplicateProject(project, dx = 36, dy = 36) {
@@ -6727,6 +7054,7 @@
       function duplicateOverviewItem(item, dx = 36, dy = 36) {
         const clone = JSON.parse(JSON.stringify(item));
         clone.id = "o" + Date.now() + Math.floor(Math.random() * 1000);
+        clone.type = canonicalObjectType(clone.type);
         clone.x = Math.round((item.x || 0) + dx);
         clone.y = Math.round((item.y || 0) + dy);
         return clone;
@@ -6735,6 +7063,7 @@
       function duplicateNodeData(node, dx = 36, dy = 36) {
         const clone = JSON.parse(JSON.stringify(node));
         clone.id = "n" + nodeIdCounter++;
+        clone.type = canonicalObjectType(clone.type);
         clone.x = Math.round((node.x || 0) + dx);
         clone.y = Math.round((node.y || 0) + dy);
         return clone;
@@ -6994,6 +7323,7 @@
         const nodeTitle = nd.customTitle ?? labels[nd.type] ?? nd.type;
         const fileLinkHref = getFileNodeLinkHref(nd);
         const fileLinkLabel = getFileNodeLinkLabel(nd);
+        const isSharedNoteNode = isUnifiedTextNoteType(nd.type);
         const nodeHandleMarkup =
           nd.type === "heading"
             ? `
@@ -7010,7 +7340,18 @@
     <div class="node-resize-handle resize-tr" data-dir="tr"></div>
     <div class="node-resize-handle resize-bl" data-dir="bl"></div>
     <div class="node-resize-handle resize-br" data-dir="br"></div>`;
-        el.innerHTML = `
+        el.innerHTML = isSharedNoteNode
+          ? `${renderSharedTextNoteShellHTML({
+              type: nd.type,
+              text: nd.text || "",
+              label: nodeTitle,
+              accent: currentProject?.color || "#333",
+              contentClassName: "content node-content",
+              actionsHTML: `<button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" onclick="requestDeleteNodeById('${nd.id}')">✕</button>`,
+              settingsHTML: `<div class="node-settings">${nodeSettingsHTML(nd)}</div>`,
+            })}
+    ${nodeHandleMarkup}`
+          : `
     <div class="node-accent-line" style="background:${currentProject?.color || "#333"}"></div>
       ${
         isFileNode
@@ -7040,28 +7381,108 @@
     <div class="node-settings">${nodeSettingsHTML(nd)}</div>
     ${nodeHandleMarkup}`;
 
-        el.addEventListener("mousedown", (e) => {
-          if (
-            e.target.classList.contains("conn-handle") ||
-            e.target.classList.contains("node-act-btn") ||
-            e.target.classList.contains("node-resize-handle") ||
-            e.target.closest(".node-settings") ||
-            e.target.closest(".node-file-topbar") ||
-            e.target.closest(".node-embed-topbar")
-          )
-            return;
-          if (
-            e.target.tagName === "INPUT" ||
-            e.target.tagName === "TEXTAREA" ||
-            e.target.tagName === "A" ||
-            (e.target.hasAttribute("contenteditable") && !e.altKey)
-          )
-            return;
-          if (currentTool === "connect") return;
-          e.stopPropagation();
-          if (e.altKey) {
+        if (isSharedNoteNode) {
+          bindUnifiedNoteObjectBehavior({
+            el,
+            type: nd.type,
+            onCommit: (text) => {
+              nd.text = text;
+              autosave();
+            },
+            onPointerDown: (e) => {
+              if (currentTool === "connect") return;
+              e.stopPropagation();
+              if (e.altKey) {
+                selectNode(nd.id, e.shiftKey || selectedNodeIds.has(nd.id));
+                if (duplicateCanvasSelectionForDrag()) {
+                  isDragging = false;
+                  nodeGroupDragIds = [...selectedNodeIds]
+                    .map((id) => {
+                      const node = nodes.find((n) => n.id === id);
+                      return node
+                        ? { id: node.id, startX: node.x, startY: node.y }
+                        : null;
+                    })
+                    .filter(Boolean);
+                  const wp = s2w(e.clientX, e.clientY);
+                  nodeGroupDragStart = { x: wp.x, y: wp.y };
+                  return;
+                }
+              }
+              selectNode(nd.id, e.shiftKey || selectedNodeIds.has(nd.id));
+              isDragging = true;
+              if (selectedNodeIds.has(nd.id) && selectedNodeIds.size > 1) {
+                isDragging = false;
+                nodeGroupDragIds = [...selectedNodeIds]
+                  .map((id) => {
+                    const node = nodes.find((n) => n.id === id);
+                    return node
+                      ? { id: node.id, startX: node.x, startY: node.y }
+                      : null;
+                  })
+                  .filter(Boolean);
+                const wp = s2w(e.clientX, e.clientY);
+                nodeGroupDragStart = { x: wp.x, y: wp.y };
+                return;
+              }
+              const wp = s2w(e.clientX, e.clientY);
+              dragOffset = { x: wp.x - nd.x, y: wp.y - nd.y };
+            },
+            onResizeStart: (e, dir) => {
+              selectNode(nd.id);
+              isResizingNode = true;
+              resizingNodeId = nd.id;
+              nodeResizeStart = {
+                x: e.clientX,
+                y: e.clientY,
+                w: el.offsetWidth,
+                h: el.offsetHeight,
+                dir,
+                startX: nd.x,
+                startY: nd.y,
+              };
+            },
+          });
+        } else {
+          el.addEventListener("mousedown", (e) => {
+            if (
+              e.target.classList.contains("conn-handle") ||
+              e.target.classList.contains("node-act-btn") ||
+              e.target.classList.contains("node-resize-handle") ||
+              e.target.closest(".node-settings") ||
+              e.target.closest(".node-file-topbar") ||
+              e.target.closest(".node-embed-topbar")
+            )
+              return;
+            if (
+              e.target.tagName === "INPUT" ||
+              e.target.tagName === "TEXTAREA" ||
+              e.target.tagName === "A" ||
+              (e.target.hasAttribute("contenteditable") && !e.altKey)
+            )
+              return;
+            if (currentTool === "connect") return;
+            e.stopPropagation();
+            if (e.altKey) {
+              selectNode(nd.id, e.shiftKey || selectedNodeIds.has(nd.id));
+              if (duplicateCanvasSelectionForDrag()) {
+                isDragging = false;
+                nodeGroupDragIds = [...selectedNodeIds]
+                  .map((id) => {
+                    const node = nodes.find((n) => n.id === id);
+                    return node
+                      ? { id: node.id, startX: node.x, startY: node.y }
+                      : null;
+                  })
+                  .filter(Boolean);
+                const wp = s2w(e.clientX, e.clientY);
+                nodeGroupDragStart = { x: wp.x, y: wp.y };
+                return;
+              }
+            }
             selectNode(nd.id, e.shiftKey || selectedNodeIds.has(nd.id));
-            if (duplicateCanvasSelectionForDrag()) {
+            isDragging = true;
+            if (selectedNodeIds.has(nd.id) && selectedNodeIds.size > 1) {
               isDragging = false;
               nodeGroupDragIds = [...selectedNodeIds]
                 .map((id) => {
@@ -7075,27 +7496,11 @@
               nodeGroupDragStart = { x: wp.x, y: wp.y };
               return;
             }
-          }
-          selectNode(nd.id, e.shiftKey || selectedNodeIds.has(nd.id));
-          isDragging = true;
-          if (selectedNodeIds.has(nd.id) && selectedNodeIds.size > 1) {
-            isDragging = false;
-            nodeGroupDragIds = [...selectedNodeIds]
-              .map((id) => {
-                const node = nodes.find((n) => n.id === id);
-                return node
-                  ? { id: node.id, startX: node.x, startY: node.y }
-                  : null;
-              })
-              .filter(Boolean);
             const wp = s2w(e.clientX, e.clientY);
-            nodeGroupDragStart = { x: wp.x, y: wp.y };
-            return;
-          }
-          const wp = s2w(e.clientX, e.clientY);
-          dragOffset = { x: wp.x - nd.x, y: wp.y - nd.y };
-        });
-        el.addEventListener("dblclick", (e) => {
+            dragOffset = { x: wp.x - nd.x, y: wp.y - nd.y };
+          });
+        }
+        if (!isSharedNoteNode) el.addEventListener("dblclick", (e) => {
           if (e.target.hasAttribute("contenteditable")) return;
           const c = el.querySelector(".node-content");
           if (c) {
@@ -7121,7 +7526,7 @@
             requestConnectionRender();
           });
         });
-        el.querySelectorAll(".node-resize-handle").forEach((h) =>
+        if (!isSharedNoteNode) el.querySelectorAll(".node-resize-handle").forEach((h) =>
           h.addEventListener("mousedown", (e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -7139,7 +7544,7 @@
             };
           }),
         );
-        el.querySelector(".node-settings-btn")?.addEventListener(
+        if (!isSharedNoteNode) el.querySelector(".node-settings-btn")?.addEventListener(
           "click",
           (e) => {
             e.stopPropagation();
@@ -7203,8 +7608,12 @@
           });
           bindBulletNode(nd, el);
         }
-        if (nd.type === "heading") {
-          bindSharedHeadingInteractions(el.querySelector(".content"), (text) => {
+        if (isSharedTextObjectType(nd.type) && !isSharedNoteNode) {
+          const editorTarget =
+            nd.type === "heading"
+              ? el.querySelector(".content")
+              : el.querySelector(".node-content");
+          bindSharedTextObjectEditor(editorTarget, nd.type, (text) => {
             nd.text = text;
             autosave();
           });
@@ -7230,12 +7639,14 @@
             });
           }
         }
-        el.querySelectorAll("[contenteditable]").forEach((ce) =>
+        el.querySelectorAll("[contenteditable]").forEach((ce) => {
+          if (!ce.dataset.sharedObjectEditorBound) bindPlainTextPaste(ce);
+          if (ce.dataset.sharedObjectEditorBound) return;
           ce.addEventListener("blur", () => {
             updateNodeFromEl(nd);
             autosave();
-          }),
-        );
+          });
+        });
         return el;
       }
 
@@ -7269,7 +7680,7 @@
           w: 160,
           h: headerHeight + 44,
         };
-        if (nd.type === "text" || nd.type === "note") {
+        if (isUnifiedTextNoteType(nd.type)) {
           base.w = 180;
           base.h = headerHeight + 56;
           contentWidth = estimateTextMinWidth(
@@ -7423,10 +7834,12 @@
       }
 
       function nodeBodyHTML(nd) {
-        if (nd.type === "text" || nd.type === "note")
-          return `<div class="node-content" contenteditable="true" spellcheck="false">${esc(nd.text || "")}</div>`;
-        if (nd.type === "heading")
-          return renderHeadingContentHTML(nd.text || "");
+        if (isSharedTextObjectType(nd.type))
+          return renderSharedTextObjectHTML(
+            nd.type,
+            nd.text || (nd.type === "frame" ? "Group" : ""),
+            nd.type === "heading" ? "content node-content" : "node-content",
+          );
         if (nd.type === "line")
           return `<div class="node-content" spellcheck="false"></div>`;
         if (nd.type === "bullet") {
@@ -7447,8 +7860,6 @@
       <div class="progress-val">${nd.value || 0}%</div>
       <div class="progress-steps">${steps}<button class="bullet-add-btn" onclick="addStep('${nd.id}')">+ Add step</button></div>`;
         }
-        if (nd.type === "frame")
-          return `<div class="node-content" contenteditable="true" spellcheck="false">${esc(nd.text || "Group")}</div>`;
         if (nd.type === "file")
           return nd.fileKind === "image" && nd.src
             ? `<div class="img-wrap"><img src="${nd.src}" alt="" draggable="false"></div>`
@@ -7529,7 +7940,7 @@
           <button class="node-setting-toggle${nd.bulletFeatures?.connectors ? " active" : ""}" type="button" data-feature="connectors"><span>Connectors</span><span class="state">${nd.bulletFeatures?.connectors ? "On" : "Off"}</span></button>
           <button class="node-setting-toggle" type="button" data-action="convert-to-text"><span>Convert to text</span><span class="state">Plain</span></button>`;
         }
-        if (nd.type === "text" || nd.type === "note") {
+        if (isUnifiedTextNoteType(nd.type)) {
           return `<button class="node-setting-toggle" type="button" data-action="convert-to-bullet"><span>Convert to bullets</span><span class="state">List</span></button>`;
         }
         if (nd.type === "embed") {
@@ -7565,10 +7976,7 @@
                 return;
               }
             }
-            if (
-              (nd.type === "text" || nd.type === "note") &&
-              action === "convert-to-bullet"
-            ) {
+            if (isUnifiedTextNoteType(nd.type) && action === "convert-to-bullet") {
               convertNodeType(nd, "bullet");
             }
           }),
@@ -7719,11 +8127,11 @@
         if (label) nd.customTitle = label.textContent.trim();
         if (["text", "heading", "note"].includes(nd.type)) {
           const c = el.querySelector(".node-content");
-          if (c) nd.text = c.textContent;
+          if (c) nd.text = getEditablePlainText(c);
         }
         if (nd.type === "frame") {
           const c = el.querySelector(".node-content");
-          if (c) nd.text = c.textContent;
+          if (c) nd.text = getEditablePlainText(c);
         }
         if (nd.type === "progress") {
           const t = el.querySelector(".progress-title");
@@ -7994,7 +8402,7 @@
             e.target.id === "canvas-world";
           if (!onEmptySpace || !currentProject) return;
           const point = s2w(e.clientX, e.clientY);
-          addNodeAt("text", point.x, point.y);
+          addNodeAt("note", point.x, point.y);
         });
 
         window.addEventListener("mousemove", (e) => {
@@ -8443,7 +8851,7 @@
           });
           return;
         }
-        addNodeAt("text", center.x, center.y, {
+        addNodeAt("note", center.x, center.y, {
           text,
         });
       }
