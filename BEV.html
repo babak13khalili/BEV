@@ -2562,6 +2562,11 @@
         align-items: flex-start;
         gap: 8px;
       }
+      .daily-todo-item.is-selected {
+        background: rgba(255, 255, 255, 0.04);
+        outline: 1px solid var(--border2);
+        outline-offset: 2px;
+      }
       .daily-todo-check {
         width: 16px;
         height: 16px;
@@ -3451,13 +3456,16 @@
       const TOUCH_TAP_MOVE_THRESHOLD = 10;
       const TOUCH_HOLD_DELAY = 280;
       let selectedColor = "#44ff88";
+      const DAILY_TODO_CLIPBOARD_MIME = "application/x-bev-daily-todos";
       let dailyTodoState = {
           open: false,
           currentDate: "",
           entries: {},
         },
         dailyTodoInitialized = false,
-        dailyTodoClockTimer = null;
+        dailyTodoClockTimer = null,
+        dailyTodoSelectedIds = new Set(),
+        dailyTodoSelectionAnchorId = null;
       const LAST_VIEW_STORAGE_KEY = "bev_last_view";
       let appClipboard = null;
 
@@ -4148,6 +4156,136 @@
         );
       }
 
+      function syncDailyTodoSelection(dateKey = dailyTodoState.currentDate) {
+        const itemIds = new Set(getDailyTodoItems(dateKey).map((item) => item.id));
+        dailyTodoSelectedIds = new Set(
+          [...dailyTodoSelectedIds].filter((id) => itemIds.has(id)),
+        );
+        if (!itemIds.has(dailyTodoSelectionAnchorId)) {
+          dailyTodoSelectionAnchorId = [...dailyTodoSelectedIds][0] || null;
+        }
+      }
+
+      function setDailyTodoSelection(ids = [], anchorId = null) {
+        dailyTodoSelectedIds = new Set(ids.filter(Boolean));
+        dailyTodoSelectionAnchorId =
+          anchorId || ids[ids.length - 1] || [...dailyTodoSelectedIds][0] || null;
+      }
+
+      function findDailyTodoRow(target) {
+        return target?.closest?.(".daily-todo-item") || null;
+      }
+
+      function getDailyTodoSelectedItems(dateKey = dailyTodoState.currentDate) {
+        const items = getDailyTodoItems(dateKey);
+        syncDailyTodoSelection(dateKey);
+        return items.filter((item) => dailyTodoSelectedIds.has(item.id));
+      }
+
+      function getDailyTodoItemsFromDOMSelection(
+        dateKey = dailyTodoState.currentDate,
+      ) {
+        const selection = window.getSelection();
+        if (!selection || !selection.rangeCount || selection.isCollapsed) return [];
+        const widget = document.getElementById("daily-todo-widget");
+        const anchorNode = selection.anchorNode;
+        const focusNode = selection.focusNode;
+        if (
+          !widget?.contains(anchorNode) ||
+          !widget?.contains(focusNode)
+        )
+          return [];
+        const rows = [
+          ...document.querySelectorAll("#daily-todo-list .daily-todo-item"),
+        ];
+        const selectedIds = rows
+          .filter((row) => selection.containsNode(row, true))
+          .map((row) => row.dataset.todoId)
+          .filter(Boolean);
+        if (!selectedIds.length) return [];
+        const itemMap = new Map(
+          getDailyTodoItems(dateKey).map((item) => [item.id, item]),
+        );
+        return selectedIds.map((id) => itemMap.get(id)).filter(Boolean);
+      }
+
+      function serializeDailyTodoClipboard(items) {
+        return JSON.stringify(
+          items.map((item) => ({
+            text: String(item?.text || ""),
+            done: !!item?.done,
+          })),
+        );
+      }
+
+      function formatDailyTodoClipboardText(items) {
+        return items
+          .map((item) => `- [${item.done ? "x" : " "}] ${String(item.text || "")}`)
+          .join("\n");
+      }
+
+      function parseDailyTodoClipboardText(text) {
+        const raw = String(text || "");
+        if (!raw.trim()) return [];
+        return raw
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => {
+            const match = line.match(/^[-*]\s+\[(x| )\]\s*(.*)$/i);
+            if (match) {
+              return {
+                text: match[2] || "",
+                done: match[1].toLowerCase() === "x",
+              };
+            }
+            return { text: line, done: false };
+          })
+          .filter((item) => item.text.trim().length);
+      }
+
+      function getDailyTodoPasteInsertIndex(dateKey = dailyTodoState.currentDate) {
+        const items = getDailyTodoItems(dateKey);
+        const activeRow = findDailyTodoRow(document.activeElement);
+        if (activeRow?.dataset?.todoId) {
+          const activeIndex = items.findIndex(
+            (item) => item.id === activeRow.dataset.todoId,
+          );
+          if (activeIndex >= 0) return activeIndex + 1;
+        }
+        const selectedIndexes = items
+          .map((item, index) =>
+            dailyTodoSelectedIds.has(item.id) ? index : -1,
+          )
+          .filter((index) => index >= 0);
+        if (selectedIndexes.length) {
+          return Math.max(...selectedIndexes) + 1;
+        }
+        return items.length;
+      }
+
+      function insertDailyTodoItems(entries, dateKey = dailyTodoState.currentDate) {
+        const items = getDailyTodoItems(dateKey);
+        const normalizedEntries = (entries || [])
+          .map((entry) => ({
+            id: `todo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            text: String(entry?.text || "").trim(),
+            done: !!entry?.done,
+          }))
+          .filter((entry) => entry.text);
+        if (!normalizedEntries.length) return false;
+        const insertAt = getDailyTodoPasteInsertIndex(dateKey);
+        items.splice(insertAt, 0, ...normalizedEntries);
+        setDailyTodoSelection(
+          normalizedEntries.map((entry) => entry.id),
+          normalizedEntries[normalizedEntries.length - 1]?.id || null,
+        );
+        dailyTodoState.open = true;
+        saveDailyTodoState();
+        renderDailyTodoWidget();
+        return true;
+      }
+
       function focusLastDailyTodoText() {
         requestAnimationFrame(() => {
           const rows = document.querySelectorAll(".daily-todo-text");
@@ -4194,6 +4332,7 @@
         const list = document.getElementById("daily-todo-list");
         const toggle = document.getElementById("daily-todo-toggle");
         if (!stamp || !dayLabel || !list || !toggle) return;
+        syncDailyTodoSelection(dateKey);
         stamp.textContent = formatDailyTodoStamp(dateKey);
         dayLabel.textContent =
           dateKey === getTodayDateKey() ? "Today" : formatDailyTodoStamp(dateKey);
@@ -4209,7 +4348,7 @@
         }
         list.innerHTML = items
           .map(
-            (item) => `<div class="daily-todo-item" data-todo-id="${item.id}">
+            (item) => `<div class="daily-todo-item${dailyTodoSelectedIds.has(item.id) ? " is-selected" : ""}" data-todo-id="${item.id}">
             <button class="daily-todo-check${item.done ? " is-done" : ""}" type="button">${item.done ? "✓" : ""}</button>
             <div class="daily-todo-text${item.done ? " is-done" : ""}" contenteditable="true" spellcheck="false">${esc(item.text || "")}</div>
           </div>`,
@@ -4219,6 +4358,27 @@
           const todoId = row.dataset.todoId;
           const item = items.find((entry) => entry.id === todoId);
           if (!item) return;
+          row.addEventListener("mousedown", (e) => {
+            if (!(e.metaKey || e.ctrlKey || e.shiftKey)) return;
+            e.preventDefault();
+            const idsInOrder = items.map((entry) => entry.id);
+            if (e.shiftKey && dailyTodoSelectionAnchorId) {
+              const anchorIndex = idsInOrder.indexOf(dailyTodoSelectionAnchorId);
+              const targetIndex = idsInOrder.indexOf(todoId);
+              if (anchorIndex >= 0 && targetIndex >= 0) {
+                const [from, to] = [anchorIndex, targetIndex].sort((a, b) => a - b);
+                setDailyTodoSelection(idsInOrder.slice(from, to + 1), todoId);
+              } else {
+                setDailyTodoSelection([todoId], todoId);
+              }
+            } else if (e.metaKey || e.ctrlKey) {
+              const nextIds = new Set(dailyTodoSelectedIds);
+              if (nextIds.has(todoId)) nextIds.delete(todoId);
+              else nextIds.add(todoId);
+              setDailyTodoSelection([...nextIds], todoId);
+            }
+            renderDailyTodoWidget();
+          });
           row.querySelector(".daily-todo-check")?.addEventListener("click", () => {
             item.done = !item.done;
             saveDailyTodoState();
@@ -4302,6 +4462,61 @@
         prev?.addEventListener("click", () => shiftDailyTodoDate(-1));
         next?.addEventListener("click", () => shiftDailyTodoDate(1));
         add?.addEventListener("click", () => addDailyTodoItem());
+        document.addEventListener("copy", (e) => {
+          const widget = document.getElementById("daily-todo-widget");
+          const activeNode = document.activeElement;
+          const selection = window.getSelection();
+          const selectionInWidget =
+            widget?.contains(activeNode) ||
+            widget?.contains(selection?.anchorNode) ||
+            widget?.contains(selection?.focusNode);
+          if (!selectionInWidget) return;
+          const dateKey = dailyTodoState.currentDate || getTodayDateKey();
+          const itemsToCopy =
+            getDailyTodoSelectedItems(dateKey).length
+              ? getDailyTodoSelectedItems(dateKey)
+              : getDailyTodoItemsFromDOMSelection(dateKey);
+          if (!itemsToCopy.length || !e.clipboardData) return;
+          e.preventDefault();
+          e.clipboardData.setData(
+            DAILY_TODO_CLIPBOARD_MIME,
+            serializeDailyTodoClipboard(itemsToCopy),
+          );
+          e.clipboardData.setData(
+            "text/plain",
+            formatDailyTodoClipboardText(itemsToCopy),
+          );
+          showToast(`Copied ${itemsToCopy.length} to do${itemsToCopy.length === 1 ? "" : "s"}`);
+        });
+        document.addEventListener("paste", (e) => {
+          const widget = document.getElementById("daily-todo-widget");
+          const target = e.target;
+          const selection = window.getSelection();
+          const pasteInWidget =
+            widget?.contains(target) ||
+            widget?.contains(selection?.anchorNode);
+          if (!pasteInWidget || !e.clipboardData) return;
+          const customData = e.clipboardData.getData(DAILY_TODO_CLIPBOARD_MIME);
+          let entries = [];
+          if (customData) {
+            try {
+              entries = JSON.parse(customData);
+            } catch {
+              entries = [];
+            }
+          } else {
+            const plainText = e.clipboardData.getData("text/plain");
+            const parsed = parseDailyTodoClipboardText(plainText);
+            if (parsed.length > 1 || /^\s*[-*]\s+\[(x| )\]/im.test(plainText)) {
+              entries = parsed;
+            }
+          }
+          if (!entries.length) return;
+          e.preventDefault();
+          if (insertDailyTodoItems(entries)) {
+            showToast(`Pasted ${entries.length} to do${entries.length === 1 ? "" : "s"}`);
+          }
+        });
         renderDailyTodoWidget();
         if (dailyTodoClockTimer) clearInterval(dailyTodoClockTimer);
         dailyTodoClockTimer = setInterval(renderDailyTodoWidget, 60000);
