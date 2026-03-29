@@ -1117,15 +1117,20 @@
         font-size: 14px;
         line-height: 1.6;
       }
+      .shared-heading-text,
       .overview-item-heading {
-        min-width: 160px;
-        max-width: 420px;
+        display: inline-block;
+        width: max-content;
+        max-width: none;
         padding: 6px 0;
         color: var(--text);
         font-family: "Syne", sans-serif;
         font-size: 28px;
         font-weight: 700;
         line-height: 1.1;
+        white-space: pre;
+        overflow-wrap: normal;
+        word-break: normal;
       }
       .overview-item-category {
         min-width: 220px;
@@ -1265,9 +1270,7 @@
         color: var(--text3);
       }
       .overview-item.selected .overview-item-text,
-      .overview-item.selected .overview-item-heading,
-      .overview-item.multi-selected .overview-item-text,
-      .overview-item.multi-selected .overview-item-heading {
+      .overview-item.multi-selected .overview-item-text {
         box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
       }
       .overview-item.selected .overview-item-line,
@@ -1545,6 +1548,11 @@
           left: 12px;
           bottom: 52px;
         }
+        .daily-todo-widget {
+          top: 80px;
+          right: 12px;
+          width: min(240px, calc(100vw - 24px));
+        }
       }
       .node-accent-line {
         height: 2px;
@@ -1652,12 +1660,44 @@
         line-height: 1.5;
         min-width: 100px;
       }
-      .node-heading .node-content {
-        font-family: "Syne", sans-serif;
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--accent);
-        min-width: 120px;
+      .node.node-heading {
+        display: inline-block;
+        width: fit-content;
+        height: fit-content;
+        background: transparent;
+        border: none;
+        min-width: 0;
+        box-shadow: none;
+      }
+      .node.node-heading:hover {
+        border-color: transparent;
+      }
+      .node.node-heading .node-accent-line,
+      .node.node-heading .node-header,
+      .node.node-heading .node-settings {
+        display: none;
+      }
+      .node.node-heading .node-body {
+        display: inline-block;
+        width: fit-content;
+        height: fit-content;
+        padding: 0;
+      }
+      .node.node-heading .node-content {
+        display: inline-block;
+        width: fit-content;
+        max-width: none;
+        padding: 0;
+        margin: 0;
+        outline: none;
+      }
+      .node.node-heading.selected,
+      .node.node-heading.multi-selected {
+        border-color: transparent;
+        box-shadow: none;
+      }
+      .node.node-heading.multi-selected::after {
+        display: none;
       }
       .node-frame {
         background: rgba(255, 255, 255, 0.02);
@@ -2386,6 +2426,192 @@
         display: flex;
         gap: 20px;
       }
+      .daily-todo-widget {
+        position: fixed;
+        top: 86px;
+        right: 20px;
+        width: 280px;
+        z-index: 160;
+        display: none;
+        flex-direction: column;
+        background: rgba(10, 10, 10, 0.96);
+        border: 1px solid var(--border2);
+        color: var(--text2);
+        box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+      }
+      .daily-todo-widget.visible {
+        display: flex;
+      }
+      .daily-todo-widget.collapsed {
+        width: 34px;
+        height: 34px;
+        background: var(--bg2);
+        box-shadow: none;
+      }
+      .daily-todo-widget.collapsed .daily-todo-head {
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+      }
+      .daily-todo-widget.collapsed .daily-todo-body {
+        display: none;
+      }
+      .daily-todo-widget.collapsed .daily-todo-meta,
+      .daily-todo-widget.collapsed #daily-todo-today {
+        display: none;
+      }
+      .daily-todo-widget.collapsed .daily-todo-head-actions {
+        width: 100%;
+        height: 100%;
+      }
+      .daily-todo-widget.collapsed .daily-todo-btn {
+        width: 100%;
+        height: 100%;
+        font-size: 15px;
+      }
+      .daily-todo-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 12px 8px;
+        border-bottom: 1px solid var(--border);
+      }
+      .daily-todo-meta {
+        min-width: 0;
+      }
+      .daily-todo-label {
+        font-family: "Syne", sans-serif;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text3);
+      }
+      .daily-todo-stamp {
+        font-family: "Syne", sans-serif;
+        font-size: 15px;
+        font-weight: 700;
+        line-height: 1.15;
+        margin-top: 3px;
+        color: var(--text);
+      }
+      .daily-todo-time {
+        font-size: 11px;
+        color: var(--text3);
+        margin-top: 4px;
+      }
+      .daily-todo-head-actions {
+        display: flex;
+        gap: 2px;
+      }
+      .daily-todo-btn {
+        width: 22px;
+        height: 22px;
+        background: none;
+        border: none;
+        color: var(--text3);
+        cursor: pointer;
+        font-family: "Syne", sans-serif;
+        font-size: 12px;
+      }
+      .daily-todo-btn:hover {
+        color: var(--text);
+      }
+      .daily-todo-body {
+        padding: 0 12px 12px;
+      }
+      .daily-todo-nav {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      .daily-todo-nav button {
+        min-width: 26px;
+        height: 22px;
+        background: var(--bg3);
+        border: none;
+        color: var(--text2);
+        cursor: pointer;
+        font-family: "Syne", sans-serif;
+        font-size: 11px;
+      }
+      .daily-todo-nav button:hover {
+        background: var(--bg4);
+        color: var(--text);
+      }
+      .daily-todo-nav-label {
+        flex: 1;
+        font-family: "Syne", sans-serif;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text3);
+      }
+      .daily-todo-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-height: 280px;
+        overflow: auto;
+      }
+      .daily-todo-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .daily-todo-check {
+        width: 16px;
+        height: 16px;
+        border: 1px solid var(--border2);
+        background: none;
+        color: var(--text2);
+        font-size: 10px;
+        cursor: pointer;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+      .daily-todo-check.is-done {
+        background: var(--bg3);
+      }
+      .daily-todo-text {
+        flex: 1;
+        min-width: 0;
+        outline: none;
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--text2);
+        overflow-wrap: anywhere;
+      }
+      .daily-todo-text.is-done {
+        text-decoration: line-through;
+        color: var(--text3);
+      }
+      .daily-todo-empty {
+        font-size: 12px;
+        color: var(--text3);
+        line-height: 1.5;
+        padding: 2px 0 6px;
+      }
+      .daily-todo-add {
+        width: 100%;
+        margin-top: 10px;
+        padding: 0;
+        background: none;
+        border: none;
+        color: var(--text3);
+        cursor: pointer;
+        text-align: left;
+        font-family: "Syne", sans-serif;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .daily-todo-add:hover {
+        color: var(--text);
+      }
 
       #toast {
         position: fixed;
@@ -2410,6 +2636,60 @@
       }
       #file-input {
         display: none;
+      }
+      /* typography cleanup: Barlow for UI/body, Syne only for titles */
+      button,
+      input,
+      textarea,
+      select,
+      .auth-tagline,
+      .section-label,
+      .form-label,
+      #sync-bar,
+      .card-date,
+      .card-readmore,
+      .card-status,
+      .card-status-option,
+      .card-stat,
+      .user-badge,
+      .path-left,
+      .path-center,
+      .path-right,
+      #dashboard-info,
+      #canvas-info,
+      #dashboard-minimap-label,
+      #minimap-label,
+      #dashboard-zoom-level,
+      #zoom-level,
+      .zoom-btn.zoom-fit,
+      .workspace-label,
+      .workspace-select,
+      .workspace-input,
+      .workspace-add-btn,
+      .workspace-toggle-btn,
+      .workspace-category-title,
+      .workspace-color-input,
+      .node-type-label,
+      .node-settings-empty,
+      .node-setting-toggle,
+      .node-file-link,
+      .node-embed-link,
+      .daily-todo-label,
+      .daily-todo-time,
+      .daily-todo-nav-label,
+      .daily-todo-add {
+        font-family: "Barlow", sans-serif;
+      }
+      .logo,
+      .auth-logo,
+      #canvas-project-title,
+      #modal h3,
+      #confirm-modal h3,
+      .card-title,
+      .overview-item-heading,
+      .node-heading .node-content,
+      .daily-todo-stamp {
+        font-family: "Syne", sans-serif;
       }
       ::-webkit-scrollbar {
         width: 4px;
@@ -2853,6 +3133,42 @@
       </div>
     </div>
 
+    <div id="daily-todo-widget" class="daily-todo-widget collapsed">
+      <div class="daily-todo-head">
+        <div class="daily-todo-meta">
+          <div class="daily-todo-label">Daily To do</div>
+          <div class="daily-todo-stamp" id="daily-todo-stamp"></div>
+        </div>
+        <div class="daily-todo-head-actions">
+          <button
+            class="daily-todo-btn"
+            id="daily-todo-today"
+            type="button"
+            title="Jump to today">
+            •
+          </button>
+          <button
+            class="daily-todo-btn"
+            id="daily-todo-toggle"
+            type="button"
+            title="Open daily to do">
+            ▾
+          </button>
+        </div>
+      </div>
+      <div class="daily-todo-body">
+        <div class="daily-todo-nav">
+          <button id="daily-todo-prev" type="button">←</button>
+          <div class="daily-todo-nav-label" id="daily-todo-day-label"></div>
+          <button id="daily-todo-next" type="button">→</button>
+        </div>
+        <div class="daily-todo-list" id="daily-todo-list"></div>
+        <button class="daily-todo-add" id="daily-todo-add" type="button">
+          + Add quick task
+        </button>
+      </div>
+    </div>
+
     <!-- CTX MENU -->
     <div id="ctx-menu">
       <div class="ctx-section">
@@ -2894,6 +3210,12 @@
       <div class="ctx-section" id="ctx-conn-section" style="display: none">
         <div class="ctx-item danger" onclick="deleteSelectedConnection()">
           <span class="ci">✕</span>Delete connection
+        </div>
+      </div>
+      <div class="ctx-section" id="ctx-dashboard-section" style="display: none">
+        <div class="ctx-label">Selection</div>
+        <div class="ctx-item danger" onclick="deleteOverviewSelection()">
+          <span class="ci">✕</span>Delete selection
         </div>
       </div>
       <div class="ctx-section">
@@ -3129,6 +3451,15 @@
       const TOUCH_TAP_MOVE_THRESHOLD = 10;
       const TOUCH_HOLD_DELAY = 280;
       let selectedColor = "#44ff88";
+      let dailyTodoState = {
+          open: false,
+          currentDate: "",
+          entries: {},
+        },
+        dailyTodoInitialized = false,
+        dailyTodoClockTimer = null;
+      const LAST_VIEW_STORAGE_KEY = "bev_last_view";
+      let appClipboard = null;
 
       // ===================== STARTUP =====================
       function startup() {
@@ -3162,6 +3493,30 @@
         if (target)
           target.style.display =
             name === "dashboard" || name === "canvas" ? "block" : "flex";
+        syncDailyTodoWidgetVisibility(name);
+      }
+
+      function saveLastView(screen, projectId = null) {
+        try {
+          localStorage.setItem(
+            LAST_VIEW_STORAGE_KEY,
+            JSON.stringify({
+              screen,
+              projectId: projectId || null,
+            }),
+          );
+        } catch {}
+      }
+
+      function loadLastView() {
+        try {
+          const raw = localStorage.getItem(LAST_VIEW_STORAGE_KEY);
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          return parsed && typeof parsed === "object" ? parsed : null;
+        } catch {
+          return null;
+        }
       }
 
       // ===================== FIREBASE INIT =====================
@@ -3236,6 +3591,7 @@
         await fbAuth.signOut();
         projects = [];
         currentProject = null;
+        saveLastView("dashboard");
         show("auth");
       }
 
@@ -3250,6 +3606,7 @@
             currentUser.email ||
             "?")[0].toUpperCase();
         loadWorkspacePrefs();
+        setupDailyTodoWidget();
         initColorSwatches();
         setupCanvasEvents();
         setupDashboardEvents();
@@ -3387,9 +3744,17 @@
             : [];
           if (!projects.length) await seedDefaultProject();
           setSyncStatus("synced");
-          show("dashboard");
-          renderDashboard();
-          setTimeout(dashboardResetView, 60);
+          const lastView = loadLastView();
+          const lastProjectId =
+            lastView?.screen === "canvas" ? lastView.projectId : null;
+          if (lastProjectId && projects.some((project) => project.id === lastProjectId)) {
+            openProject(lastProjectId);
+          } else {
+            show("dashboard");
+            renderDashboard();
+            setTimeout(dashboardResetView, 60);
+            saveLastView("dashboard");
+          }
           captureHistory(true);
         } catch (e) {
           setSyncStatus("error");
@@ -3733,6 +4098,215 @@
         applyWorkspaceUIPrefs();
       }
 
+      function getTodayDateKey() {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      }
+
+      function parseDateKey(dateKey) {
+        const [year, month, day] = String(dateKey || getTodayDateKey())
+          .split("-")
+          .map(Number);
+        return new Date(year || 0, (month || 1) - 1, day || 1);
+      }
+
+      function formatDailyTodoStamp(dateKey) {
+        return parseDateKey(dateKey).toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
+      }
+
+      function formatDailyTodoTime() {
+        return new Date().toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      function shiftDailyTodoDate(step) {
+        const next = parseDateKey(dailyTodoState.currentDate || getTodayDateKey());
+        next.setDate(next.getDate() + step);
+        dailyTodoState.currentDate = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+        saveDailyTodoState();
+        renderDailyTodoWidget();
+      }
+
+      function getDailyTodoItems(dateKey = dailyTodoState.currentDate) {
+        const key = dateKey || getTodayDateKey();
+        if (!Array.isArray(dailyTodoState.entries[key])) {
+          dailyTodoState.entries[key] = [];
+        }
+        return dailyTodoState.entries[key];
+      }
+
+      function saveDailyTodoState() {
+        localStorage.setItem(
+          "bev_daily_todos",
+          JSON.stringify(dailyTodoState),
+        );
+      }
+
+      function focusLastDailyTodoText() {
+        requestAnimationFrame(() => {
+          const rows = document.querySelectorAll(".daily-todo-text");
+          const target = rows[rows.length - 1];
+          if (!target) return;
+          target.focus();
+          const range = document.createRange();
+          range.selectNodeContents(target);
+          range.collapse(false);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+        });
+      }
+
+      function addDailyTodoItem(text = "New quick task") {
+        const items = getDailyTodoItems();
+        items.push({
+          id: `todo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          text,
+          done: false,
+        });
+        dailyTodoState.open = true;
+        saveDailyTodoState();
+        renderDailyTodoWidget();
+        focusLastDailyTodoText();
+      }
+
+      function syncDailyTodoWidgetVisibility(screenName) {
+        const widget = document.getElementById("daily-todo-widget");
+        if (!widget) return;
+        widget.classList.toggle(
+          "visible",
+          screenName === "dashboard" || screenName === "canvas",
+        );
+      }
+
+      function renderDailyTodoWidget() {
+        const widget = document.getElementById("daily-todo-widget");
+        if (!widget) return;
+        const dateKey = dailyTodoState.currentDate || getTodayDateKey();
+        const stamp = document.getElementById("daily-todo-stamp");
+        const dayLabel = document.getElementById("daily-todo-day-label");
+        const list = document.getElementById("daily-todo-list");
+        const toggle = document.getElementById("daily-todo-toggle");
+        if (!stamp || !dayLabel || !list || !toggle) return;
+        stamp.textContent = formatDailyTodoStamp(dateKey);
+        dayLabel.textContent =
+          dateKey === getTodayDateKey() ? "Today" : formatDailyTodoStamp(dateKey);
+        widget.classList.toggle("collapsed", !dailyTodoState.open);
+        toggle.textContent = dailyTodoState.open ? "−" : "◫";
+        toggle.title = dailyTodoState.open
+          ? "Collapse daily to do"
+          : "Open daily to do";
+        const items = getDailyTodoItems(dateKey);
+        if (!items.length) {
+          list.innerHTML = `<div class="daily-todo-empty">No quick tasks yet for this day.</div>`;
+          return;
+        }
+        list.innerHTML = items
+          .map(
+            (item) => `<div class="daily-todo-item" data-todo-id="${item.id}">
+            <button class="daily-todo-check${item.done ? " is-done" : ""}" type="button">${item.done ? "✓" : ""}</button>
+            <div class="daily-todo-text${item.done ? " is-done" : ""}" contenteditable="true" spellcheck="false">${esc(item.text || "")}</div>
+          </div>`,
+          )
+          .join("");
+        list.querySelectorAll(".daily-todo-item").forEach((row) => {
+          const todoId = row.dataset.todoId;
+          const item = items.find((entry) => entry.id === todoId);
+          if (!item) return;
+          row.querySelector(".daily-todo-check")?.addEventListener("click", () => {
+            item.done = !item.done;
+            saveDailyTodoState();
+            renderDailyTodoWidget();
+          });
+          row.querySelector(".daily-todo-text")?.addEventListener("blur", (e) => {
+            const text = e.target.textContent.trim();
+            if (!text) {
+              dailyTodoState.entries[dateKey] = items.filter(
+                (entry) => entry.id !== todoId,
+              );
+            } else {
+              item.text = text;
+            }
+            saveDailyTodoState();
+            renderDailyTodoWidget();
+          });
+          row
+            .querySelector(".daily-todo-text")
+            ?.addEventListener("keydown", (e) => {
+              const text = e.target.textContent.trim();
+              if (e.key === "Enter") {
+                e.preventDefault();
+                item.text = text || "New quick task";
+                saveDailyTodoState();
+                addDailyTodoItem("");
+                return;
+              }
+              if ((e.key === "Backspace" || e.key === "Delete") && !text) {
+                e.preventDefault();
+                dailyTodoState.entries[dateKey] = items.filter(
+                  (entry) => entry.id !== todoId,
+                );
+                saveDailyTodoState();
+                renderDailyTodoWidget();
+              }
+            });
+        });
+      }
+
+      function setupDailyTodoWidget() {
+        if (dailyTodoInitialized) return;
+        dailyTodoInitialized = true;
+        try {
+          const saved = localStorage.getItem("bev_daily_todos");
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            dailyTodoState = {
+              open: parsed?.open === true,
+              currentDate: parsed?.currentDate || getTodayDateKey(),
+              entries: parsed?.entries && typeof parsed.entries === "object"
+                ? parsed.entries
+                : {},
+            };
+          } else {
+            dailyTodoState.currentDate = getTodayDateKey();
+          }
+        } catch {
+          dailyTodoState = {
+            open: false,
+            currentDate: getTodayDateKey(),
+            entries: {},
+          };
+        }
+        const toggle = document.getElementById("daily-todo-toggle");
+        const today = document.getElementById("daily-todo-today");
+        const prev = document.getElementById("daily-todo-prev");
+        const next = document.getElementById("daily-todo-next");
+        const add = document.getElementById("daily-todo-add");
+        toggle?.addEventListener("click", () => {
+          dailyTodoState.open = !dailyTodoState.open;
+          saveDailyTodoState();
+          renderDailyTodoWidget();
+        });
+        today?.addEventListener("click", () => {
+          dailyTodoState.currentDate = getTodayDateKey();
+          dailyTodoState.open = true;
+          saveDailyTodoState();
+          renderDailyTodoWidget();
+        });
+        prev?.addEventListener("click", () => shiftDailyTodoDate(-1));
+        next?.addEventListener("click", () => shiftDailyTodoDate(1));
+        add?.addEventListener("click", () => addDailyTodoItem());
+        renderDailyTodoWidget();
+        if (dailyTodoClockTimer) clearInterval(dailyTodoClockTimer);
+        dailyTodoClockTimer = setInterval(renderDailyTodoWidget, 60000);
+      }
+
       function getAvailableCategories() {
         return workspaceCategories
           .map((category) => category.label)
@@ -4066,6 +4640,10 @@
             node.fileKind =
               node.fileKind || (node.src ? "image" : "file");
           }
+          if (node.type === "heading") {
+            delete node.w;
+            delete node.h;
+          }
           if (typeof node.customTitle !== "string") node.customTitle = "";
           return node;
         });
@@ -4163,6 +4741,49 @@
         if (nd?.name) return nd.name;
         if (href) return href;
         return "File";
+      }
+
+      function beginInlineTextEdit(target) {
+        if (!target) return;
+        target.setAttribute("contenteditable", "true");
+        target.focus();
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        range.collapse(false);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+
+      function bindHeadingLikeEditing(target, onCommit) {
+        if (!target) return;
+        target.addEventListener("dblclick", (e) => {
+          e.stopPropagation();
+          beginInlineTextEdit(target);
+        });
+        target.addEventListener("blur", () => {
+          target.removeAttribute("contenteditable");
+          onCommit(target.textContent);
+        });
+        target.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            target.blur();
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            target.textContent = target.textContent;
+            target.blur();
+          }
+        });
+      }
+
+      function renderHeadingContentHTML(text = "") {
+        return `<div class="content node-content shared-heading-text">${esc(text || "")}</div>`;
+      }
+
+      function bindSharedHeadingInteractions(target, onCommit) {
+        bindHeadingLikeEditing(target, onCommit);
       }
 
       function syncImageFileNodeSize(nd, el) {
@@ -4996,25 +5617,37 @@
             </div>
           </div>`;
         } else {
-          el.innerHTML = `<div class="content ${item.type === "heading" ? "overview-item-heading" : "overview-item-text"}" contenteditable="true" spellcheck="false">${esc(item.text || "")}</div>`;
-          el.querySelector(".content").addEventListener("blur", (e) => {
-            item.text = e.target.textContent;
-            queueOverviewSave();
-          });
+          el.innerHTML =
+            item.type === "heading"
+              ? renderHeadingContentHTML(item.text || "")
+              : `<div class="content overview-item-text" contenteditable="true" spellcheck="false">${esc(item.text || "")}</div>`;
+          const contentEl = el.querySelector(".content");
+          if (item.type === "heading") {
+            bindSharedHeadingInteractions(contentEl, (text) => {
+              item.text = text;
+              queueOverviewSave();
+            });
+          } else {
+            contentEl.addEventListener("blur", (e) => {
+              item.text = e.target.textContent;
+              queueOverviewSave();
+            });
+          }
         }
         el.addEventListener("mousedown", (e) => {
           if (
             e.target.closest(".overview-category-btn") ||
             e.target.closest(".overview-category-picker") ||
-            e.target.hasAttribute("contenteditable") ||
             e.target.closest(".overview-resize-handle")
           )
             return;
+          if (e.target.hasAttribute("contenteditable") && !e.altKey) return;
           e.stopPropagation();
           setOverviewSelection(
             { type: "item", id: item.id },
             e.shiftKey || selectedOverviewItemIds.has(item.id),
           );
+          if (e.altKey && duplicateDashboardSelectionForDrag(e)) return;
           overviewDragItemId = item.id;
           overviewDragOffset = {
             x:
@@ -5041,7 +5674,7 @@
             beginDashboardGroupDrag(e);
           }
         });
-        if (item.type === "text" || item.type === "heading") {
+        if (item.type === "text") {
           el.addEventListener("dblclick", (e) => {
             const content = el.querySelector(".content");
             if (!content) return;
@@ -5254,6 +5887,30 @@
         );
       }
 
+      function duplicateDashboardSelectionForDrag(e) {
+        const duplicatedProjects = [...selectedProjectIds]
+          .map((id) => projects.find((project) => project.id === id))
+          .filter(Boolean)
+          .map((project) => duplicateProject(project, 24, 24));
+        const duplicatedItems = [...selectedOverviewItemIds]
+          .map((id) => overviewItems.find((item) => item.id === id))
+          .filter(Boolean)
+          .map((item) => duplicateOverviewItem(item, 24, 24));
+        if (!duplicatedProjects.length && !duplicatedItems.length) return false;
+        projects.push(...duplicatedProjects);
+        overviewItems.push(...duplicatedItems);
+        selectedProjectIds.clear();
+        selectedOverviewItemIds.clear();
+        duplicatedProjects.forEach((project) => selectedProjectIds.add(project.id));
+        duplicatedItems.forEach((item) => selectedOverviewItemIds.add(item.id));
+        renderDashboard();
+        duplicatedProjects.forEach((project) => queueProjectSave(project));
+        if (duplicatedItems.length) queueOverviewSave();
+        applyOverviewSelectionClasses();
+        beginDashboardGroupDrag(e);
+        return true;
+      }
+
       function startProjectDrag(e, p, el) {
         if (
           e.target.closest(".card-del") ||
@@ -5264,6 +5921,13 @@
         )
           return;
         e.stopPropagation();
+        if (e.altKey) {
+          setOverviewSelection(
+            { type: "project", id: p.id },
+            e.shiftKey || selectedProjectIds.has(p.id),
+          );
+          if (duplicateDashboardSelectionForDrag(e)) return;
+        }
         const rect = document
           .getElementById("dashboard-canvas")
           .getBoundingClientRect();
@@ -5382,6 +6046,32 @@
             ),
           };
           openNewProjectModal();
+        });
+        canvas.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          const cardEl = e.target.closest(".project-card");
+          const itemEl = e.target.closest(".overview-item");
+          if (cardEl) {
+            const projectId = cardEl.dataset.projectId;
+            if (projectId && !selectedProjectIds.has(projectId)) {
+              setOverviewSelection({ type: "project", id: projectId });
+            }
+          } else if (itemEl) {
+            const itemId = itemEl.dataset.itemId;
+            if (itemId && !selectedOverviewItemIds.has(itemId)) {
+              setOverviewSelection({ type: "item", id: itemId });
+            }
+          }
+          document.getElementById("ctx-node-section").style.display = "none";
+          document.getElementById("ctx-conn-section").style.display = "none";
+          document.getElementById("ctx-dashboard-section").style.display =
+            selectedProjectIds.size || selectedOverviewItemIds.size
+              ? "block"
+              : "none";
+          const m = document.getElementById("ctx-menu");
+          m.style.left = e.clientX + "px";
+          m.style.top = e.clientY + "px";
+          m.classList.add("visible");
         });
         canvas.addEventListener(
           "wheel",
@@ -5739,6 +6429,16 @@
             e.target.hasAttribute("contenteditable")
           )
             return;
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+            e.preventDefault();
+            copyCurrentSelection();
+            return;
+          }
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+            e.preventDefault();
+            pasteClipboardSelection();
+            return;
+          }
           if (e.key === "Delete" || e.key === "Backspace")
             deleteOverviewSelection();
         });
@@ -5800,6 +6500,158 @@
         return { ...base, customTitle: data.customTitle || "" };
       }
 
+      function duplicateProject(project, dx = 36, dy = 36) {
+        const clone = JSON.parse(JSON.stringify(project));
+        clone.id = "p" + Date.now() + Math.floor(Math.random() * 10000);
+        clone.x = Math.max(20, Math.round((project.x || 0) + dx));
+        clone.y = Math.max(20, Math.round((project.y || 0) + dy));
+        clone.created = Date.now();
+        return clone;
+      }
+
+      function duplicateOverviewItem(item, dx = 36, dy = 36) {
+        const clone = JSON.parse(JSON.stringify(item));
+        clone.id = "o" + Date.now() + Math.floor(Math.random() * 1000);
+        clone.x = Math.round((item.x || 0) + dx);
+        clone.y = Math.round((item.y || 0) + dy);
+        return clone;
+      }
+
+      function duplicateNodeData(node, dx = 36, dy = 36) {
+        const clone = JSON.parse(JSON.stringify(node));
+        clone.id = "n" + nodeIdCounter++;
+        clone.x = Math.round((node.x || 0) + dx);
+        clone.y = Math.round((node.y || 0) + dy);
+        return clone;
+      }
+
+      function duplicateNodeSelection(dx = 36, dy = 36) {
+        const selectedIds = [...selectedNodeIds];
+        if (!selectedIds.length) return [];
+        const idMap = new Map();
+        const clones = selectedIds
+          .map((id) => nodes.find((node) => node.id === id))
+          .filter(Boolean)
+          .map((node) => {
+            const clone = duplicateNodeData(node, dx, dy);
+            idMap.set(node.id, clone.id);
+            return clone;
+          });
+        const clonedConnections = connections
+          .filter(
+            (connection) =>
+              idMap.has(connection.fromId) && idMap.has(connection.toId),
+          )
+          .map((connection) => ({
+            ...JSON.parse(JSON.stringify(connection)),
+            id: "c" + connIdCounter++,
+            fromId: idMap.get(connection.fromId),
+            toId: idMap.get(connection.toId),
+          }));
+        nodes.push(...clones);
+        connections.push(...clonedConnections);
+        selectedNodeIds.clear();
+        clones.forEach((clone) => selectedNodeIds.add(clone.id));
+        selectedNode = clones.length === 1 ? clones[0] : null;
+        renderAll();
+        applyNodeSelectionClasses();
+        autosave();
+        return clones;
+      }
+
+      function copyCurrentSelection() {
+        if (currentProject) {
+          const selectedIds = [...selectedNodeIds];
+          if (!selectedIds.length) return false;
+          appClipboard = {
+            scope: "canvas",
+            nodes: selectedIds
+              .map((id) => nodes.find((node) => node.id === id))
+              .filter(Boolean)
+              .map((node) => JSON.parse(JSON.stringify(node))),
+            connections: connections
+              .filter(
+                (connection) =>
+                  selectedNodeIds.has(connection.fromId) &&
+                  selectedNodeIds.has(connection.toId),
+              )
+              .map((connection) => JSON.parse(JSON.stringify(connection))),
+          };
+          showToast("Copied");
+          return true;
+        }
+        const copiedProjects = [...selectedProjectIds]
+          .map((id) => projects.find((project) => project.id === id))
+          .filter(Boolean)
+          .map((project) => JSON.parse(JSON.stringify(project)));
+        const copiedItems = [...selectedOverviewItemIds]
+          .map((id) => overviewItems.find((item) => item.id === id))
+          .filter(Boolean)
+          .map((item) => JSON.parse(JSON.stringify(item)));
+        if (!copiedProjects.length && !copiedItems.length) return false;
+        appClipboard = {
+          scope: "dashboard",
+          projects: copiedProjects,
+          items: copiedItems,
+        };
+        showToast("Copied");
+        return true;
+      }
+
+      function pasteClipboardSelection() {
+        if (!appClipboard) return false;
+        if (currentProject && appClipboard.scope === "canvas") {
+          const idMap = new Map();
+          const clones = (appClipboard.nodes || []).map((node) => {
+            const clone = duplicateNodeData(node, 42, 42);
+            idMap.set(node.id, clone.id);
+            return clone;
+          });
+          const clonedConnections = (appClipboard.connections || [])
+            .filter(
+              (connection) =>
+                idMap.has(connection.fromId) && idMap.has(connection.toId),
+            )
+            .map((connection) => ({
+              ...JSON.parse(JSON.stringify(connection)),
+              id: "c" + connIdCounter++,
+              fromId: idMap.get(connection.fromId),
+              toId: idMap.get(connection.toId),
+            }));
+          nodes.push(...clones);
+          connections.push(...clonedConnections);
+          selectedNodeIds.clear();
+          clones.forEach((clone) => selectedNodeIds.add(clone.id));
+          selectedNode = clones.length === 1 ? clones[0] : null;
+          renderAll();
+          applyNodeSelectionClasses();
+          autosave();
+          showToast("Pasted");
+          return true;
+        }
+        if (!currentProject && appClipboard.scope === "dashboard") {
+          const clonedProjects = (appClipboard.projects || []).map((project) =>
+            duplicateProject(project, 42, 42),
+          );
+          const clonedItems = (appClipboard.items || []).map((item) =>
+            duplicateOverviewItem(item, 42, 42),
+          );
+          projects.push(...clonedProjects);
+          overviewItems.push(...clonedItems);
+          selectedProjectIds.clear();
+          selectedOverviewItemIds.clear();
+          clonedProjects.forEach((project) => selectedProjectIds.add(project.id));
+          clonedItems.forEach((item) => selectedOverviewItemIds.add(item.id));
+          renderDashboard();
+          clonedProjects.forEach((project) => queueProjectSave(project));
+          if (clonedItems.length) queueOverviewSave();
+          applyOverviewSelectionClasses();
+          showToast("Pasted");
+          return true;
+        }
+        return false;
+      }
+
       // ===================== CANVAS =====================
       function openProject(id) {
         currentProject = projects.find((p) => p.id === id);
@@ -5824,6 +6676,7 @@
         viewOffset = { x: 0, y: 0 };
         viewScale = targetScale = 1;
         show("canvas");
+        saveLastView("canvas", currentProject.id);
         renderAll();
         setTimeout(resetView, 60);
         updateInfoBar();
@@ -5838,6 +6691,7 @@
         }
         currentProject = null;
         show("dashboard");
+        saveLastView("dashboard");
         renderDashboard();
         setTimeout(dashboardResetView, 60);
       }
@@ -5905,8 +6759,8 @@
         el.id = `node-${nd.id}`;
         el.style.left = nd.x + "px";
         el.style.top = nd.y + "px";
-        if (nd.w) el.style.width = nd.w + "px";
-        if (nd.h) el.style.height = nd.h + "px";
+        if (nd.type !== "heading" && nd.w) el.style.width = nd.w + "px";
+        if (nd.type !== "heading" && nd.h) el.style.height = nd.h + "px";
         if (selectedNodeIds.has(nd.id))
           el.classList.add(
             selectedNodeIds.size > 1 ? "multi-selected" : "selected",
@@ -5925,6 +6779,22 @@
         const nodeTitle = nd.customTitle ?? labels[nd.type] ?? nd.type;
         const fileLinkHref = getFileNodeLinkHref(nd);
         const fileLinkLabel = getFileNodeLinkLabel(nd);
+        const nodeHandleMarkup =
+          nd.type === "heading"
+            ? `
+    <div class="conn-handle" data-node="${nd.id}" data-pos="top"></div>
+    <div class="conn-handle" data-node="${nd.id}" data-pos="bottom"></div>
+    <div class="conn-handle" data-node="${nd.id}" data-pos="left"></div>
+    <div class="conn-handle" data-node="${nd.id}" data-pos="right"></div>`
+            : `
+    <div class="conn-handle" data-node="${nd.id}" data-pos="top"></div>
+    <div class="conn-handle" data-node="${nd.id}" data-pos="bottom"></div>
+    <div class="conn-handle" data-node="${nd.id}" data-pos="left"></div>
+    <div class="conn-handle" data-node="${nd.id}" data-pos="right"></div>
+    <div class="node-resize-handle resize-tl" data-dir="tl"></div>
+    <div class="node-resize-handle resize-tr" data-dir="tr"></div>
+    <div class="node-resize-handle resize-bl" data-dir="bl"></div>
+    <div class="node-resize-handle resize-br" data-dir="br"></div>`;
         el.innerHTML = `
     <div class="node-accent-line" style="background:${currentProject?.color || "#333"}"></div>
       ${
@@ -5953,14 +6823,7 @@
     </div>
     <div class="node-body">${nodeBodyHTML(nd)}</div>
     <div class="node-settings">${nodeSettingsHTML(nd)}</div>
-    <div class="conn-handle" data-node="${nd.id}" data-pos="top"></div>
-    <div class="conn-handle" data-node="${nd.id}" data-pos="bottom"></div>
-    <div class="conn-handle" data-node="${nd.id}" data-pos="left"></div>
-    <div class="conn-handle" data-node="${nd.id}" data-pos="right"></div>
-    <div class="node-resize-handle resize-tl" data-dir="tl"></div>
-    <div class="node-resize-handle resize-tr" data-dir="tr"></div>
-    <div class="node-resize-handle resize-bl" data-dir="bl"></div>
-    <div class="node-resize-handle resize-br" data-dir="br"></div>`;
+    ${nodeHandleMarkup}`;
 
         el.addEventListener("mousedown", (e) => {
           if (
@@ -5976,11 +6839,28 @@
             e.target.tagName === "INPUT" ||
             e.target.tagName === "TEXTAREA" ||
             e.target.tagName === "A" ||
-            e.target.hasAttribute("contenteditable")
+            (e.target.hasAttribute("contenteditable") && !e.altKey)
           )
             return;
           if (currentTool === "connect") return;
           e.stopPropagation();
+          if (e.altKey) {
+            selectNode(nd.id, e.shiftKey || selectedNodeIds.has(nd.id));
+            if (duplicateCanvasSelectionForDrag()) {
+              isDragging = false;
+              nodeGroupDragIds = [...selectedNodeIds]
+                .map((id) => {
+                  const node = nodes.find((n) => n.id === id);
+                  return node
+                    ? { id: node.id, startX: node.x, startY: node.y }
+                    : null;
+                })
+                .filter(Boolean);
+              const wp = s2w(e.clientX, e.clientY);
+              nodeGroupDragStart = { x: wp.x, y: wp.y };
+              return;
+            }
+          }
           selectNode(nd.id, e.shiftKey || selectedNodeIds.has(nd.id));
           isDragging = true;
           if (selectedNodeIds.has(nd.id) && selectedNodeIds.size > 1) {
@@ -6108,6 +6988,12 @@
           });
           bindBulletNode(nd, el);
         }
+        if (nd.type === "heading") {
+          bindSharedHeadingInteractions(el.querySelector(".content"), (text) => {
+            nd.text = text;
+            autosave();
+          });
+        }
         bindNodeSettings(nd, el);
         if (nd.type === "embed") {
           const input =
@@ -6142,6 +7028,27 @@
         const headerHeight = el?.querySelector(".node-header")?.offsetHeight || 28;
         const body = el?.querySelector(".node-body");
         const bodyHeight = body?.scrollHeight || 0;
+        if (nd.type === "heading") {
+          const contentEl = body?.querySelector(".node-content");
+          const contentRect = contentEl?.getBoundingClientRect();
+          const text = body?.querySelector(".node-content")?.textContent || nd.text || "";
+          const estimatedWidth = estimateTextMinWidth(text, {
+            min: 24,
+            max: 640,
+            base: 24,
+            charWidth: 10,
+          });
+          return {
+            w: Math.max(
+              24,
+              Math.ceil(contentRect?.width || estimatedWidth),
+            ),
+            h: Math.max(
+              22,
+              Math.ceil(contentRect?.height || bodyHeight || 22),
+            ),
+          };
+        }
         let contentWidth = 0;
         const base = {
           w: 160,
@@ -6157,18 +7064,6 @@
               max: 280,
               base: 144,
               charWidth: 4,
-            },
-          );
-        } else if (nd.type === "heading") {
-          base.w = 220;
-          base.h = headerHeight + 56;
-          contentWidth = estimateTextMinWidth(
-            body?.querySelector(".node-content")?.textContent || nd.text || "",
-            {
-              min: base.w,
-              max: 460,
-              base: 180,
-              charWidth: 8,
             },
           );
         } else if (nd.type === "bullet") {
@@ -6253,6 +7148,7 @@
 
       function enforceNodeMinSize(nd, el) {
         if (!nd || !el) return false;
+        if (nd.type === "heading") return false;
         const min = getNodeMinSize(nd, el);
         let changed = false;
         if ((nd.w || el.offsetWidth) < min.w) {
@@ -6315,7 +7211,7 @@
         if (nd.type === "text" || nd.type === "note")
           return `<div class="node-content" contenteditable="true" spellcheck="false">${esc(nd.text || "")}</div>`;
         if (nd.type === "heading")
-          return `<div class="node-content" contenteditable="true" spellcheck="false">${esc(nd.text || "")}</div>`;
+          return renderHeadingContentHTML(nd.text || "");
         if (nd.type === "line")
           return `<div class="node-content" spellcheck="false"></div>`;
         if (nd.type === "bullet") {
@@ -6717,6 +7613,7 @@
             "class",
             "conn-line" + (c.id === selectedConn?.id ? " selected" : ""),
           );
+          path.dataset.connectionId = c.id;
           path.addEventListener("click", (e) => {
             e.stopPropagation();
             selectedConn = connections.find((x) => x.id === c.id);
@@ -7094,10 +7991,30 @@
           e.preventDefault();
           ctxMenuPos = s2w(e.clientX, e.clientY);
           const nodeEl = e.target.closest(".node");
+          const connEl = e.target.closest(".conn-line");
           ctxMenuNodeId = nodeEl ? nodeEl.id.replace("node-", "") : null;
+          selectedConn = connEl
+            ? connections.find((x) => x.id === connEl.dataset.connectionId) || null
+            : null;
+          if (selectedConn) {
+            selectedNode = null;
+            selectedNodeIds.clear();
+          }
+          document
+            .querySelectorAll(".conn-line")
+            .forEach((line) =>
+              line.classList.toggle(
+                "selected",
+                line.dataset.connectionId === selectedConn?.id,
+              ),
+            );
+          applyNodeSelectionClasses();
           document.getElementById("ctx-node-section").style.display =
             ctxMenuNodeId ? "block" : "none";
-          document.getElementById("ctx-conn-section").style.display = "none";
+          document.getElementById("ctx-conn-section").style.display =
+            selectedConn ? "block" : "none";
+          document.getElementById("ctx-dashboard-section").style.display =
+            "none";
           const m = document.getElementById("ctx-menu");
           m.style.left = e.clientX + "px";
           m.style.top = e.clientY + "px";
@@ -7123,6 +8040,16 @@
             e.target.hasAttribute("contenteditable")
           )
             return;
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+            e.preventDefault();
+            copyCurrentSelection();
+            return;
+          }
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+            e.preventDefault();
+            pasteClipboardSelection();
+            return;
+          }
           if (e.key === "Delete" || e.key === "Backspace") deleteSelected();
           if (e.key === "Escape") {
             if (pendingConn) clearPendingConnection();
@@ -7245,6 +8172,12 @@
         autosave();
         return nd;
       }
+
+      function duplicateCanvasSelectionForDrag() {
+        const clones = duplicateNodeSelection(24, 24);
+        return clones.length > 0;
+      }
+
       function handlePastedImageFile(file, point) {
         if (!file || !currentProject) return;
         const nd = addNodeAt("file", point.x, point.y, {
