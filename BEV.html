@@ -5922,7 +5922,7 @@
         return `
     <div class="node-accent-line" style="background:${accent}"></div>
     <div class="node-header">
-      <span class="node-type-label" contenteditable="false" spellcheck="false">${esc(label)}</span>
+      <span class="node-type-label" contenteditable="true" spellcheck="false">${esc(label)}</span>
       <div class="node-actions">${actionsHTML}</div>
     </div>
     <div class="node-body">${renderSharedTextObjectHTML(type, text, contentClassName)}</div>${settingsHTML}`;
@@ -5950,12 +5950,24 @@
         el,
         type,
         onCommit,
+        onLabelCommit,
         onPointerDown,
         onResizeStart,
       }) {
         if (!el) return;
         const content = el.querySelector(".content") || el.querySelector(".node-content");
+        const label = el.querySelector(".node-type-label");
         bindSharedTextObjectEditor(content, type, onCommit);
+        if (label && !label.dataset.sharedLabelBound) {
+          label.dataset.sharedLabelBound = "1";
+          bindPlainTextPaste(label);
+          label.addEventListener("input", () => {
+            onLabelCommit?.(label.textContent.trim());
+          });
+          label.addEventListener("blur", () => {
+            onLabelCommit?.(label.textContent.trim());
+          });
+        }
         el.querySelector(".node-settings-btn")?.addEventListener("click", (e) => {
           e.stopPropagation();
           toggleSharedNoteSettings(el);
@@ -8195,6 +8207,10 @@
             type: nd.type,
             onCommit: (text) => {
               nd.text = text;
+              autosave();
+            },
+            onLabelCommit: (label) => {
+              nd.customTitle = label;
               autosave();
             },
             onPointerDown: (e) => {
