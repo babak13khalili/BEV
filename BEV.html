@@ -11,6 +11,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
     <script src="./firebase-config.js"></script>
     <style>
       :root {
@@ -3546,6 +3547,7 @@
       // ===================== FIREBASE STATE =====================
       let fbApp = null,
         fbAuth = null,
+        fbStorage = null,
         fbDb = null,
         currentUser = null;
       const DEFAULT_FIREBASE_CONFIG = {
@@ -3813,6 +3815,7 @@
             ? firebase.apps[0]
             : firebase.initializeApp(config);
           fbAuth = firebase.auth();
+          fbStorage = firebase.storage();
           fbDb = firebase.firestore();
           fbAuth.onAuthStateChanged((user) => {
             if (user) {
@@ -4053,6 +4056,20 @@
         } catch (e) {
           showToast("Delete failed: " + e.message);
         }
+      }
+
+      function getProjectStoragePaths(project) {
+        return [...new Set(
+          (project?.nodes || [])
+            .map((node) => node?.storagePath)
+            .filter(Boolean),
+        )];
+      }
+
+      function deleteProjectStoredFiles(project) {
+        const paths = getProjectStoragePaths(project);
+        if (!paths.length) return;
+        Promise.all(paths.map((path) => deleteStoredFileByPath(path))).catch(() => {});
       }
 
       async function saveOverviewToFirestore() {
@@ -5556,9 +5573,11 @@
             node.ext = node.ext || "FILE";
             node.size = node.size || "";
             node.src = node.src || null;
+            node.storagePath = node.storagePath || "";
             node.mime = node.mime || "";
             node.fileKind =
               node.fileKind || (node.src ? "image" : "file");
+            node.uploading = false;
           }
           if (node.type === "heading") {
             delete node.w;
@@ -5596,7 +5615,166 @@
         return !!file && String(file.type || "").startsWith("image/");
       }
 
-      function populateFileNodeFromFile(nd, file, onDone = null) {
+      function sanitizeStorageSegment(value, fallback = "file") {
+        return String(value || fallback)
+          .replace(/[^a-z0-9._-]+/gi, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 80) || fallback;
+      }
+
+      function chooseCompressedImageType(file, image) {
+        const originalType = String(file?.type || "").toLowerCase();
+        if (originalType === "image/gif" || originalType === "image/svg+xml") {
+          return originalType;
+        }
+        try {
+          const probeCanvas = document.createElement("canvas");
+          probeCanvas.width = Math.min(32, image.naturalWidth || 1);
+          probeCanvas.height = Math.min(32, image.naturalHeight || 1);
+          const probeCtx = probeCanvas.getContext("2d", { willReadFrequently: true });
+          if (probeCtx) {
+            probeCtx.drawImage(image, 0, 0, probeCanvas.width, probeCanvas.height);
+            const data = probeCtx.getImageData(
+              0,
+              0,
+              probeCanvas.width,
+              probeCanvas.height,
+            ).data;
+            for (let i = 3; i < data.length; i += 4) {
+              if (data[i] < 250) return "image/png";
+            }
+          }
+        } catch {}
+        return "image/webp";
+      }
+
+      function getCompressedImageExtension(mimeType, fallbackName = "image") {
+        const mapping = {
+          "image/jpeg": "jpg",
+          "image/png": "png",
+          "image/webp": "webp",
+          "image/gif": "gif",
+          "image/svg+xml": "svg",
+        };
+        return (
+          mapping[String(mimeType || "").toLowerCase()] ||
+          sanitizeStorageSegment((fallbackName.split(".").pop() || "img").toLowerCase(), "img")
+        );
+      }
+
+      function readImageDimensions(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error("Could not read image."));
+            image.src = ev.target?.result;
+          };
+          reader.onerror = () => reject(new Error("Could not load file."));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function compressImageForUpload(file) {
+        if (!isImageFile(file)) {
+          return {
+            blob: file,
+            mimeType: file.type || "application/octet-stream",
+            width: 0,
+            height: 0,
+          };
+        }
+        const image = await readImageDimensions(file);
+        const originalType = String(file.type || "").toLowerCase();
+        if (originalType === "image/gif" || originalType === "image/svg+xml") {
+          return {
+            blob: file,
+            mimeType: file.type || "application/octet-stream",
+            width: image.naturalWidth || 0,
+            height: image.naturalHeight || 0,
+          };
+        }
+        const maxDimension = 1600;
+        const scale = Math.min(
+          1,
+          maxDimension / Math.max(1, image.naturalWidth),
+          maxDimension / Math.max(1, image.naturalHeight),
+        );
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Image compression is not available.");
+        ctx.drawImage(image, 0, 0, width, height);
+        const mimeType = chooseCompressedImageType(file, image);
+        const quality =
+          mimeType === "image/webp" || mimeType === "image/jpeg" ? 0.86 : undefined;
+        const blob = await new Promise((resolve, reject) => {
+          canvas.toBlob(
+            (result) => {
+              if (result) resolve(result);
+              else reject(new Error("Image compression failed."));
+            },
+            mimeType,
+            quality,
+          );
+        });
+        return { blob, mimeType, width, height };
+      }
+
+      async function uploadImageNodeFile(nd, file) {
+        if (!fbStorage || !currentUser || !currentProject) {
+          throw new Error("Storage is not ready yet.");
+        }
+        const compressed = await compressImageForUpload(file);
+        const extension = getCompressedImageExtension(
+          compressed.mimeType,
+          file.name || nd.name || "image",
+        );
+        const baseName = sanitizeStorageSegment(
+          (file.name || nd.name || "image").replace(/\.[^.]+$/, ""),
+          "image",
+        );
+        const storagePath = [
+          "users",
+          currentUser.uid,
+          "projects",
+          currentProject.id,
+          "images",
+          `${nd.id}-${baseName}.${extension}`,
+        ].join("/");
+        const metadata = {
+          contentType: compressed.mimeType,
+          customMetadata: {
+            originalName: file.name || "",
+            originalSize: String(file.size || 0),
+          },
+        };
+        const snapshot = await fbStorage.ref(storagePath).put(compressed.blob, metadata);
+        const downloadURL = await snapshot.ref.getDownloadURL();
+        return {
+          src: downloadURL,
+          storagePath,
+          size: fmtBytes(compressed.blob.size || 0),
+          mime: compressed.mimeType,
+          width: compressed.width,
+          height: compressed.height,
+        };
+      }
+
+      function deleteStoredFileByPath(storagePath) {
+        const path = String(storagePath || "").trim();
+        if (!path || !fbStorage) return Promise.resolve();
+        return fbStorage
+          .ref(path)
+          .delete()
+          .catch(() => {});
+      }
+
+      async function populateFileNodeFromFile(nd, file, onDone = null) {
         if (!nd || nd.type !== "file" || !file) {
           if (onDone) onDone();
           return;
@@ -5611,46 +5789,50 @@
         nd.fileKind = isImageFile(file) ? "image" : "file";
         nd.manualImageSize = false;
         if (nd.fileKind === "image") {
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            const src = ev.target.result;
-            const previewImage = new Image();
-            previewImage.onload = () => {
-              const maxWidth = 420;
-              const maxHeight = 320;
-              const minWidth = 140;
-              const scale = Math.min(
-                1,
-                maxWidth / Math.max(1, previewImage.naturalWidth),
-                maxHeight / Math.max(1, previewImage.naturalHeight),
-              );
-              nd.src = src;
-              nd.w = Math.max(
-                minWidth,
-                Math.round(previewImage.naturalWidth * scale),
-              );
-              nd.h = Math.max(
-                90,
-                Math.round(previewImage.naturalHeight * scale),
-              );
-              renderAll();
-              selectNode(nd.id);
-              autosave();
-              if (onDone) onDone();
-            };
-            previewImage.onerror = () => {
-              nd.src = src;
-              renderAll();
-              selectNode(nd.id);
-              autosave();
-              if (onDone) onDone();
-            };
-            previewImage.src = src;
-          };
-          reader.readAsDataURL(file);
+          const previousStoragePath = nd.storagePath || "";
+          nd.uploading = true;
+          nd.src = null;
+          nd.storagePath = "";
+          nd.size = "Uploading image...";
+          renderAll();
+          selectNode(nd.id);
+          try {
+            const uploaded = await uploadImageNodeFile(nd, file);
+            const maxWidth = 420;
+            const maxHeight = 320;
+            const minWidth = 140;
+            const scale = Math.min(
+              1,
+              maxWidth / Math.max(1, uploaded.width),
+              maxHeight / Math.max(1, uploaded.height),
+            );
+            nd.src = uploaded.src;
+            nd.storagePath = uploaded.storagePath;
+            nd.size = uploaded.size;
+            nd.mime = uploaded.mime;
+            nd.w = Math.max(minWidth, Math.round(uploaded.width * scale));
+            nd.h = Math.max(90, Math.round(uploaded.height * scale));
+            nd.uploading = false;
+            renderAll();
+            selectNode(nd.id);
+            autosave();
+            if (previousStoragePath && previousStoragePath !== uploaded.storagePath) {
+              deleteStoredFileByPath(previousStoragePath);
+            }
+          } catch (error) {
+            nd.uploading = false;
+            nd.src = null;
+            nd.storagePath = "";
+            nd.fileKind = "file";
+            nd.size = "Upload failed";
+            renderAll();
+            showToast(`Image upload failed: ${error.message}`);
+          }
+          if (onDone) onDone();
           return;
         }
         nd.src = null;
+        nd.storagePath = "";
         renderAll();
         selectNode(nd.id);
         autosave();
@@ -6177,6 +6359,7 @@
               confirmLabel: "Delete",
               onConfirm: () => {
                 projects = projects.filter((x) => x.id !== p.id);
+                deleteProjectStoredFiles(p);
                 deleteFromFirestore(p.id);
                 renderDashboard();
                 showToast("Deleted");
@@ -6664,7 +6847,11 @@
             captureHistory();
             if (selectedProjectIds.size) {
               const ids = [...selectedProjectIds];
+              const deletedProjects = projects.filter((x) =>
+                selectedProjectIds.has(x.id),
+              );
               projects = projects.filter((x) => !selectedProjectIds.has(x.id));
+              deletedProjects.forEach((project) => deleteProjectStoredFiles(project));
               ids.forEach((id) => deleteFromFirestore(id));
               selectedProjectIds.clear();
             }
@@ -7736,8 +7923,10 @@
             ext: data.ext || "FILE",
             size: data.size || "",
             src: data.src || null,
+            storagePath: data.storagePath || "",
             mime: data.mime || "",
             fileKind: data.fileKind || (data.src ? "image" : "file"),
+            uploading: false,
           };
         if (type === "embed")
           return {
@@ -9068,6 +9257,28 @@
         con.appendChild(canvasSelectionRect);
         installTouchSurface(con, "canvas");
 
+        con.addEventListener("dragover", (e) => {
+          if (![...(e.dataTransfer?.items || [])].some((item) => item.kind === "file")) {
+            return;
+          }
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        });
+
+        con.addEventListener("drop", (e) => {
+          if (!currentProject) return;
+          const files = [...(e.dataTransfer?.files || [])].filter(isImageFile);
+          if (!files.length) return;
+          e.preventDefault();
+          const point = s2w(e.clientX, e.clientY);
+          files.forEach((file, index) => {
+            handlePastedImageFile(file, {
+              x: point.x + index * 28,
+              y: point.y + index * 28,
+            });
+          });
+        });
+
         con.addEventListener("mousedown", (e) => {
           const onE =
             e.target === con ||
@@ -9597,11 +9808,15 @@
         });
       }
       function deleteNodeById(id, saveNow = true) {
+        const node = nodes.find((n) => n.id === id);
         if (saveNow) captureHistory();
         nodes = nodes.filter((n) => n.id !== id);
         connections = connections.filter(
           (c) => c.fromId !== id && c.toId !== id,
         );
+        if (node?.type === "file" && node.storagePath) {
+          deleteStoredFileByPath(node.storagePath);
+        }
         document.getElementById(`node-${id}`)?.remove();
         selectedNodeIds.delete(id);
         if (selectedNode?.id === id) selectedNode = null;
