@@ -5620,7 +5620,7 @@
             }
           }
         } catch {}
-        return "image/webp";
+        return "image/jpeg";
       }
 
       function readImageDimensions(file) {
@@ -5681,7 +5681,7 @@
         ctx.drawImage(image, 0, 0, width, height);
         const mimeType = chooseCompressedImageType(file, image);
         const quality =
-          mimeType === "image/webp" || mimeType === "image/jpeg" ? 0.86 : undefined;
+          mimeType === "image/jpeg" ? 0.86 : undefined;
         const blob = await new Promise((resolve, reject) => {
           canvas.toBlob(
             (result) => {
