@@ -11,7 +11,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
     <script src="./firebase-config.js"></script>
     <style>
       :root {
@@ -3547,7 +3546,6 @@
       // ===================== FIREBASE STATE =====================
       let fbApp = null,
         fbAuth = null,
-        fbStorage = null,
         fbDb = null,
         currentUser = null;
       const DEFAULT_FIREBASE_CONFIG = {
@@ -3815,7 +3813,6 @@
             ? firebase.apps[0]
             : firebase.initializeApp(config);
           fbAuth = firebase.auth();
-          fbStorage = firebase.storage();
           fbDb = firebase.firestore();
           fbAuth.onAuthStateChanged((user) => {
             if (user) {
@@ -4056,20 +4053,6 @@
         } catch (e) {
           showToast("Delete failed: " + e.message);
         }
-      }
-
-      function getProjectStoragePaths(project) {
-        return [...new Set(
-          (project?.nodes || [])
-            .map((node) => node?.storagePath)
-            .filter(Boolean),
-        )];
-      }
-
-      function deleteProjectStoredFiles(project) {
-        const paths = getProjectStoragePaths(project);
-        if (!paths.length) return;
-        Promise.all(paths.map((path) => deleteStoredFileByPath(path))).catch(() => {});
       }
 
       async function saveOverviewToFirestore() {
@@ -5573,7 +5556,6 @@
             node.ext = node.ext || "FILE";
             node.size = node.size || "";
             node.src = node.src || null;
-            node.storagePath = node.storagePath || "";
             node.mime = node.mime || "";
             node.fileKind =
               node.fileKind || (node.src ? "image" : "file");
@@ -5615,13 +5597,6 @@
         return !!file && String(file.type || "").startsWith("image/");
       }
 
-      function sanitizeStorageSegment(value, fallback = "file") {
-        return String(value || fallback)
-          .replace(/[^a-z0-9._-]+/gi, "-")
-          .replace(/^-+|-+$/g, "")
-          .slice(0, 80) || fallback;
-      }
-
       function chooseCompressedImageType(file, image) {
         const originalType = String(file?.type || "").toLowerCase();
         if (originalType === "image/gif" || originalType === "image/svg+xml") {
@@ -5648,20 +5623,6 @@
         return "image/webp";
       }
 
-      function getCompressedImageExtension(mimeType, fallbackName = "image") {
-        const mapping = {
-          "image/jpeg": "jpg",
-          "image/png": "png",
-          "image/webp": "webp",
-          "image/gif": "gif",
-          "image/svg+xml": "svg",
-        };
-        return (
-          mapping[String(mimeType || "").toLowerCase()] ||
-          sanitizeStorageSegment((fallbackName.split(".").pop() || "img").toLowerCase(), "img")
-        );
-      }
-
       function readImageDimensions(file) {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -5673,6 +5634,15 @@
           };
           reader.onerror = () => reject(new Error("Could not load file."));
           reader.readAsDataURL(file);
+        });
+      }
+
+      function readBlobAsDataURL(blob) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ""));
+          reader.onerror = () => reject(new Error("Could not encode image."));
+          reader.readAsDataURL(blob);
         });
       }
 
@@ -5725,55 +5695,6 @@
         return { blob, mimeType, width, height };
       }
 
-      async function uploadImageNodeFile(nd, file) {
-        if (!fbStorage || !currentUser || !currentProject) {
-          throw new Error("Storage is not ready yet.");
-        }
-        const compressed = await compressImageForUpload(file);
-        const extension = getCompressedImageExtension(
-          compressed.mimeType,
-          file.name || nd.name || "image",
-        );
-        const baseName = sanitizeStorageSegment(
-          (file.name || nd.name || "image").replace(/\.[^.]+$/, ""),
-          "image",
-        );
-        const storagePath = [
-          "users",
-          currentUser.uid,
-          "projects",
-          currentProject.id,
-          "images",
-          `${nd.id}-${baseName}.${extension}`,
-        ].join("/");
-        const metadata = {
-          contentType: compressed.mimeType,
-          customMetadata: {
-            originalName: file.name || "",
-            originalSize: String(file.size || 0),
-          },
-        };
-        const snapshot = await fbStorage.ref(storagePath).put(compressed.blob, metadata);
-        const downloadURL = await snapshot.ref.getDownloadURL();
-        return {
-          src: downloadURL,
-          storagePath,
-          size: fmtBytes(compressed.blob.size || 0),
-          mime: compressed.mimeType,
-          width: compressed.width,
-          height: compressed.height,
-        };
-      }
-
-      function deleteStoredFileByPath(storagePath) {
-        const path = String(storagePath || "").trim();
-        if (!path || !fbStorage) return Promise.resolve();
-        return fbStorage
-          .ref(path)
-          .delete()
-          .catch(() => {});
-      }
-
       async function populateFileNodeFromFile(nd, file, onDone = null) {
         if (!nd || nd.type !== "file" || !file) {
           if (onDone) onDone();
@@ -5789,40 +5710,34 @@
         nd.fileKind = isImageFile(file) ? "image" : "file";
         nd.manualImageSize = false;
         if (nd.fileKind === "image") {
-          const previousStoragePath = nd.storagePath || "";
           nd.uploading = true;
           nd.src = null;
-          nd.storagePath = "";
-          nd.size = "Uploading image...";
+          nd.size = "Compressing image...";
           renderAll();
           selectNode(nd.id);
           try {
-            const uploaded = await uploadImageNodeFile(nd, file);
+            const compressed = await compressImageForUpload(file);
+            const src = await readBlobAsDataURL(compressed.blob);
             const maxWidth = 420;
             const maxHeight = 320;
             const minWidth = 140;
             const scale = Math.min(
               1,
-              maxWidth / Math.max(1, uploaded.width),
-              maxHeight / Math.max(1, uploaded.height),
+              maxWidth / Math.max(1, compressed.width),
+              maxHeight / Math.max(1, compressed.height),
             );
-            nd.src = uploaded.src;
-            nd.storagePath = uploaded.storagePath;
-            nd.size = uploaded.size;
-            nd.mime = uploaded.mime;
-            nd.w = Math.max(minWidth, Math.round(uploaded.width * scale));
-            nd.h = Math.max(90, Math.round(uploaded.height * scale));
+            nd.src = src;
+            nd.size = fmtBytes(compressed.blob.size || 0);
+            nd.mime = compressed.mimeType;
+            nd.w = Math.max(minWidth, Math.round(compressed.width * scale));
+            nd.h = Math.max(90, Math.round(compressed.height * scale));
             nd.uploading = false;
             renderAll();
             selectNode(nd.id);
             autosave();
-            if (previousStoragePath && previousStoragePath !== uploaded.storagePath) {
-              deleteStoredFileByPath(previousStoragePath);
-            }
           } catch (error) {
             nd.uploading = false;
             nd.src = null;
-            nd.storagePath = "";
             nd.fileKind = "file";
             nd.size = "Upload failed";
             renderAll();
@@ -5832,7 +5747,6 @@
           return;
         }
         nd.src = null;
-        nd.storagePath = "";
         renderAll();
         selectNode(nd.id);
         autosave();
@@ -6359,7 +6273,6 @@
               confirmLabel: "Delete",
               onConfirm: () => {
                 projects = projects.filter((x) => x.id !== p.id);
-                deleteProjectStoredFiles(p);
                 deleteFromFirestore(p.id);
                 renderDashboard();
                 showToast("Deleted");
@@ -6847,11 +6760,7 @@
             captureHistory();
             if (selectedProjectIds.size) {
               const ids = [...selectedProjectIds];
-              const deletedProjects = projects.filter((x) =>
-                selectedProjectIds.has(x.id),
-              );
               projects = projects.filter((x) => !selectedProjectIds.has(x.id));
-              deletedProjects.forEach((project) => deleteProjectStoredFiles(project));
               ids.forEach((id) => deleteFromFirestore(id));
               selectedProjectIds.clear();
             }
@@ -7923,7 +7832,6 @@
             ext: data.ext || "FILE",
             size: data.size || "",
             src: data.src || null,
-            storagePath: data.storagePath || "",
             mime: data.mime || "",
             fileKind: data.fileKind || (data.src ? "image" : "file"),
             uploading: false,
@@ -9808,15 +9716,11 @@
         });
       }
       function deleteNodeById(id, saveNow = true) {
-        const node = nodes.find((n) => n.id === id);
         if (saveNow) captureHistory();
         nodes = nodes.filter((n) => n.id !== id);
         connections = connections.filter(
           (c) => c.fromId !== id && c.toId !== id,
         );
-        if (node?.type === "file" && node.storagePath) {
-          deleteStoredFileByPath(node.storagePath);
-        }
         document.getElementById(`node-${id}`)?.remove();
         selectedNodeIds.delete(id);
         if (selectedNode?.id === id) selectedNode = null;
