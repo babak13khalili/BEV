@@ -1731,23 +1731,60 @@
         background: transparent;
         border: none;
         box-shadow: none;
+        transform-origin: center center;
       }
       .node.node-line:hover {
         border-color: transparent;
       }
       .node.node-line .node-accent-line,
       .node.node-line .node-header,
-      .node.node-line .node-settings {
+      .node.node-line .node-settings,
+      .node.node-line .conn-handle,
+      .node.node-line .node-resize-handle {
         display: none;
       }
       .node.node-line .node-body {
+        position: relative;
+        width: 100%;
+        height: 100%;
         padding: 0;
       }
       .node.node-line .node-content {
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
         width: 100%;
         height: 2px;
         background: var(--text2);
         border-radius: 999px;
+      }
+      .line-end-handle {
+        position: absolute;
+        top: 50%;
+        width: 12px;
+        height: 12px;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        border: 1px solid var(--bg);
+        background: var(--text);
+        cursor: grab;
+        opacity: 0;
+        transition: opacity 0.15s, background 0.15s;
+      }
+      .line-end-handle[data-end="start"] {
+        left: 0;
+      }
+      .line-end-handle[data-end="end"] {
+        left: 100%;
+      }
+      .node.node-line:hover .line-end-handle,
+      .node.node-line.selected .line-end-handle,
+      .node.node-line.multi-selected .line-end-handle {
+        opacity: 1;
+      }
+      .line-end-handle:hover {
+        background: var(--accent);
       }
       .node.node-line.selected .node-content,
       .node.node-line.multi-selected .node-content {
@@ -3675,6 +3712,7 @@
       let isResizingNode = false,
         resizingNodeId = null,
         nodeResizeStart = null;
+      let lineEndpointDrag = null;
       let selectedProjectIds = new Set(),
         selectedOverviewItemIds = new Set(),
         selectedNodeIds = new Set();
@@ -3692,6 +3730,8 @@
         nodeGroupDragStart = null;
       const DEFAULT_PROJECT_CARD_WIDTH = 280;
       const DEFAULT_PROJECT_CARD_HEIGHT = 220;
+      const LINE_NODE_HEIGHT = 18;
+      const LINE_MIN_LENGTH = 40;
       const DEFAULT_WORKSPACE_CATEGORIES = [
         {
           id: "cat-general",
@@ -3941,12 +3981,104 @@
       // ===================== FIRESTORE =====================
       const pRef = () =>
         fbDb.collection("users").doc(currentUser.uid).collection("projects");
+      const imageAssetRef = () =>
+        fbDb.collection("users").doc(currentUser.uid).collection("image_assets");
       const dashboardRef = () =>
         fbDb
           .collection("users")
           .doc(currentUser.uid)
           .collection("meta")
           .doc("dashboard");
+
+      function getImageAssetDocId(projectId, nodeId) {
+        return `${projectId}__${nodeId}`;
+      }
+
+      function sanitizeProjectForSave(project) {
+        const cloned = JSON.parse(JSON.stringify(project || {}));
+        cloned.nodes = (cloned.nodes || []).map((node) => {
+          if (node?.type === "file" && node.fileKind === "image" && node.assetId) {
+            return { ...node, src: null };
+          }
+          return node;
+        });
+        return cloned;
+      }
+
+      function buildImageAssetMap(docs = []) {
+        const map = new Map();
+        docs.forEach((doc) => {
+          const data = doc.data?.() || {};
+          const key = `${data.projectId}::${data.nodeId}`;
+          map.set(key, {
+            id: doc.id,
+            src: data.src || null,
+            mime: data.mime || "",
+            size: data.size || "",
+          });
+        });
+        return map;
+      }
+
+      function hydrateProjectImageNodes(project, assetMap) {
+        project.nodes = (project.nodes || []).map((node) => {
+          if (node?.type === "file" && node.fileKind === "image" && node.assetId) {
+            const asset = assetMap.get(`${project.id}::${node.id}`);
+            if (asset?.src) {
+              node.src = asset.src;
+              node.mime = node.mime || asset.mime || "";
+              node.size = node.size || asset.size || "";
+            }
+          }
+          return node;
+        });
+        return project;
+      }
+
+      async function saveImageAsset(projectId, nodeId, payload) {
+        const assetId = getImageAssetDocId(projectId, nodeId);
+        await imageAssetRef().doc(assetId).set({
+          projectId,
+          nodeId,
+          src: payload.src,
+          mime: payload.mime || "",
+          size: payload.size || "",
+          updatedAt: Date.now(),
+        });
+        return assetId;
+      }
+
+      async function deleteImageAsset(projectId, nodeId) {
+        try {
+          await imageAssetRef().doc(getImageAssetDocId(projectId, nodeId)).delete();
+        } catch {}
+      }
+
+      async function migrateLegacyProjectImageAssets(projectList = []) {
+        for (const project of projectList) {
+          if (!project?.id || !Array.isArray(project.nodes)) continue;
+          let changed = false;
+          for (const node of project.nodes) {
+            if (
+              node?.type === "file" &&
+              node.fileKind === "image" &&
+              node.src &&
+              !node.assetId
+            ) {
+              const assetId = await saveImageAsset(project.id, node.id, {
+                src: node.src,
+                mime: node.mime || "",
+                size: node.size || "",
+              });
+              node.assetId = assetId;
+              changed = true;
+            }
+          }
+          if (changed) {
+            await saveToFirestore(project);
+          }
+        }
+      }
 
       function setSyncStatus(s) {
         const dot = document.getElementById("sync-dot"),
@@ -4064,15 +4196,18 @@
         show("loading");
         setSyncStatus("syncing");
         try {
-          const [snap, dashboardSnap] = await Promise.all([
+          const [snap, dashboardSnap, imageAssetSnap] = await Promise.all([
             pRef().orderBy("created", "asc").get(),
             dashboardRef().get(),
+            imageAssetRef().get(),
           ]);
+          const imageAssetMap = buildImageAssetMap(imageAssetSnap.docs);
           projects = snap.docs.map((d) => {
             const project = { id: d.id, ...d.data() };
             project.nodes = normalizeNodeDataList(project.nodes || []);
-            return project;
+            return hydrateProjectImageNodes(project, imageAssetMap);
           });
+          await migrateLegacyProjectImageAssets(projects);
           overviewItems = dashboardSnap.exists
             ? normalizeOverviewItemDataList(dashboardSnap.data().items || [])
             : [];
@@ -4104,7 +4239,7 @@
         setSyncStatus("syncing");
         setSaveStatus("saving");
         try {
-          const { id, ...data } = p;
+          const { id, ...data } = sanitizeProjectForSave(p);
           await pRef().doc(id).set(data);
           setSyncStatus("synced");
           setSaveStatus("saved");
@@ -4127,6 +4262,8 @@
       async function deleteFromFirestore(id) {
         try {
           await pRef().doc(id).delete();
+          const imageDocs = await imageAssetRef().where("projectId", "==", id).get();
+          await Promise.all(imageDocs.docs.map((doc) => doc.ref.delete().catch(() => {})));
         } catch (e) {
           showToast("Delete failed: " + e.message);
         }
@@ -5635,10 +5772,18 @@
             node.ext = node.ext || "FILE";
             node.size = node.size || "";
             node.src = node.src || null;
+            node.assetId = node.assetId || "";
             node.mime = node.mime || "";
             node.fileKind =
               node.fileKind || (node.src ? "image" : "file");
             node.uploading = false;
+          }
+          if (node.type === "line") {
+            node.w = Math.max(LINE_MIN_LENGTH, Number(node.w) || 220);
+            node.h = LINE_NODE_HEIGHT;
+            node.lineAngle = Number.isFinite(node.lineAngle)
+              ? node.lineAngle
+              : 0;
           }
           if (node.type === "heading") {
             delete node.w;
@@ -5813,6 +5958,12 @@
           try {
             const compressed = await compressImageForUpload(file);
             const src = await readBlobAsDataURL(compressed.blob);
+            const assetSize = fmtBytes(compressed.blob.size || 0);
+            const assetId = await saveImageAsset(currentProject.id, nd.id, {
+              src,
+              mime: compressed.mimeType,
+              size: assetSize,
+            });
             const maxWidth = 420;
             const maxHeight = 320;
             const minWidth = 140;
@@ -5822,7 +5973,8 @@
               maxHeight / Math.max(1, compressed.height),
             );
             nd.src = src;
-            nd.size = fmtBytes(compressed.blob.size || 0);
+            nd.assetId = assetId;
+            nd.size = assetSize;
             nd.mime = compressed.mimeType;
             nd.w = Math.max(minWidth, Math.round(compressed.width * scale));
             nd.h = Math.max(90, Math.round(compressed.height * scale));
@@ -5833,6 +5985,7 @@
           } catch (error) {
             nd.uploading = false;
             nd.src = null;
+            nd.assetId = "";
             nd.fileKind = "file";
             nd.size = "Upload failed";
             renderAll();
@@ -5842,6 +5995,7 @@
           return;
         }
         nd.src = null;
+        nd.assetId = "";
         renderAll();
         selectNode(nd.id);
         autosave();
@@ -7928,7 +8082,15 @@
           return createSharedTextObjectState(id, type, x, y, data, "canvas");
         }
         if (type === "line")
-          return { id, type, x, y, w: data.w || 220, h: data.h || 2 };
+          return {
+            id,
+            type,
+            x,
+            y,
+            w: Math.max(LINE_MIN_LENGTH, data.w || 220),
+            h: LINE_NODE_HEIGHT,
+            lineAngle: Number.isFinite(data.lineAngle) ? data.lineAngle : 0,
+          };
         if (type === "bullet")
           return {
             id,
@@ -7963,6 +8125,7 @@
             ext: data.ext || "FILE",
             size: data.size || "",
             src: data.src || null,
+            assetId: data.assetId || "",
             mime: data.mime || "",
             fileKind: data.fileKind || (data.src ? "image" : "file"),
             uploading: false,
@@ -8189,6 +8352,40 @@
         updateInfoBar();
       }
 
+      function getLineEndpoints(nd) {
+        const width = Math.max(LINE_MIN_LENGTH, Number(nd?.w) || 220);
+        const height = Number(nd?.h) || LINE_NODE_HEIGHT;
+        const angle = Number(nd?.lineAngle) || 0;
+        const center = {
+          x: (nd?.x || 0) + width / 2,
+          y: (nd?.y || 0) + height / 2,
+        };
+        const dx = Math.cos(angle) * (width / 2);
+        const dy = Math.sin(angle) * (width / 2);
+        return {
+          start: { x: center.x - dx, y: center.y - dy },
+          end: { x: center.x + dx, y: center.y + dy },
+          center,
+        };
+      }
+
+      function setLineFromEndpoints(nd, start, end) {
+        const length = Math.max(
+          LINE_MIN_LENGTH,
+          Math.hypot((end?.x || 0) - (start?.x || 0), (end?.y || 0) - (start?.y || 0)),
+        );
+        const centerX = ((start?.x || 0) + (end?.x || 0)) / 2;
+        const centerY = ((start?.y || 0) + (end?.y || 0)) / 2;
+        nd.w = Math.round(length);
+        nd.h = LINE_NODE_HEIGHT;
+        nd.lineAngle = Math.atan2(
+          (end?.y || 0) - (start?.y || 0),
+          (end?.x || 0) - (start?.x || 0),
+        );
+        nd.x = Math.round(centerX - nd.w / 2);
+        nd.y = Math.round(centerY - nd.h / 2);
+      }
+
       function applyTransform() {
         document.getElementById("canvas-world").style.transform =
           `translate(${viewOffset.x}px,${viewOffset.y}px) scale(${viewScale})`;
@@ -8247,6 +8444,9 @@
         el.style.top = nd.y + "px";
         if (nd.type !== "heading" && nd.w) el.style.width = nd.w + "px";
         if (nd.type !== "heading" && nd.h) el.style.height = nd.h + "px";
+        if (nd.type === "line") {
+          el.style.transform = `rotate(${Number(nd.lineAngle) || 0}rad)`;
+        }
         if (selectedNodeIds.has(nd.id))
           el.classList.add(
             selectedNodeIds.size > 1 ? "multi-selected" : "selected",
@@ -8393,6 +8593,7 @@
           el.addEventListener("mousedown", (e) => {
             if (
               e.target.classList.contains("conn-handle") ||
+              e.target.classList.contains("line-end-handle") ||
               e.target.classList.contains("node-act-btn") ||
               e.target.classList.contains("node-resize-handle") ||
               e.target.closest(".node-settings") ||
@@ -8444,6 +8645,24 @@
             }
             const wp = s2w(e.clientX, e.clientY);
             dragOffset = { x: wp.x - nd.x, y: wp.y - nd.y };
+          });
+        }
+        if (nd.type === "line") {
+          el.querySelectorAll(".line-end-handle").forEach((handle) => {
+            handle.addEventListener("mousedown", (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              selectNode(nd.id);
+              const endpoints = getLineEndpoints(nd);
+              lineEndpointDrag = {
+                nodeId: nd.id,
+                endpoint: handle.dataset.end,
+                anchor:
+                  handle.dataset.end === "start"
+                    ? endpoints.end
+                    : endpoints.start,
+              };
+            });
           });
         }
         if (!isSharedNoteNode) el.addEventListener("dblclick", (e) => {
@@ -8622,6 +8841,12 @@
             ),
           };
         }
+        if (nd.type === "line") {
+          return {
+            w: LINE_MIN_LENGTH,
+            h: LINE_NODE_HEIGHT,
+          };
+        }
         let contentWidth = 0;
         const base = {
           w: 160,
@@ -8788,7 +9013,9 @@
             nd.type === "heading" ? "content node-content" : "node-content",
           );
         if (nd.type === "line")
-          return `<div class="node-content line-content" spellcheck="false"></div>`;
+          return `<div class="node-content line-content" spellcheck="false"></div>
+          <button class="line-end-handle" data-end="start" type="button" aria-label="Move line start"></button>
+          <button class="line-end-handle" data-end="end" type="button" aria-label="Move line end"></button>`;
         if (nd.type === "bullet") {
           const lis = (nd.items || [])
             .map((_, i) => bulletItemHTML(nd, i))
@@ -9380,6 +9607,24 @@
             syncPendingConnectionTarget(e.clientX, e.clientY);
             requestConnectionRender();
           }
+          if (lineEndpointDrag) {
+            const nd = nodes.find((n) => n.id === lineEndpointDrag.nodeId);
+            const el = nd ? document.getElementById(`node-${nd.id}`) : null;
+            if (!nd || !el) return;
+            const point = s2w(e.clientX, e.clientY);
+            if (lineEndpointDrag.endpoint === "start") {
+              setLineFromEndpoints(nd, point, lineEndpointDrag.anchor);
+            } else {
+              setLineFromEndpoints(nd, lineEndpointDrag.anchor, point);
+            }
+            el.style.left = nd.x + "px";
+            el.style.top = nd.y + "px";
+            el.style.width = nd.w + "px";
+            el.style.height = nd.h + "px";
+            el.style.transform = `rotate(${Number(nd.lineAngle) || 0}rad)`;
+            renderConnections();
+            return;
+          }
           if (canvasSelectionStart && canvasSelectionRect) {
             const r = con.getBoundingClientRect();
             const x = Math.min(canvasSelectionStart.x, e.clientX - r.left);
@@ -9495,6 +9740,10 @@
           if (isPanning) {
             isPanning = false;
             con.style.cursor = currentTool === "pan" ? "grab" : "default";
+          }
+          if (lineEndpointDrag) {
+            lineEndpointDrag = null;
+            autosave();
           }
           if (canvasSelectionStart && canvasSelectionRect) {
             canvasSelectionStart = null;
@@ -9728,7 +9977,7 @@
         const defs = {
           text: { text: "New note" },
           heading: { text: "Heading" },
-          line: { w: 220, h: 2 },
+          line: { w: 220, h: LINE_NODE_HEIGHT, lineAngle: 0 },
           bullet: { items: ["Item 1", "Item 2"] },
           progress: {
             title: "Progress tracker",
@@ -9752,7 +10001,7 @@
         const nd = makeNode(
           type,
           Math.round(x - (type === "line" ? 110 : 80)),
-          Math.round(y - (type === "line" ? 1 : 40)),
+          Math.round(y - (type === "line" ? LINE_NODE_HEIGHT / 2 : 40)),
           mergeNodeDefaults(type, data || {}),
         );
         nodes.push(nd);
@@ -9855,11 +10104,19 @@
         });
       }
       function deleteNodeById(id, saveNow = true) {
+        const node = nodes.find((n) => n.id === id);
         if (saveNow) captureHistory();
         nodes = nodes.filter((n) => n.id !== id);
         connections = connections.filter(
           (c) => c.fromId !== id && c.toId !== id,
         );
+        if (
+          node?.type === "file" &&
+          node.fileKind === "image" &&
+          currentProject?.id
+        ) {
+          deleteImageAsset(currentProject.id, id);
+        }
         document.getElementById(`node-${id}`)?.remove();
         selectedNodeIds.delete(id);
         if (selectedNode?.id === id) selectedNode = null;
