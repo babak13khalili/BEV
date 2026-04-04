@@ -1304,6 +1304,40 @@
         line-height: 1.2;
         display: none;
       }
+      input,
+      textarea,
+      [contenteditable="true"],
+      #canvas-project-title {
+        unicode-bidi: plaintext;
+        caret-color: currentColor;
+      }
+      .node-content,
+      .daily-todo-text,
+      .general-todo-text,
+      .bullet-item-text,
+      .progress-title,
+      .doc-name,
+      #canvas-project-title,
+      .embed-input,
+      .form-input,
+      .form-textarea {
+        text-align: start;
+      }
+      .node-content[dir="rtl"],
+      .daily-todo-text[dir="rtl"],
+      .general-todo-text[dir="rtl"],
+      .bullet-item-text[dir="rtl"],
+      .form-textarea[dir="rtl"] {
+        text-align: justify;
+      }
+      .node-type-label[dir="rtl"],
+      .progress-title[dir="rtl"],
+      .doc-name[dir="rtl"],
+      #canvas-project-title[dir="rtl"],
+      .embed-input[dir="rtl"],
+      .form-input[dir="rtl"] {
+        text-align: right;
+      }
       #canvas-project-title[contenteditable="true"]:focus {
         outline: none;
         border-bottom: 1px solid var(--border2);
@@ -1690,6 +1724,37 @@
       }
       .node.node-heading.multi-selected::after {
         display: none;
+      }
+      .node.node-line {
+        min-width: 0;
+        min-height: 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+      }
+      .node.node-line:hover {
+        border-color: transparent;
+      }
+      .node.node-line .node-accent-line,
+      .node.node-line .node-header,
+      .node.node-line .node-settings {
+        display: none;
+      }
+      .node.node-line .node-body {
+        padding: 0;
+      }
+      .node.node-line .node-content {
+        width: 100%;
+        height: 2px;
+        background: var(--text2);
+        border-radius: 999px;
+      }
+      .node.node-line.selected .node-content,
+      .node.node-line.multi-selected .node-content {
+        background: var(--node-selected);
+      }
+      .node.node-line.multi-selected::after {
+        inset: -8px;
       }
       .node-frame {
         background: rgba(255, 255, 255, 0.02);
@@ -3959,7 +4024,10 @@
           viewScale = state.canvas?.viewScale || 1;
           targetScale = state.canvas?.targetScale || viewScale;
           const titleEl = document.getElementById("canvas-project-title");
-          if (titleEl) titleEl.textContent = currentProject.name || "Untitled";
+          if (titleEl) {
+            titleEl.textContent = currentProject.name || "Untitled";
+            applyTextDirection(titleEl);
+          }
           updateCanvasPathbar();
           show("canvas");
           renderAll();
@@ -4043,7 +4111,16 @@
         } catch (e) {
           setSyncStatus("error");
           setSaveStatus("saved");
-          showToast("Save failed: " + e.message);
+          const message = String(e?.message || "");
+          if (
+            /maximum size|too large|larger than 1048576|Document exceeds/i.test(
+              message,
+            )
+          ) {
+            showToast("Save failed: image is still too large for this project.");
+          } else {
+            showToast("Save failed: " + message);
+          }
         }
       }
 
@@ -4864,6 +4941,7 @@
             },
           )
           .join("");
+        applyTextDirectionToAll(list);
         list.querySelectorAll(".general-todo-item").forEach((row) => {
           const todoId = row.dataset.todoId;
           const item = items.find((entry) => entry.id === todoId);
@@ -5058,6 +5136,7 @@
           </div>`,
           )
           .join("");
+        applyTextDirectionToAll(list);
         list.querySelectorAll(".daily-todo-item").forEach((row) => {
           const todoId = row.dataset.todoId;
           const item = items.find((entry) => entry.id === todoId);
@@ -5616,7 +5695,7 @@
               probeCanvas.height,
             ).data;
             for (let i = 3; i < data.length; i += 4) {
-              if (data[i] < 250) return "image/png";
+              if (data[i] < 250) return "image/webp";
             }
           }
         } catch {}
@@ -5665,34 +5744,50 @@
             height: image.naturalHeight || 0,
           };
         }
-        const maxDimension = 1600;
-        const scale = Math.min(
-          1,
-          maxDimension / Math.max(1, image.naturalWidth),
-          maxDimension / Math.max(1, image.naturalHeight),
-        );
-        const width = Math.max(1, Math.round(image.naturalWidth * scale));
-        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const mimeType = chooseCompressedImageType(file, image);
         const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
         const ctx = canvas.getContext("2d");
         if (!ctx) throw new Error("Image compression is not available.");
-        ctx.drawImage(image, 0, 0, width, height);
-        const mimeType = chooseCompressedImageType(file, image);
-        const quality =
-          mimeType === "image/jpeg" ? 0.86 : undefined;
-        const blob = await new Promise((resolve, reject) => {
-          canvas.toBlob(
-            (result) => {
-              if (result) resolve(result);
-              else reject(new Error("Image compression failed."));
-            },
-            mimeType,
-            quality,
+        const maxBytes = 220 * 1024;
+        const attempts = [
+          { maxDimension: 1280, quality: 0.78 },
+          { maxDimension: 1100, quality: 0.72 },
+          { maxDimension: 960, quality: 0.68 },
+          { maxDimension: 820, quality: 0.62 },
+          { maxDimension: 720, quality: 0.58 },
+          { maxDimension: 640, quality: 0.54 },
+        ];
+        let best = null;
+        for (const attempt of attempts) {
+          const scale = Math.min(
+            1,
+            attempt.maxDimension / Math.max(1, image.naturalWidth),
+            attempt.maxDimension / Math.max(1, image.naturalHeight),
           );
-        });
-        return { blob, mimeType, width, height };
+          const width = Math.max(1, Math.round(image.naturalWidth * scale));
+          const height = Math.max(1, Math.round(image.naturalHeight * scale));
+          canvas.width = width;
+          canvas.height = height;
+          ctx.clearRect(0, 0, width, height);
+          ctx.drawImage(image, 0, 0, width, height);
+          const quality =
+            mimeType === "image/jpeg" || mimeType === "image/webp"
+              ? attempt.quality
+              : undefined;
+          const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(
+              (result) => {
+                if (result) resolve(result);
+                else reject(new Error("Image compression failed."));
+              },
+              mimeType,
+              quality,
+            );
+          });
+          best = { blob, mimeType, width, height };
+          if (blob.size <= maxBytes) break;
+        }
+        return best;
       }
 
       async function populateFileNodeFromFile(nd, file, onDone = null) {
@@ -5764,18 +5859,6 @@
         if (nd?.name) return nd.name;
         if (href) return href;
         return "File";
-      }
-
-      function beginInlineTextEdit(target) {
-        if (!target) return;
-        target.setAttribute("contenteditable", "true");
-        target.focus();
-        const range = document.createRange();
-        range.selectNodeContents(target);
-        range.collapse(false);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
       }
 
       function insertPlainTextAtSelection(text) {
@@ -5853,6 +5936,64 @@
           .replace(/^\n+|\n+$/g, "");
       }
 
+      const RTL_TEXT_REGEX = /[\u0590-\u08FF\uFB1D-\uFDFD\uFE70-\uFEFC]/;
+
+      function isEditableTextTarget(target) {
+        return (
+          target instanceof HTMLElement &&
+          (target.matches("input, textarea, [contenteditable='true']") ||
+            target.id === "canvas-project-title")
+        );
+      }
+
+      function shouldSkipDirectionFormatting(target) {
+        return target?.id === "firebase-config-input";
+      }
+
+      function isMultilineTextTarget(target) {
+        return (
+          target instanceof HTMLElement &&
+          (target.tagName === "TEXTAREA" ||
+            target.classList.contains("node-content") ||
+            target.classList.contains("content") ||
+            target.classList.contains("daily-todo-text") ||
+            target.classList.contains("general-todo-text") ||
+            target.classList.contains("bullet-item-text") ||
+            target.id === "proj-desc-input")
+        );
+      }
+
+      function readEditableTextValue(target) {
+        if (!target) return "";
+        if (target.hasAttribute?.("contenteditable")) {
+          return getEditablePlainText(target);
+        }
+        if ("value" in target) return String(target.value || "");
+        return String(target.textContent || "");
+      }
+
+      function applyTextDirection(target) {
+        if (!isEditableTextTarget(target) || shouldSkipDirectionFormatting(target)) {
+          return;
+        }
+        const text = readEditableTextValue(target);
+        const isRTL = RTL_TEXT_REGEX.test(text);
+        target.setAttribute("dir", isRTL ? "rtl" : "ltr");
+        target.style.unicodeBidi = "plaintext";
+        target.style.textAlign = isRTL
+          ? isMultilineTextTarget(target)
+            ? "justify"
+            : "right"
+          : "left";
+      }
+
+      function applyTextDirectionToAll(root = document) {
+        if (isEditableTextTarget(root)) applyTextDirection(root);
+        root
+          ?.querySelectorAll?.("input, textarea, [contenteditable='true'], #canvas-project-title")
+          ?.forEach((el) => applyTextDirection(el));
+      }
+
       function renderMultilineTextHTML(text = "") {
         return esc(String(text || "")).replace(/\n/g, "<br>");
       }
@@ -5905,7 +6046,7 @@
         className = "content",
       ) {
         if (type === "heading") {
-          return `<div class="${className} shared-heading-text">${renderMultilineTextHTML(text || "")}</div>`;
+          return `<div class="${className} shared-heading-text" contenteditable="true" spellcheck="false">${renderMultilineTextHTML(text || "")}</div>`;
         }
         return `<div class="${className}" contenteditable="true" spellcheck="false">${renderMultilineTextHTML(text || "")}</div>`;
       }
@@ -5961,10 +6102,13 @@
         if (label && !label.dataset.sharedLabelBound) {
           label.dataset.sharedLabelBound = "1";
           bindPlainTextPaste(label);
+          applyTextDirection(label);
           label.addEventListener("input", () => {
+            applyTextDirection(label);
             onLabelCommit?.(label.textContent.trim());
           });
           label.addEventListener("blur", () => {
+            applyTextDirection(label);
             onLabelCommit?.(label.textContent.trim());
           });
         }
@@ -6006,49 +6150,20 @@
       function bindSharedTextObjectEditor(target, type, onCommit) {
         if (!target || target.dataset.sharedObjectEditorBound) return;
         target.dataset.sharedObjectEditorBound = "1";
-        if (type === "heading") {
-          bindSharedHeadingInteractions(target, onCommit);
-          return;
-        }
         bindPlainTextPaste(target);
+        applyTextDirection(target);
         target.addEventListener("input", () => {
+          applyTextDirection(target);
           onCommit(getEditablePlainText(target));
         });
         target.addEventListener("blur", () => {
+          applyTextDirection(target);
           onCommit(getEditablePlainText(target));
-        });
-      }
-
-      function bindHeadingLikeEditing(target, onCommit) {
-        if (!target) return;
-        bindPlainTextPaste(target);
-        target.addEventListener("dblclick", (e) => {
-          e.stopPropagation();
-          beginInlineTextEdit(target);
-        });
-        target.addEventListener("blur", () => {
-          target.removeAttribute("contenteditable");
-          onCommit(getEditablePlainText(target));
-        });
-        target.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            target.blur();
-          }
-          if (e.key === "Escape") {
-            e.preventDefault();
-            target.textContent = target.textContent;
-            target.blur();
-          }
         });
       }
 
       function renderHeadingContentHTML(text = "") {
         return `<div class="content node-content shared-heading-text">${renderMultilineTextHTML(text || "")}</div>`;
-      }
-
-      function bindSharedHeadingInteractions(target, onCommit) {
-        bindHeadingLikeEditing(target, onCommit);
       }
 
       function syncImageFileNodeSize(nd, el) {
@@ -6558,6 +6673,8 @@
         document.getElementById("proj-name-input").value = "";
         document.getElementById("proj-desc-input").value = "";
         document.getElementById("proj-status-input").value = "In Progress";
+        applyTextDirection(document.getElementById("proj-name-input"));
+        applyTextDirection(document.getElementById("proj-desc-input"));
         selectedCategoryId = workspaceCategories[0]?.id || null;
         selectedColor = getCategoryById(selectedCategoryId)?.color || getDefaultCategoryColor();
         initColorSwatches();
@@ -6576,6 +6693,8 @@
         document.getElementById("proj-desc-input").value = p.desc || "";
         document.getElementById("proj-status-input").value =
           p.status || "In Progress";
+        applyTextDirection(document.getElementById("proj-name-input"));
+        applyTextDirection(document.getElementById("proj-desc-input"));
         selectedCategoryId = getProjectCategoryId(p);
         selectedColor =
           getCategoryById(selectedCategoryId)?.color ||
@@ -8035,7 +8154,10 @@
           if (!isNaN(num) && num >= connIdCounter) connIdCounter = num + 1;
         });
         const titleEl = document.getElementById("canvas-project-title");
-        if (titleEl) titleEl.textContent = currentProject.name || "";
+        if (titleEl) {
+          titleEl.textContent = currentProject.name || "";
+          applyTextDirection(titleEl);
+        }
         updateCanvasPathbar();
         viewOffset = { x: 0, y: 0 };
         viewScale = targetScale = 1;
@@ -8442,6 +8564,7 @@
             autosave();
           });
         }
+        applyTextDirectionToAll(el);
         bindNodeSettings(nd, el);
         if (nd.type === "embed") {
           const input =
@@ -8665,7 +8788,7 @@
             nd.type === "heading" ? "content node-content" : "node-content",
           );
         if (nd.type === "line")
-          return `<div class="node-content" spellcheck="false"></div>`;
+          return `<div class="node-content line-content" spellcheck="false"></div>`;
         if (nd.type === "bullet") {
           const lis = (nd.items || [])
             .map((_, i) => bulletItemHTML(nd, i))
@@ -10258,10 +10381,32 @@
           if (currentProject) {
             currentProject.name =
               this.textContent.trim() || currentProject.name;
+            applyTextDirection(this);
             updateCanvasPathbar();
             autosave();
           }
         });
+      document.addEventListener(
+        "focusin",
+        (e) => {
+          applyTextDirection(e.target);
+        },
+        true,
+      );
+      document.addEventListener(
+        "input",
+        (e) => {
+          applyTextDirection(e.target);
+        },
+        true,
+      );
+      document.addEventListener(
+        "change",
+        (e) => {
+          applyTextDirection(e.target);
+        },
+        true,
+      );
       setInterval(() => {
         if (currentProject) autosave();
       }, 60000);
@@ -10280,6 +10425,7 @@
         else undoHistory();
       });
 
+      applyTextDirectionToAll(document);
       startup();
     </script>
   </body>
