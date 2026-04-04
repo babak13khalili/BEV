@@ -6119,11 +6119,32 @@
 
       function readEditableTextValue(target) {
         if (!target) return "";
-        if (target.hasAttribute?.("contenteditable")) {
+        if (target.isContentEditable) {
           return getEditablePlainText(target);
         }
         if ("value" in target) return String(target.value || "");
         return String(target.textContent || "");
+      }
+
+      function isActiveEditableElement(target) {
+        return !!(
+          target &&
+          (target.isContentEditable ||
+            target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA")
+        );
+      }
+
+      function focusEditableAtEnd(target) {
+        if (!target) return;
+        if (!target.isContentEditable) target.setAttribute("contenteditable", "true");
+        target.focus();
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        range.collapse(false);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
       }
 
       function applyTextDirection(target) {
@@ -6200,7 +6221,7 @@
         className = "content",
       ) {
         if (type === "heading") {
-          return `<div class="${className} shared-heading-text" contenteditable="true" spellcheck="false">${renderMultilineTextHTML(text || "")}</div>`;
+          return `<div class="${className} shared-heading-text" contenteditable="false" spellcheck="false">${renderMultilineTextHTML(text || "")}</div>`;
         }
         return `<div class="${className}" contenteditable="true" spellcheck="false">${renderMultilineTextHTML(text || "")}</div>`;
       }
@@ -6289,13 +6310,13 @@
             e.target.tagName === "INPUT" ||
             e.target.tagName === "TEXTAREA" ||
             e.target.tagName === "A" ||
-            (e.target.hasAttribute("contenteditable") && !e.altKey)
+            (e.target.isContentEditable && !e.altKey)
           )
             return;
           onPointerDown(e);
         });
         el.addEventListener("dblclick", (e) => {
-          if (e.target.hasAttribute("contenteditable")) return;
+          if (e.target.isContentEditable) return;
           e.stopPropagation();
           focusSharedNoteEditor(el);
         });
@@ -6306,6 +6327,22 @@
         target.dataset.sharedObjectEditorBound = "1";
         bindPlainTextPaste(target);
         applyTextDirection(target);
+        if (type === "heading") {
+          target.addEventListener("dblclick", (e) => {
+            e.stopPropagation();
+            focusEditableAtEnd(target);
+          });
+          target.addEventListener("blur", () => {
+            applyTextDirection(target);
+            onCommit(getEditablePlainText(target));
+            target.setAttribute("contenteditable", "false");
+          });
+          target.addEventListener("input", () => {
+            applyTextDirection(target);
+            onCommit(getEditablePlainText(target));
+          });
+          return;
+        }
         target.addEventListener("input", () => {
           applyTextDirection(target);
           onCommit(getEditablePlainText(target));
@@ -8605,7 +8642,7 @@
               e.target.tagName === "INPUT" ||
               e.target.tagName === "TEXTAREA" ||
               e.target.tagName === "A" ||
-              (e.target.hasAttribute("contenteditable") && !e.altKey)
+              (e.target.isContentEditable && !e.altKey)
             )
               return;
             if (currentTool === "connect") return;
@@ -8666,7 +8703,7 @@
           });
         }
         if (!isSharedNoteNode) el.addEventListener("dblclick", (e) => {
-          if (e.target.hasAttribute("contenteditable")) return;
+          if (e.target.isContentEditable) return;
           const c = el.querySelector(".node-content");
           if (c) {
             c.focus();
@@ -9875,11 +9912,7 @@
 
         document.addEventListener("keydown", (e) => {
           if (!currentProject) return;
-          if (
-            e.target.tagName === "INPUT" ||
-            e.target.tagName === "TEXTAREA" ||
-            e.target.hasAttribute("contenteditable")
-          )
+          if (isActiveEditableElement(e.target))
             return;
           if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
             e.preventDefault();
@@ -10033,11 +10066,7 @@
       function handleCanvasPaste(e) {
         if (!currentProject) return;
         const target = e.target;
-        if (
-          target?.tagName === "INPUT" ||
-          target?.tagName === "TEXTAREA" ||
-          target?.hasAttribute?.("contenteditable")
-        )
+        if (isActiveEditableElement(target))
           return;
         const clipboard = e.clipboardData;
         if (!clipboard) return;
@@ -10669,11 +10698,7 @@
       }, 60000);
 
       document.addEventListener("keydown", (e) => {
-        if (
-          e.target.tagName === "INPUT" ||
-          e.target.tagName === "TEXTAREA" ||
-          e.target.hasAttribute("contenteditable")
-        )
+        if (isActiveEditableElement(e.target))
           return;
         const mod = e.metaKey || e.ctrlKey;
         if (!mod || e.key.toLowerCase() !== "z") return;
