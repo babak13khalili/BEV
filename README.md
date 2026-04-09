@@ -35,6 +35,13 @@ After you know your GitHub Pages URL, add the domain in Firebase:
 For Firestore, this app reads and writes per signed-in user under:
 
 - `users/{uid}/projects/{projectId}`
+- `users/{uid}/presentations/{presentationId}`
+- `users/{uid}/meta/{docId}`
+- `users/{uid}/image_assets/{assetId}`
+
+Shared viewer links read from:
+
+- `public_presentations/{shareToken}`
 
 If your Firestore rules are still locked down, start with rules that allow each signed-in user to access only their own data.
 
@@ -44,6 +51,19 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId}/projects/{projectId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/presentations/{presentationId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/meta/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/image_assets/{assetId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /public_presentations/{shareToken} {
+      allow read: if true;
+      allow write: if request.auth != null;
     }
   }
 }

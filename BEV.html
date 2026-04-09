@@ -287,7 +287,9 @@
         z-index: 30;
       }
       #dashboard-pathbar,
-      #canvas-pathbar {
+      #canvas-pathbar,
+      #presentation-pathbar,
+      #shared-presentation-pathbar {
         position: absolute;
         top: 52px;
         left: 0;
@@ -693,6 +695,8 @@
         transform-origin: 0 0;
         width: 4200px;
         height: 2800px;
+        will-change: transform;
+        backface-visibility: hidden;
       }
       .project-card {
         width: 320px;
@@ -1460,6 +1464,8 @@
       #canvas-world {
         position: absolute;
         transform-origin: 0 0;
+        will-change: transform;
+        backface-visibility: hidden;
       }
       #connections-svg {
         position: absolute;
@@ -1562,6 +1568,24 @@
         #workspace-menu {
           width: 220px;
           padding: 10px;
+        }
+        #presentation-header,
+        #shared-presentation-header {
+          padding: 0 12px;
+        }
+        #presentation-body,
+        #shared-presentation-body {
+          flex-direction: column;
+        }
+        #presentation-sidebar {
+          width: 100%;
+          max-height: 220px;
+          border-right: none;
+          border-bottom: 1px solid var(--border);
+        }
+        #presentation-toolbar,
+        #shared-presentation-toolbar {
+          top: 12px;
         }
         #dashboard-info,
         #canvas-info {
@@ -2520,6 +2544,440 @@
         display: flex;
         gap: 20px;
       }
+      #screen-presentation,
+      #screen-shared-presentation {
+        position: absolute;
+        inset: 0;
+        display: none;
+      }
+      #presentation-header,
+      #shared-presentation-header {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 52px;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 0 20px;
+        z-index: 90;
+      }
+      .presentation-header-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .presentation-header-copy {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .presentation-header-copy .tagline {
+        margin-top: 0;
+      }
+      #presentation-body,
+      #shared-presentation-body {
+        position: absolute;
+        top: 86px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        min-height: 0;
+      }
+      #presentation-sidebar {
+        width: 304px;
+        border-right: 1px solid var(--border);
+        background: rgba(10, 10, 10, 0.97);
+        padding: 14px 12px;
+        overflow-y: auto;
+      }
+      .presentation-sidebar-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .presentation-sidebar-title {
+        font-family: "Syne", sans-serif;
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text3);
+      }
+      .presentation-sidebar-current {
+        border: 1px solid var(--border);
+        background: rgba(18, 18, 18, 0.9);
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+      .presentation-sidebar-current.empty {
+        opacity: 0.7;
+      }
+      #presentation-title-input {
+        width: 100%;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        font-family: "Syne", sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1.05;
+        outline: none;
+        padding: 0;
+        margin-bottom: 8px;
+      }
+      .presentation-sidebar-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 10px;
+        color: var(--text3);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .presentation-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .presentation-list-item {
+        border: 1px solid var(--border);
+        background: rgba(18, 18, 18, 0.92);
+        padding: 12px 12px;
+        cursor: pointer;
+        width: 100%;
+        text-align: left;
+        font: inherit;
+        color: inherit;
+        transition:
+          border-color 0.15s,
+          background 0.15s;
+      }
+      .presentation-list-item:hover {
+        border-color: var(--border2);
+        background: rgba(22, 22, 22, 0.96);
+      }
+      .presentation-list-item.active {
+        border-color: var(--text2);
+        background: rgba(26, 26, 26, 0.98);
+      }
+      .presentation-list-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .presentation-list-copy {
+        min-width: 0;
+        flex: 1;
+      }
+      .presentation-list-name {
+        font-family: "Syne", sans-serif;
+        font-size: 14px;
+        color: var(--text);
+        line-height: 1.15;
+        margin-bottom: 6px;
+      }
+      .presentation-list-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 10px;
+        color: var(--text3);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .presentation-list-stamp {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 10px;
+        color: var(--text3);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .presentation-list-delete {
+        width: 22px;
+        height: 22px;
+        border: none;
+        background: none;
+        color: var(--text3);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        transition: color 0.15s;
+        flex-shrink: 0;
+      }
+      .presentation-list-delete:hover {
+        color: var(--red);
+      }
+      .presentation-share-state {
+        color: var(--text2);
+      }
+      #presentation-main,
+      #shared-presentation-main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+      #presentation-toolbar,
+      #shared-presentation-toolbar {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        top: 18px;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        z-index: 100;
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        padding: 4px;
+      }
+      .presentation-toolbar-meta {
+        font-size: 10px;
+        color: var(--text3);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      #presentation-canvas,
+      #shared-presentation-canvas {
+        position: relative;
+        flex: 1;
+        overflow: auto;
+      }
+      #presentation-canvas::before,
+      #shared-presentation-canvas::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(var(--border) 1px, transparent 1px),
+          linear-gradient(90deg, var(--border) 1px, transparent 1px);
+        background-size: 40px 40px;
+        opacity: 0.24;
+        pointer-events: none;
+      }
+      #presentation-world,
+      #shared-presentation-world {
+        position: relative;
+        min-width: 3200px;
+        min-height: 2200px;
+        padding: 84px 80px 80px;
+      }
+      .presentation-empty-state,
+      .shared-presentation-empty {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: min(420px, calc(100% - 40px));
+        border: 1px solid var(--border);
+        background: rgba(12, 12, 12, 0.94);
+        padding: 28px;
+        text-align: center;
+        z-index: 2;
+      }
+      .presentation-empty-state h3,
+      .shared-presentation-empty h3 {
+        font-family: "Syne", sans-serif;
+        font-size: 22px;
+        margin-bottom: 10px;
+        color: var(--text);
+      }
+      .presentation-empty-state p,
+      .shared-presentation-empty p {
+        color: var(--text2);
+        line-height: 1.6;
+        margin-bottom: 18px;
+      }
+      .presentation-card.dragging {
+        cursor: grabbing;
+        z-index: 10;
+      }
+      .presentation-card .card-del {
+        opacity: 1;
+      }
+      .presentation-card .card-edit {
+        opacity: 1;
+      }
+      .presentation-card.viewer-card {
+        cursor: default;
+      }
+      .presentation-card.viewer-card .card-edit,
+      .presentation-card.viewer-card .card-del,
+      .presentation-card.viewer-card .card-open,
+      .presentation-card.viewer-card .card-status::after {
+        display: none;
+      }
+      .presentation-card.viewer-card .card-status {
+        cursor: default;
+      }
+      .presentation-card.viewer-card .card-bottom {
+        justify-content: flex-start;
+      }
+      .presentation-object {
+        position: absolute;
+        cursor: move;
+        user-select: none;
+        touch-action: none;
+      }
+      .presentation-object:hover .overview-resize-handle,
+      .presentation-object:hover .node-resize-handle {
+        opacity: 1;
+      }
+      .presentation-object .content {
+        outline: none;
+      }
+      .presentation-object.selected .overview-item-line,
+      .presentation-object.selected .overview-item-frame {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: var(--text);
+      }
+      .presentation-object-delete {
+        position: absolute;
+        top: -18px;
+        right: -4px;
+        width: 18px;
+        height: 18px;
+        border: none;
+        background: none;
+        color: var(--text3);
+        cursor: pointer;
+        opacity: 0;
+        transition: color 0.15s, opacity 0.15s;
+        padding: 0;
+      }
+      .presentation-object:hover .presentation-object-delete {
+        opacity: 1;
+      }
+      .presentation-object-delete:hover {
+        color: var(--red);
+      }
+      .icon-btn:disabled,
+      .tool-btn:disabled {
+        opacity: 0.35;
+        pointer-events: none;
+      }
+      .presentation-privacy {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: "Syne", sans-serif;
+        font-size: 10px;
+        color: var(--text3);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .presentation-privacy .sync-dot.private {
+        background: var(--text3);
+      }
+      .presentation-privacy .sync-dot.shared {
+        background: var(--green);
+      }
+      #presentation-picker-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 10002;
+        background: rgba(0, 0, 0, 0.72);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(2px);
+      }
+      #presentation-picker-overlay.visible {
+        display: flex;
+      }
+      #presentation-picker-modal {
+        width: min(560px, calc(100vw - 32px));
+        max-height: min(78vh, 720px);
+        background: var(--bg2);
+        border: 1px solid var(--border2);
+        padding: 30px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      #presentation-picker-modal h3 {
+        font-family: "Syne", sans-serif;
+        font-size: 18px;
+        color: var(--text);
+      }
+      .presentation-picker-list {
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 0;
+      }
+      .presentation-picker-item {
+        border: 1px solid var(--border);
+        background: rgba(18, 18, 18, 0.92);
+        padding: 12px 14px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          background 0.15s;
+      }
+      .presentation-picker-item:hover {
+        border-color: var(--border2);
+      }
+      .presentation-picker-item.selected {
+        border-color: var(--text2);
+        background: rgba(24, 24, 24, 0.96);
+      }
+      .presentation-picker-item.already-added {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .presentation-picker-check {
+        width: 18px;
+        height: 18px;
+        border: 1px solid var(--border2);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: var(--text);
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+      .presentation-picker-copy {
+        min-width: 0;
+        flex: 1;
+      }
+      .presentation-picker-name {
+        font-family: "Syne", sans-serif;
+        font-size: 14px;
+        color: var(--text);
+        margin-bottom: 6px;
+      }
+      .presentation-picker-desc {
+        font-size: 11px;
+        color: var(--text2);
+        line-height: 1.45;
+      }
+      .shared-presentation-note {
+        color: var(--text3);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
       .daily-todo-widget {
         position: fixed;
         top: 86px;
@@ -3113,6 +3571,22 @@
           <div class="tagline">Bird Eye View</div>
         </div>
         <div class="header-right">
+          <button
+            class="icon-btn"
+            onclick="openPresentationHub()"
+            aria-label="Open presentations"
+            title="Presentations">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5">
+              <rect x="2.2" y="3" width="11.6" height="10" rx="1" />
+              <path d="M6.2 5.5l4 2.5-4 2.5z" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
           <div id="sync-bar" style="margin-bottom: 0">
             <div class="sync-dot" id="sync-dot"></div>
             <span id="sync-label">Synced</span>
@@ -3288,6 +3762,290 @@
         <div id="dashboard-info">
           <span id="dashboard-info-cards">0 cards</span
           ><span id="dashboard-info-items">0 items</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-presentation" style="display: none">
+      <div id="presentation-header">
+        <div class="presentation-header-group">
+          <div class="presentation-header-copy">
+            <div class="logo">BEV</div>
+            <div class="tagline">Bird Eye View</div>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="presentation-privacy" id="presentation-privacy">
+            <div class="sync-dot private" id="presentation-privacy-dot"></div>
+            <span id="presentation-privacy-label">Private</span>
+          </div>
+          <button
+            class="icon-btn"
+            id="presentation-home-btn"
+            onclick="returnFromPresentation()"
+            aria-label="Go to dashboard"
+            title="Dashboard">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5">
+              <path d="M2.5 7.3L8 2.8l5.5 4.5" />
+              <path d="M4.4 6.9V13h7.2V6.9" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div id="presentation-pathbar">
+        <div class="path-left">
+          <span class="path-current">Presentation</span>
+        </div>
+        <div class="path-center">
+          <div class="path-status visible" id="presentation-path-status">
+            Standalone Viewer Ready
+          </div>
+        </div>
+        <div class="path-right">
+          <button
+            class="icon-btn"
+            id="presentation-share-btn"
+            onclick="copyCurrentPresentationShareLink()"
+            aria-label="Share presentation"
+            title="Share presentation">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5">
+              <circle cx="4" cy="8" r="1.6" />
+              <circle cx="12" cy="4" r="1.6" />
+              <circle cx="12" cy="12" r="1.6" />
+              <path d="M5.4 7.3l5-2.6M5.4 8.7l5 2.6" />
+            </svg>
+          </button>
+          <button
+            class="icon-btn"
+            id="presentation-delete-btn"
+            onclick="requestDeleteCurrentPresentation()"
+            aria-label="Delete presentation"
+            title="Delete presentation">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5">
+              <path d="M3.5 4.5h9" />
+              <path d="M6 4.5V3h4v1.5" />
+              <path d="M5.1 6.2v5.6M8 6.2v5.6M10.9 6.2v5.6" />
+              <path d="M4.5 4.5l.6 8.5h5.8l.6-8.5" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div id="presentation-body">
+        <aside id="presentation-sidebar">
+          <div class="presentation-sidebar-head">
+            <div class="presentation-sidebar-title">Your Presentations</div>
+            <button
+              class="icon-btn"
+              id="presentation-new-btn"
+              onclick="createPresentation()"
+              aria-label="New presentation"
+              title="New presentation">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5">
+                <rect x="2.5" y="2.5" width="11" height="11" rx="1" />
+                <path d="M8 5v6M5 8h6" />
+              </svg>
+            </button>
+          </div>
+          <div class="presentation-sidebar-current" id="presentation-sidebar-current">
+            <input
+              id="presentation-title-input"
+              type="text"
+              placeholder="Untitled Presentation"
+              maxlength="80" />
+            <div class="presentation-sidebar-meta">
+              <span id="presentation-meta">No presentation selected</span>
+              <span id="presentation-card-count">0 cards</span>
+            </div>
+          </div>
+          <div class="presentation-list" id="presentation-list"></div>
+        </aside>
+        <div id="presentation-main">
+          <div id="presentation-toolbar">
+            <button
+              class="tool-btn"
+              id="presentation-tool-cards"
+              onclick="openPresentationPicker()">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5">
+                <rect x="2.5" y="3" width="11" height="8.5" rx="1" />
+                <path d="M5 13h6" />
+                <path d="M8 5.2v4.1M5.9 7.25h4.2" />
+              </svg>
+              <span class="tip">Add Cards</span>
+            </button>
+            <button class="tool-btn" onclick="addPresentationObject('note')">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5">
+                <rect x="2" y="2" width="12" height="12" rx="1" />
+                <line x1="5" y1="6" x2="11" y2="6" />
+                <line x1="5" y1="9" x2="9" y2="9" />
+              </svg>
+              <span class="tip">Text Note</span>
+            </button>
+            <button class="tool-btn" onclick="addPresentationObject('heading')">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5">
+                <path d="M3 4v8M13 4v8M3 8h10" />
+              </svg>
+              <span class="tip">Heading</span>
+            </button>
+            <button class="tool-btn" onclick="addPresentationObject('line')">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5">
+                <line x1="2" y1="8" x2="14" y2="8" />
+              </svg>
+              <span class="tip">Line</span>
+            </button>
+            <button class="tool-btn" onclick="addPresentationObject('frame')">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5">
+                <rect x="2.5" y="2.5" width="11" height="11" rx="1" />
+              </svg>
+              <span class="tip">Annotate</span>
+            </button>
+          </div>
+          <div id="presentation-canvas">
+            <div id="presentation-world"></div>
+            <div class="presentation-empty-state" id="presentation-empty-state">
+              <h3>Build a linked presentation</h3>
+              <p>
+                Create a presentation, then pull in any existing cards from your
+                workspace. The presentation keeps its own layout while every
+                card stays connected to the original project.
+              </p>
+              <button
+                class="btn-primary"
+                id="presentation-empty-action"
+                onclick="createPresentation()">
+                Create Presentation
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-shared-presentation" style="display: none">
+      <div id="shared-presentation-header">
+        <div class="presentation-header-group">
+          <div class="presentation-header-copy">
+            <div class="logo">BEV</div>
+            <div class="tagline">Bird Eye View</div>
+          </div>
+        </div>
+        <div class="header-right">
+          <button
+            class="icon-btn"
+            onclick="window.location.href = getBaseAppUrl()"
+            aria-label="Go to home"
+            title="Home">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5">
+              <path d="M2.5 7.3L8 2.8l5.5 4.5" />
+              <path d="M4.4 6.9V13h7.2V6.9" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div id="shared-presentation-pathbar">
+        <div class="path-left">
+          <span class="path-current">Presentation</span>
+        </div>
+        <div class="path-right">
+          <a
+            class="icon-btn"
+            id="shared-presentation-open-app"
+            href="./BEV.html"
+            aria-label="Open app"
+            title="Open app">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5">
+              <rect x="2.5" y="2.5" width="11" height="11" rx="1" />
+              <path d="M6 10l4-4" />
+              <path d="M7.5 6H10v2.5" />
+            </svg>
+          </a>
+        </div>
+      </div>
+      <div id="shared-presentation-body">
+        <div id="shared-presentation-main">
+          <div id="shared-presentation-toolbar">
+            <div class="presentation-privacy">
+              <div class="sync-dot shared"></div>
+              <span>Viewer Access</span>
+            </div>
+          </div>
+          <div id="shared-presentation-canvas">
+            <div id="shared-presentation-world"></div>
+            <div class="shared-presentation-empty" id="shared-presentation-empty">
+              <h3>Presentation unavailable</h3>
+              <p>
+                This link is missing, private, or no longer published.
+              </p>
+              <a class="btn-primary" style="display: inline-flex" href="./BEV.html">
+                Open BEV
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -3641,6 +4399,27 @@
       </div>
     </div>
 
+    <div id="presentation-picker-overlay">
+      <div id="presentation-picker-modal">
+        <h3>Add Existing Cards</h3>
+        <div class="presentation-toolbar-meta">
+          Select cards from your workspace to place on this presentation canvas.
+        </div>
+        <div class="presentation-picker-list" id="presentation-picker-list"></div>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closePresentationPicker()">
+            Cancel
+          </button>
+          <button
+            class="btn-primary"
+            style="width: auto; padding: 10px 22px"
+            onclick="addSelectedProjectsToPresentation()">
+            Add Selected
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div id="toast"></div>
     <input type="file" id="file-input" />
 
@@ -3664,6 +4443,9 @@
         currentProject = null,
         nodes = [],
         connections = [];
+      let presentations = [],
+        currentPresentation = null,
+        sharedPresentation = null;
       let selectedNode = null,
         selectedConn = null,
         currentTool = "select";
@@ -3692,15 +4474,26 @@
       let dashboardReady = false,
         dashboardViewOffset = { x: 220, y: 140 },
         dashboardPanActive = false,
-        dashboardScale = 1;
+        dashboardScale = 1,
+        dashboardTargetScale = 1;
       let dashboardPanStart = { x: 0, y: 0 },
         dashboardDragProjectId = null,
         dashboardDragMoved = false;
+      let dashboardZoomOrigin = { x: 0, y: 0 },
+        dashboardZoomRAF = null,
+        dashboardIsZooming = false;
       let dashboardDragOffset = { x: 0, y: 0 },
         newProjectPosition = null,
         projectSaveTimer = null;
       let dashboardResizeProjectId = null,
         dashboardResizeStart = null;
+      let presentationSaveTimer = null,
+        presentationDragItemId = null,
+        presentationDragOffset = { x: 0, y: 0 },
+        presentationDragObjectId = null,
+        presentationObjectDragOffset = { x: 0, y: 0 },
+        presentationResizeObjectId = null,
+        presentationResizeStart = null;
       let overviewItems = [],
         overviewDragItemId = null,
         overviewDragOffset = { x: 0, y: 0 },
@@ -3732,6 +4525,14 @@
       const DEFAULT_PROJECT_CARD_HEIGHT = 220;
       const LINE_NODE_HEIGHT = 18;
       const LINE_MIN_LENGTH = 40;
+      const NAVIGATION_TUNING = Object.freeze({
+        zoomLerpDesktop: 0.24,
+        zoomLerpMobile: 0.16,
+        wheelZoomSensitivity: 0.0032,
+        wheelPanMultiplier: 1.35,
+        pinchZoomExponentDesktop: 1.08,
+        pinchZoomExponentMobile: 0.24,
+      });
       const DEFAULT_WORKSPACE_CATEGORIES = [
         {
           id: "cat-general",
@@ -3823,9 +4624,24 @@
         generalTodoSelectionAnchorId = null;
       const LAST_VIEW_STORAGE_KEY = "bev_last_view";
       let appClipboard = null;
+      let currentScreenName = "loading",
+        canvasReturnScreen = "dashboard";
+      let presentationPickerSelection = new Set();
+      const PRESENTATION_PUBLIC_QUERY_KEY = "presentation";
 
       // ===================== STARTUP =====================
       function startup() {
+        if (getSharedPresentationTokenFromUrl()) {
+          const injectedConfig =
+            window.BEV_FIREBASE_CONFIG ||
+            window.ATLAS_FIREBASE_CONFIG ||
+            DEFAULT_FIREBASE_CONFIG;
+          if (injectedConfig && typeof injectedConfig === "object") {
+            localStorage.setItem("bev_fb_config", JSON.stringify(injectedConfig));
+            initFirebase(injectedConfig);
+            return;
+          }
+        }
         const injectedConfig =
           window.BEV_FIREBASE_CONFIG ||
           window.ATLAS_FIREBASE_CONFIG ||
@@ -3848,25 +4664,40 @@
       }
 
       function show(name) {
-        ["loading", "setup", "auth", "dashboard", "canvas"].forEach((n) => {
+        currentScreenName = name;
+        [
+          "loading",
+          "setup",
+          "auth",
+          "dashboard",
+          "presentation",
+          "shared-presentation",
+          "canvas",
+        ].forEach((n) => {
           const el = document.getElementById("screen-" + n);
           if (el) el.style.display = "none";
         });
         const target = document.getElementById("screen-" + name);
         if (target)
           target.style.display =
-            name === "dashboard" || name === "canvas" ? "block" : "flex";
+            name === "dashboard" ||
+            name === "canvas" ||
+            name === "presentation" ||
+            name === "shared-presentation"
+              ? "block"
+              : "flex";
         syncDailyTodoWidgetVisibility(name);
         syncGeneralTodoWidgetVisibility(name);
       }
 
-      function saveLastView(screen, projectId = null) {
+      function saveLastView(screen, projectId = null, presentationId = null) {
         try {
           localStorage.setItem(
             LAST_VIEW_STORAGE_KEY,
             JSON.stringify({
               screen,
               projectId: projectId || null,
+              presentationId: presentationId || null,
             }),
           );
         } catch {}
@@ -3919,6 +4750,11 @@
             : firebase.initializeApp(config);
           fbAuth = firebase.auth();
           fbDb = firebase.firestore();
+          const sharedToken = getSharedPresentationTokenFromUrl();
+          if (sharedToken) {
+            loadSharedPresentation(sharedToken);
+            return;
+          }
           fbAuth.onAuthStateChanged((user) => {
             if (user) {
               currentUser = user;
@@ -3954,7 +4790,9 @@
       async function signOut() {
         await fbAuth.signOut();
         projects = [];
+        presentations = [];
         currentProject = null;
+        currentPresentation = null;
         saveLastView("dashboard");
         show("auth");
       }
@@ -3975,12 +4813,15 @@
         initColorSwatches();
         setupCanvasEvents();
         setupDashboardEvents();
+        setupPresentationEvents();
         loadProjects();
       }
 
       // ===================== FIRESTORE =====================
       const pRef = () =>
         fbDb.collection("users").doc(currentUser.uid).collection("projects");
+      const presentationRef = () =>
+        fbDb.collection("users").doc(currentUser.uid).collection("presentations");
       const imageAssetRef = () =>
         fbDb.collection("users").doc(currentUser.uid).collection("image_assets");
       const dashboardRef = () =>
@@ -3989,6 +4830,49 @@
           .doc(currentUser.uid)
           .collection("meta")
           .doc("dashboard");
+      const publicPresentationRef = (token = null) => {
+        const coll = fbDb.collection("public_presentations");
+        return token ? coll.doc(token) : coll;
+      };
+
+      function getSharedPresentationTokenFromUrl() {
+        try {
+          return (
+            new URLSearchParams(window.location.search).get(
+              PRESENTATION_PUBLIC_QUERY_KEY,
+            ) || ""
+          ).trim();
+        } catch {
+          return "";
+        }
+      }
+
+      function getBaseAppUrl() {
+        const url = new URL(window.location.href);
+        url.searchParams.delete(PRESENTATION_PUBLIC_QUERY_KEY);
+        url.hash = "";
+        return url.toString();
+      }
+
+      function getSharedPresentationUrl(token) {
+        const url = new URL(getBaseAppUrl());
+        url.searchParams.set(PRESENTATION_PUBLIC_QUERY_KEY, token);
+        return url.toString();
+      }
+
+      function makePresentationId() {
+        return `pr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      }
+
+      function makePresentationItemId() {
+        return `pri-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      }
+
+      function makePresentationShareToken() {
+        return `share-${Date.now().toString(36)}${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+      }
 
       function getImageAssetDocId(projectId, nodeId) {
         return `${projectId}__${nodeId}`;
@@ -4080,6 +4964,226 @@
         }
       }
 
+      function normalizePresentationData(presentation = {}) {
+        return {
+          id: presentation.id || makePresentationId(),
+          name: String(presentation.name || "Untitled Presentation"),
+          description: String(presentation.description || ""),
+          created: Number(presentation.created) || Date.now(),
+          updatedAt: Number(presentation.updatedAt) || Date.now(),
+          shareToken: presentation.shareToken || null,
+          items: Array.isArray(presentation.items)
+            ? presentation.items
+                .map((item) => ({
+                  id: item.id || makePresentationItemId(),
+                  projectId: item.projectId || null,
+                  x: Number(item.x) || 120,
+                  y: Number(item.y) || 120,
+                }))
+                .filter((item) => item.projectId)
+            : [],
+          objects: normalizeOverviewItemDataList(
+            JSON.parse(JSON.stringify(presentation.objects || [])),
+          ).filter((item) =>
+            ["text", "note", "heading", "line", "frame"].includes(item.type),
+          ),
+        };
+      }
+
+      function getPresentationById(presentationId) {
+        return (
+          presentations.find((presentation) => presentation.id === presentationId) ||
+          null
+        );
+      }
+
+      function getPresentationProjectIds(presentation = currentPresentation) {
+        return new Set((presentation?.items || []).map((item) => item.projectId));
+      }
+
+      function getPresentationGridPosition(index = 0) {
+        const column = index % 3;
+        const row = Math.floor(index / 3);
+        return {
+          x: 120 + column * 360,
+          y: 120 + row * 280,
+        };
+      }
+
+      function getPresentationViewportCenter() {
+        const canvas = document.getElementById("presentation-canvas");
+        if (!canvas) return { x: 220, y: 180 };
+        return {
+          x: canvas.scrollLeft + canvas.clientWidth / 2,
+          y: canvas.scrollTop + canvas.clientHeight / 2,
+        };
+      }
+
+      function makePresentationObject(type) {
+        const pos = getPresentationViewportCenter();
+        const x = Math.max(60, Math.round(pos.x - 110));
+        const y = Math.max(60, Math.round(pos.y - 60));
+        const id = "po" + Date.now() + Math.floor(Math.random() * 1000);
+        if (isSharedTextObjectType(type)) {
+          return createSharedTextObjectState(id, type, x, y, {}, "dashboard");
+        }
+        if (type === "line") return { id, type, x, y, w: 220 };
+        return { id, type, x, y, text: "Quick note" };
+      }
+
+      function formatPresentationTimestamp(ts) {
+        if (!ts) return "No date";
+        return new Date(ts).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+      }
+
+      function buildPublicProjectSnapshot(project) {
+        return {
+          id: project.id,
+          name: project.name || "Untitled",
+          desc: project.desc || "",
+          status: project.status || "In Progress",
+          color: project.color || "#ffffff",
+          category: project.category || categoryFromColor(project.color || "#ffffff"),
+          created: project.created || Date.now(),
+          nodeCount: Array.isArray(project.nodes) ? project.nodes.length : 0,
+          connectionCount: Array.isArray(project.connections)
+            ? project.connections.length
+            : 0,
+        };
+      }
+
+      function buildPublishedPresentationPayload(presentation) {
+        return {
+          ownerId: currentUser?.uid || null,
+          presentationId: presentation.id,
+          name: presentation.name || "Untitled Presentation",
+          description: presentation.description || "",
+          created: presentation.created || Date.now(),
+          updatedAt: Date.now(),
+          objects: JSON.parse(JSON.stringify(presentation.objects || [])),
+          items: (presentation.items || [])
+            .map((item) => {
+              const project = projects.find((entry) => entry.id === item.projectId);
+              if (!project) return null;
+              return {
+                id: item.id,
+                projectId: item.projectId,
+                x: item.x,
+                y: item.y,
+                snapshot: buildPublicProjectSnapshot(project),
+              };
+            })
+            .filter(Boolean),
+        };
+      }
+
+      async function publishPresentation(presentation) {
+        if (!presentation || !currentUser) return;
+        if (!presentation.shareToken)
+          presentation.shareToken = makePresentationShareToken();
+        const payload = buildPublishedPresentationPayload(presentation);
+        await publicPresentationRef(presentation.shareToken).set(payload, {
+          merge: true,
+        });
+      }
+
+      async function deletePresentationFromFirestore(presentation) {
+        if (!presentation || !currentUser) return;
+        try {
+          await presentationRef().doc(presentation.id).delete();
+          if (presentation.shareToken) {
+            await publicPresentationRef(presentation.shareToken).delete();
+          }
+        } catch (e) {
+          showToast("Presentation delete failed: " + e.message);
+        }
+      }
+
+      async function savePresentationToFirestore(presentation) {
+        if (!presentation || !currentUser) return;
+        presentation.updatedAt = Date.now();
+        setSyncStatus("syncing");
+        try {
+          await presentationRef().doc(presentation.id).set(
+            {
+              name: presentation.name,
+              description: presentation.description || "",
+              created: presentation.created || Date.now(),
+              updatedAt: presentation.updatedAt,
+              shareToken: presentation.shareToken || null,
+              items: presentation.items || [],
+              objects: presentation.objects || [],
+            },
+            { merge: true },
+          );
+          if (presentation.shareToken) await publishPresentation(presentation);
+          setSyncStatus("synced");
+        } catch (e) {
+          setSyncStatus("error");
+          showToast("Presentation save failed: " + e.message);
+        }
+      }
+
+      function queuePresentationSave(presentation = currentPresentation) {
+        if (!presentation) return;
+        captureHistory();
+        if (presentationSaveTimer) clearTimeout(presentationSaveTimer);
+        presentationSaveTimer = setTimeout(
+          () => savePresentationToFirestore(presentation),
+          300,
+        );
+      }
+
+      async function syncPublishedPresentationsForProject(project) {
+        if (!project || !currentUser) return;
+        const linked = presentations.filter(
+          (presentation) =>
+            presentation.shareToken &&
+            presentation.items.some((item) => item.projectId === project.id),
+        );
+        if (!linked.length) return;
+        await Promise.all(
+          linked.map((presentation) => publishPresentation(presentation).catch(() => {})),
+        );
+      }
+
+      function removeProjectFromPresentations(projectId) {
+        const affected = [];
+        presentations.forEach((presentation) => {
+          const nextItems = (presentation.items || []).filter(
+            (item) => item.projectId !== projectId,
+          );
+          if (nextItems.length !== (presentation.items || []).length) {
+            presentation.items = nextItems;
+            presentation.updatedAt = Date.now();
+            affected.push(presentation);
+          }
+        });
+        if (currentPresentation) {
+          currentPresentation =
+            getPresentationById(currentPresentation.id) || currentPresentation;
+        }
+        affected.forEach((presentation) => savePresentationToFirestore(presentation));
+      }
+
+      function syncPresentationItemsWithProjects() {
+        const validProjectIds = new Set(projects.map((project) => project.id));
+        presentations = presentations.map((presentation) => {
+          const normalized = normalizePresentationData(presentation);
+          normalized.items = normalized.items.filter((item) =>
+            validProjectIds.has(item.projectId),
+          );
+          return normalized;
+        });
+        if (currentPresentation) {
+          currentPresentation = getPresentationById(currentPresentation.id);
+        }
+      }
+
       function setSyncStatus(s) {
         const dot = document.getElementById("sync-dot"),
           lbl = document.getElementById("sync-label");
@@ -4105,8 +5209,11 @@
       function serializeAppState() {
         return JSON.stringify({
           projects,
+          presentations,
           overviewItems,
           currentProjectId: currentProject?.id || null,
+          currentPresentationId: currentPresentation?.id || null,
+          currentScreenName,
           canvas: currentProject
             ? { nodes, connections, viewOffset, viewScale, targetScale }
             : null,
@@ -4131,6 +5238,9 @@
         projects.forEach((project) => {
           project.nodes = normalizeNodeDataList(project.nodes || []);
         });
+        presentations = JSON.parse(JSON.stringify(state.presentations || [])).map(
+          (presentation) => normalizePresentationData(presentation),
+        );
         overviewItems = normalizeOverviewItemDataList(
           JSON.parse(JSON.stringify(state.overviewItems || [])),
         );
@@ -4141,6 +5251,9 @@
         selectedConn = null;
         currentProject = state.currentProjectId
           ? projects.find((p) => p.id === state.currentProjectId) || null
+          : null;
+        currentPresentation = state.currentPresentationId
+          ? getPresentationById(state.currentPresentationId)
           : null;
         if (currentProject) {
           nodes = JSON.parse(
@@ -4164,6 +5277,9 @@
           show("canvas");
           renderAll();
           applyTransform();
+        } else if (state.currentScreenName === "presentation") {
+          show("presentation");
+          renderPresentationScreen();
         } else {
           nodes = [];
           connections = [];
@@ -4196,10 +5312,12 @@
         show("loading");
         setSyncStatus("syncing");
         try {
-          const [snap, dashboardSnap, imageAssetSnap] = await Promise.all([
+          const [snap, dashboardSnap, imageAssetSnap, presentationSnap] =
+            await Promise.all([
             pRef().orderBy("created", "asc").get(),
             dashboardRef().get(),
             imageAssetRef().get(),
+            presentationRef().orderBy("created", "asc").get(),
           ]);
           const imageAssetMap = buildImageAssetMap(imageAssetSnap.docs);
           projects = snap.docs.map((d) => {
@@ -4207,17 +5325,33 @@
             project.nodes = normalizeNodeDataList(project.nodes || []);
             return hydrateProjectImageNodes(project, imageAssetMap);
           });
+          presentations = presentationSnap.docs.map((d) =>
+            normalizePresentationData({ id: d.id, ...d.data() }),
+          );
           await migrateLegacyProjectImageAssets(projects);
           overviewItems = dashboardSnap.exists
             ? normalizeOverviewItemDataList(dashboardSnap.data().items || [])
             : [];
+          syncPresentationItemsWithProjects();
           if (!projects.length) await seedDefaultProject();
           setSyncStatus("synced");
           const lastView = loadLastView();
           const lastProjectId =
             lastView?.screen === "canvas" ? lastView.projectId : null;
-          if (lastProjectId && projects.some((project) => project.id === lastProjectId)) {
+          const lastPresentationId =
+            lastView?.screen === "presentation" ? lastView.presentationId : null;
+          if (
+            lastProjectId &&
+            projects.some((project) => project.id === lastProjectId)
+          ) {
             openProject(lastProjectId);
+          } else if (
+            lastPresentationId &&
+            presentations.some(
+              (presentation) => presentation.id === lastPresentationId,
+            )
+          ) {
+            openPresentationHub(lastPresentationId);
           } else {
             show("dashboard");
             renderDashboard();
@@ -4241,6 +5375,11 @@
         try {
           const { id, ...data } = sanitizeProjectForSave(p);
           await pRef().doc(id).set(data);
+          try {
+            await syncPublishedPresentationsForProject(p);
+          } catch (syncError) {
+            showToast("Presentation sync warning: " + syncError.message);
+          }
           setSyncStatus("synced");
           setSaveStatus("saved");
         } catch (e) {
@@ -4261,6 +5400,7 @@
 
       async function deleteFromFirestore(id) {
         try {
+          removeProjectFromPresentations(id);
           await pRef().doc(id).delete();
           const imageDocs = await imageAssetRef().where("projectId", "==", id).get();
           await Promise.all(imageDocs.docs.map((doc) => doc.ref.delete().catch(() => {})));
@@ -6593,6 +7733,7 @@
                 projects = projects.filter((x) => x.id !== p.id);
                 deleteFromFirestore(p.id);
                 renderDashboard();
+                renderPresentationScreen();
                 showToast("Deleted");
               },
             });
@@ -6716,6 +7857,682 @@
           expandedProjectIds.has(project.id),
           (project.desc || "").trim().length > 72,
         );
+      }
+
+      function getProjectSummaryStats(project) {
+        return {
+          nodeCount:
+            typeof project?.nodeCount === "number"
+              ? project.nodeCount
+              : Array.isArray(project?.nodes)
+                ? project.nodes.length
+                : 0,
+          connectionCount:
+            typeof project?.connectionCount === "number"
+              ? project.connectionCount
+              : Array.isArray(project?.connections)
+                ? project.connections.length
+                : 0,
+        };
+      }
+
+      function bindEditableProjectStatus({
+        project,
+        statusBtn,
+        statusMenu,
+        onChange = null,
+      }) {
+        if (!project || !statusBtn || !statusMenu) return;
+        statusBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          document.querySelectorAll(".card-status-menu.open").forEach((menu) => {
+            if (menu !== statusMenu) menu.classList.remove("open");
+          });
+          document.querySelectorAll(".card-status.open").forEach((btn) => {
+            if (btn !== statusBtn) btn.classList.remove("open");
+          });
+          statusBtn.classList.toggle("open");
+          statusMenu.classList.toggle("open");
+        });
+        statusMenu.querySelectorAll(".card-status-option").forEach((option) =>
+          option.addEventListener("click", (e) => {
+            e.stopPropagation();
+            project.status = option.dataset.value;
+            statusBtn.textContent = project.status;
+            statusBtn.dataset.status = statusSlug(project.status);
+            statusBtn.classList.remove("open");
+            statusMenu.classList.remove("open");
+            statusMenu
+              .querySelectorAll(".card-status-option")
+              .forEach((item) => item.classList.toggle("active", item === option));
+            queueProjectSave(project);
+            if (typeof onChange === "function") onChange();
+          }),
+        );
+      }
+
+      function createPresentationProjectCardEl(
+        item,
+        project,
+        { viewer = false } = {},
+      ) {
+        const { nodeCount, connectionCount } = getProjectSummaryStats(project);
+        const autoSize = getProjectAutoSize(
+          project,
+          false,
+          (project.desc || "").trim().length > 72,
+        );
+        const cardWidth = Math.max(project.w || DEFAULT_PROJECT_CARD_WIDTH, autoSize.w);
+        const cardHeight = Math.max(
+          project.h || DEFAULT_PROJECT_CARD_HEIGHT,
+          autoSize.h,
+        );
+        const date = new Date(project.created || Date.now()).toLocaleDateString(
+          "en-US",
+          {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          },
+        );
+        const el = document.createElement("div");
+        el.className = `project-card presentation-card${viewer ? " viewer-card" : ""}`;
+        el.style.setProperty("--card-accent", project.color || "#fff");
+        el.style.left = `${item.x || 0}px`;
+        el.style.top = `${item.y || 0}px`;
+        el.style.width = `${cardWidth}px`;
+        el.style.height = `${cardHeight}px`;
+        el.style.setProperty("--card-width", `${cardWidth}px`);
+        el.dataset.presentationItemId = item.id;
+        el.dataset.projectId = item.projectId || project.id;
+        const statusMarkup = viewer
+          ? `<div class="card-status" data-status="${statusSlug(project.status)}">${esc(project.status || "In Progress")}</div>`
+          : `<div class="card-status-wrap">
+              <button class="card-status" type="button" data-status="${statusSlug(project.status)}">${esc(project.status || "In Progress")}</button>
+              <div class="card-status-menu">
+                ${PROJECT_STATUSES.map((status) => `<button class="card-status-option${status === (project.status || "In Progress") ? " active" : ""}" type="button" data-value="${esc(status)}" data-status="${statusSlug(status)}"><span class="card-status-dot" style="--status-color:${status === "Done" ? "var(--green)" : status === "On Going" ? "var(--blue)" : status === "In Progress" ? "var(--yellow)" : status === "Cancelled" ? "var(--red)" : status === "Postponed" ? "var(--purple)" : "var(--blue)"}"></span>${esc(status)}</button>`).join("")}
+              </div>
+            </div>`;
+        el.innerHTML = `
+          ${
+            viewer
+              ? ""
+              : `<button class="card-del" title="Remove from presentation">✕</button>
+          <button class="card-edit" title="Edit linked card">⋯</button>`
+          }
+          <div class="card-meta"><span class="card-date">${date}</span></div>
+          <div class="card-title">${esc(project.name || "Untitled")}</div>
+          <div class="card-desc">${esc(project.desc || "")}</div>
+          <div class="card-bottom">
+            <div class="card-bottom-meta">
+              ${statusMarkup}
+              <div class="card-stats"><div class="card-stat"><span>${nodeCount}</span> nodes</div><div class="card-stat"><span>${connectionCount}</span> links</div></div>
+            </div>
+            ${viewer ? "" : `<button class="card-open" type="button" aria-label="Open linked card">→</button>`}
+          </div>`;
+        if (viewer) return el;
+        el.querySelector(".card-del")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          removePresentationItem(item.id);
+        });
+        el.querySelector(".card-edit")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openEditProjectModal(project.id);
+        });
+        el.querySelector(".card-open")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openProject(project.id, "presentation");
+        });
+        bindEditableProjectStatus({
+          project,
+          statusBtn: el.querySelector(".card-status"),
+          statusMenu: el.querySelector(".card-status-menu"),
+          onChange: () => {
+            renderPresentationScreen();
+            renderDashboard();
+          },
+        });
+        el.addEventListener("mousedown", (e) => {
+          if (
+            e.target.closest(".card-del") ||
+            e.target.closest(".card-edit") ||
+            e.target.closest(".card-open") ||
+            e.target.closest(".card-status") ||
+            e.target.closest(".card-status-menu")
+          ) {
+            return;
+          }
+          startPresentationItemDrag(e, item, el);
+        });
+        el.addEventListener("dblclick", (e) => {
+          if (e.target.closest(".card-status")) return;
+          openProject(project.id, "presentation");
+        });
+        return el;
+      }
+
+      function renderPresentationList() {
+        const listEl = document.getElementById("presentation-list");
+        if (!listEl) return;
+        listEl.innerHTML = "";
+        presentations.forEach((presentation) => {
+          const item = document.createElement("div");
+          item.className =
+            "presentation-list-item" +
+            (currentPresentation?.id === presentation.id ? " active" : "");
+          item.innerHTML = `<div class="presentation-list-row">
+            <div class="presentation-list-copy">
+              <span class="presentation-list-stamp">${esc(formatPresentationTimestamp(presentation.updatedAt || presentation.created))}</span>
+              <div class="presentation-list-name">${esc(presentation.name || "Untitled Presentation")}</div>
+              <div class="presentation-list-meta">
+                <span>${(presentation.items || []).length} cards</span>
+                <span class="presentation-share-state">${presentation.shareToken ? "Shared" : "Private"}</span>
+              </div>
+            </div>
+            <button class="presentation-list-delete" type="button" aria-label="Delete presentation">✕</button>
+          </div>`;
+          item.addEventListener("click", () => {
+            currentPresentation = presentation;
+            renderPresentationScreen();
+            saveLastView("presentation", null, presentation.id);
+          });
+          item
+            .querySelector(".presentation-list-delete")
+            ?.addEventListener("click", (e) => {
+              e.stopPropagation();
+              currentPresentation = presentation;
+              requestDeleteCurrentPresentation();
+            });
+          listEl.appendChild(item);
+        });
+      }
+
+      function updatePresentationPrivacyUI() {
+        const dot = document.getElementById("presentation-privacy-dot");
+        const label = document.getElementById("presentation-privacy-label");
+        const pathStatus = document.getElementById("presentation-path-status");
+        const shared = !!currentPresentation?.shareToken;
+        if (dot) {
+          dot.classList.remove("private", "shared");
+          dot.classList.add(shared ? "shared" : "private");
+        }
+        if (label) label.textContent = shared ? "Shared" : "Private";
+        if (pathStatus)
+          pathStatus.textContent = shared
+            ? "Shared Presentation"
+            : "Private Presentation";
+      }
+
+      function createPresentationObjectEl(obj, { viewer = false } = {}) {
+        const el = document.createElement("div");
+        el.className = `presentation-object presentation-object-${obj.type}`;
+        el.dataset.objectId = obj.id;
+        el.style.left = `${obj.x || 0}px`;
+        el.style.top = `${obj.y || 0}px`;
+        if (obj.type === "line") {
+          el.innerHTML = `<div class="content overview-item-line"></div>`;
+          el.style.width = `${obj.w || 220}px`;
+        } else if (obj.type === "frame") {
+          el.classList.add("overview-item-frame");
+          el.innerHTML = `${renderSharedTextObjectHTML(obj.type, obj.text || "Group")}
+            ${
+              viewer
+                ? ""
+                : `<div class="overview-resize-handle resize-tl" data-dir="tl"></div>
+            <div class="overview-resize-handle resize-tr" data-dir="tr"></div>
+            <div class="overview-resize-handle resize-bl" data-dir="bl"></div>
+            <div class="overview-resize-handle resize-br" data-dir="br"></div>`
+            }`;
+          el.style.width = `${obj.w || 260}px`;
+          el.style.height = `${obj.h || 180}px`;
+          if (!viewer) {
+            bindSharedTextObjectEditor(el.querySelector(".content"), obj.type, (text) => {
+              obj.text = text;
+              queuePresentationSave(currentPresentation);
+            });
+            el.querySelectorAll(".overview-resize-handle").forEach((handle) =>
+              handle.addEventListener("mousedown", (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                startPresentationObjectResize(e, obj, handle.dataset.dir, el);
+              }),
+            );
+          }
+        } else if (isUnifiedTextNoteType(obj.type)) {
+          el.classList.add("node", `node-${obj.type}`);
+          el.innerHTML =
+            renderSharedTextNoteShellHTML({
+              type: obj.type,
+              text: obj.text || "",
+              label: obj.customTitle || "Note",
+              accent: currentPresentation?.shareToken ? "#44ff88" : "#333",
+              contentClassName: "content node-content",
+              actionsHTML: viewer
+                ? ""
+                : `<button class="node-act-btn" type="button" onclick="requestDeletePresentationObject('${obj.id}')">✕</button>`,
+              settingsHTML: "",
+            }) +
+            (viewer
+              ? ""
+              : `<div class="node-resize-handle resize-tl" data-dir="tl"></div>
+            <div class="node-resize-handle resize-tr" data-dir="tr"></div>
+            <div class="node-resize-handle resize-bl" data-dir="bl"></div>
+            <div class="node-resize-handle resize-br" data-dir="br"></div>`);
+          if (obj.w) el.style.width = `${obj.w}px`;
+          if (obj.h) el.style.height = `${obj.h}px`;
+          if (!viewer) {
+            bindUnifiedNoteObjectBehavior({
+              el,
+              type: obj.type,
+              onCommit: (text) => {
+                obj.text = text;
+                queuePresentationSave(currentPresentation);
+              },
+              onLabelCommit: (label) => {
+                obj.customTitle = label || "Note";
+                queuePresentationSave(currentPresentation);
+              },
+              onPointerDown: (e) => startPresentationObjectDrag(e, obj, el),
+              onResizeStart: (e, dir) =>
+                startPresentationObjectResize(e, obj, dir, el),
+            });
+          }
+        } else {
+          el.innerHTML = renderSharedTextObjectHTML(
+            obj.type,
+            obj.text || "Heading",
+            "content",
+          );
+          if (!viewer) {
+            bindSharedTextObjectEditor(el.querySelector(".content"), obj.type, (text) => {
+              obj.text = text;
+              queuePresentationSave(currentPresentation);
+            });
+          }
+        }
+        if (!viewer) {
+          if (!isUnifiedTextNoteType(obj.type)) {
+            const delBtn = document.createElement("button");
+            delBtn.type = "button";
+            delBtn.className = "presentation-object-delete";
+            delBtn.textContent = "✕";
+            delBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              requestDeletePresentationObject(obj.id);
+            });
+            el.appendChild(delBtn);
+          }
+          el.addEventListener("mousedown", (e) => {
+            if (
+              e.target.closest(".node-resize-handle") ||
+              e.target.closest(".overview-resize-handle") ||
+              e.target.closest(".node-act-btn") ||
+              e.target.closest(".presentation-object-delete")
+            ) {
+              return;
+            }
+            if (e.target.isContentEditable && !e.altKey) return;
+            startPresentationObjectDrag(e, obj, el);
+          });
+        }
+        return el;
+      }
+
+      function renderPresentationWorld() {
+        const world = document.getElementById("presentation-world");
+        if (!world) return;
+        world.innerHTML = "";
+        if (!currentPresentation) return;
+        (currentPresentation.objects || []).forEach((obj) => {
+          world.appendChild(createPresentationObjectEl(obj));
+        });
+        (currentPresentation.items || []).forEach((item) => {
+          const project = projects.find((entry) => entry.id === item.projectId);
+          if (!project) return;
+          world.appendChild(createPresentationProjectCardEl(item, project));
+        });
+      }
+
+      function renderPresentationScreen() {
+        const titleInput = document.getElementById("presentation-title-input");
+        const metaEl = document.getElementById("presentation-meta");
+        const countEl = document.getElementById("presentation-card-count");
+        const addBtn = document.getElementById("presentation-tool-cards");
+        const shareBtn = document.getElementById("presentation-share-btn");
+        const deleteBtn = document.getElementById("presentation-delete-btn");
+        const emptyEl = document.getElementById("presentation-empty-state");
+        const emptyAction = document.getElementById("presentation-empty-action");
+        const sidebarCurrent = document.getElementById("presentation-sidebar-current");
+        const world = document.getElementById("presentation-world");
+        document
+          .querySelectorAll("#presentation-toolbar .tool-btn")
+          .forEach((btn) => {
+            btn.disabled = !currentPresentation;
+          });
+        renderPresentationList();
+        if (!world) return;
+        const hasPresentation = Boolean(currentPresentation);
+        if (titleInput) titleInput.disabled = !hasPresentation;
+        if (addBtn) addBtn.disabled = !hasPresentation;
+        if (shareBtn) shareBtn.disabled = !hasPresentation;
+        if (deleteBtn) deleteBtn.disabled = !hasPresentation;
+        if (sidebarCurrent)
+          sidebarCurrent.classList.toggle("empty", !hasPresentation);
+        if (!hasPresentation) {
+          if (titleInput) titleInput.value = "";
+          if (metaEl) metaEl.textContent = "No presentation selected";
+          if (countEl) countEl.textContent = "0 cards";
+          if (emptyAction) {
+            emptyAction.textContent = "Create Presentation";
+            emptyAction.onclick = () => createPresentation();
+          }
+          if (emptyEl) emptyEl.style.display = "block";
+          world.innerHTML = "";
+          updatePresentationPrivacyUI();
+          return;
+        }
+        if (emptyEl)
+          emptyEl.style.display =
+            (currentPresentation.items || []).length ||
+            (currentPresentation.objects || []).length
+            ? "none"
+            : "block";
+        if (emptyAction) {
+          emptyAction.textContent =
+            (currentPresentation.items || []).length ||
+            (currentPresentation.objects || []).length
+            ? "Add Cards"
+            : "Add Existing Cards";
+          emptyAction.onclick = () => openPresentationPicker();
+        }
+        if (titleInput) titleInput.value = currentPresentation.name || "";
+        if (metaEl)
+          metaEl.textContent = formatPresentationTimestamp(
+            currentPresentation.updatedAt || currentPresentation.created,
+          );
+        if (countEl)
+          countEl.textContent = `${(currentPresentation.items || []).length} cards`;
+        updatePresentationPrivacyUI();
+        renderPresentationWorld();
+      }
+
+      function createPresentation(initialProjectIds = []) {
+        const presentation = normalizePresentationData({
+          id: makePresentationId(),
+          name: `Presentation ${presentations.length + 1}`,
+          created: Date.now(),
+          items: [],
+          objects: [],
+        });
+        presentations.push(presentation);
+        currentPresentation = presentation;
+        addProjectsToPresentation(initialProjectIds, false);
+        savePresentationToFirestore(presentation);
+        show("presentation");
+        renderPresentationScreen();
+        saveLastView("presentation", null, presentation.id);
+      }
+
+      function openPresentationHub(presentationId = null) {
+        currentPresentation = presentationId
+          ? getPresentationById(presentationId)
+          : currentPresentation || presentations[0] || null;
+        show("presentation");
+        renderPresentationScreen();
+        saveLastView("presentation", null, currentPresentation?.id || null);
+      }
+
+      function returnFromPresentation() {
+        currentPresentation = currentPresentation
+          ? getPresentationById(currentPresentation.id)
+          : null;
+        show("dashboard");
+        renderDashboard();
+        setTimeout(dashboardResetView, 60);
+        saveLastView("dashboard");
+      }
+
+      function addProjectsToPresentation(projectIds = [], shouldSave = true) {
+        if (!currentPresentation || !projectIds.length) return;
+        const existingIds = getPresentationProjectIds(currentPresentation);
+        let added = 0;
+        projectIds.forEach((projectId) => {
+          if (!projectId || existingIds.has(projectId)) return;
+          const position = getPresentationGridPosition(
+            (currentPresentation.items || []).length + added,
+          );
+          currentPresentation.items.push({
+            id: makePresentationItemId(),
+            projectId,
+            x: position.x,
+            y: position.y,
+          });
+          added += 1;
+        });
+        if (!added) return;
+        if (shouldSave) queuePresentationSave(currentPresentation);
+        renderPresentationScreen();
+      }
+
+      function addPresentationObject(type) {
+        if (!currentPresentation) return;
+        currentPresentation.objects = currentPresentation.objects || [];
+        currentPresentation.objects.push(makePresentationObject(type));
+        queuePresentationSave(currentPresentation);
+        renderPresentationScreen();
+      }
+
+      function removePresentationItem(itemId) {
+        if (!currentPresentation) return;
+        currentPresentation.items = (currentPresentation.items || []).filter(
+          (item) => item.id !== itemId,
+        );
+        queuePresentationSave(currentPresentation);
+        renderPresentationScreen();
+      }
+
+      function requestDeletePresentationObject(id) {
+        if (!currentPresentation) return;
+        const obj = (currentPresentation.objects || []).find((entry) => entry.id === id);
+        if (!obj) return;
+        openConfirmDialog({
+          title: "Delete Object",
+          message: `Delete "${obj.type}"?`,
+          confirmLabel: "Delete",
+          onConfirm: () => {
+            currentPresentation.objects = (currentPresentation.objects || []).filter(
+              (entry) => entry.id !== id,
+            );
+            queuePresentationSave(currentPresentation);
+            renderPresentationScreen();
+          },
+        });
+      }
+
+      function requestDeleteCurrentPresentation() {
+        if (!currentPresentation) return;
+        openConfirmDialog({
+          title: "Delete Presentation",
+          message: `Delete "${currentPresentation.name}" and its shared link?`,
+          confirmLabel: "Delete",
+          onConfirm: async () => {
+            const presentationId = currentPresentation.id;
+            const target = getPresentationById(presentationId);
+            presentations = presentations.filter(
+              (presentation) => presentation.id !== presentationId,
+            );
+            currentPresentation = presentations[0] || null;
+            renderPresentationScreen();
+            await deletePresentationFromFirestore(target);
+            if (!presentations.length) {
+              document.getElementById("presentation-empty-state").style.display =
+                "block";
+            }
+          },
+        });
+      }
+
+      function startPresentationItemDrag(e, item, el) {
+        if (!currentPresentation || e.button !== 0) return;
+        const canvas = document.getElementById("presentation-canvas");
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        presentationDragItemId = item.id;
+        presentationDragOffset = {
+          x: e.clientX - rect.left + canvas.scrollLeft - (item.x || 0),
+          y: e.clientY - rect.top + canvas.scrollTop - (item.y || 0),
+        };
+        el.classList.add("dragging");
+        e.preventDefault();
+      }
+
+      function startPresentationObjectDrag(e, obj, el) {
+        if (!currentPresentation || e.button !== 0) return;
+        const canvas = document.getElementById("presentation-canvas");
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        presentationDragObjectId = obj.id;
+        presentationObjectDragOffset = {
+          x: e.clientX - rect.left + canvas.scrollLeft - (obj.x || 0),
+          y: e.clientY - rect.top + canvas.scrollTop - (obj.y || 0),
+        };
+        el.classList.add("dragging");
+        e.preventDefault();
+      }
+
+      function startPresentationObjectResize(e, obj, dir, el) {
+        if (!currentPresentation) return;
+        presentationResizeObjectId = obj.id;
+        presentationResizeStart = {
+          x: e.clientX,
+          y: e.clientY,
+          w: el.offsetWidth,
+          h: el.offsetHeight,
+          dir,
+          startX: obj.x,
+          startY: obj.y,
+        };
+      }
+
+      async function copyCurrentPresentationShareLink() {
+        if (!currentPresentation) return;
+        try {
+          if (!currentPresentation.shareToken) {
+            currentPresentation.shareToken = makePresentationShareToken();
+          }
+          await savePresentationToFirestore(currentPresentation);
+          const shareUrl = getSharedPresentationUrl(currentPresentation.shareToken);
+          await navigator.clipboard.writeText(shareUrl);
+          renderPresentationScreen();
+          showToast("Presentation link copied");
+        } catch (e) {
+          showToast("Could not copy link: " + e.message);
+        }
+      }
+
+      function openPresentationPicker() {
+        if (!currentPresentation) return;
+        presentationPickerSelection = new Set();
+        renderPresentationPicker();
+        document
+          .getElementById("presentation-picker-overlay")
+          .classList.add("visible");
+      }
+
+      function closePresentationPicker() {
+        document
+          .getElementById("presentation-picker-overlay")
+          .classList.remove("visible");
+      }
+
+      function renderPresentationPicker() {
+        const listEl = document.getElementById("presentation-picker-list");
+        if (!listEl) return;
+        const alreadyAdded = getPresentationProjectIds(currentPresentation);
+        listEl.innerHTML = "";
+        projects.forEach((project) => {
+          const row = document.createElement("div");
+          const isSelected = presentationPickerSelection.has(project.id);
+          const isAlreadyAdded = alreadyAdded.has(project.id);
+          row.className =
+            "presentation-picker-item" +
+            (isSelected ? " selected" : "") +
+            (isAlreadyAdded ? " already-added" : "");
+          row.innerHTML = `<div class="presentation-picker-check">${isSelected ? "✓" : ""}</div>
+            <div class="presentation-picker-copy">
+              <div class="presentation-picker-name">${esc(project.name || "Untitled")}</div>
+              <div class="presentation-picker-desc">${esc(project.desc || "No description yet.")}</div>
+            </div>`;
+          row.addEventListener("click", () => {
+            if (isAlreadyAdded) return;
+            if (presentationPickerSelection.has(project.id))
+              presentationPickerSelection.delete(project.id);
+            else presentationPickerSelection.add(project.id);
+            renderPresentationPicker();
+          });
+          listEl.appendChild(row);
+        });
+      }
+
+      function addSelectedProjectsToPresentation() {
+        if (!currentPresentation) return;
+        addProjectsToPresentation([...presentationPickerSelection], true);
+        closePresentationPicker();
+      }
+
+      function renderSharedPresentation() {
+        const emptyEl = document.getElementById("shared-presentation-empty");
+        const world = document.getElementById("shared-presentation-world");
+        if (!emptyEl || !world) return;
+        world.innerHTML = "";
+        if (!sharedPresentation || !Array.isArray(sharedPresentation.items)) {
+          emptyEl.style.display = "block";
+          return;
+        }
+        emptyEl.style.display =
+          sharedPresentation.items.length ||
+          (sharedPresentation.objects || []).length ||
+          sharedPresentation.name
+            ? "none"
+            : "block";
+        (sharedPresentation.objects || []).forEach((obj) => {
+          world.appendChild(createPresentationObjectEl(obj, { viewer: true }));
+        });
+        sharedPresentation.items.forEach((item) => {
+          if (!item?.snapshot) return;
+          world.appendChild(
+            createPresentationProjectCardEl(item, item.snapshot, {
+              viewer: true,
+            }),
+          );
+        });
+      }
+
+      async function loadSharedPresentation(token) {
+        show("loading");
+        try {
+          const snap = await publicPresentationRef(token).get();
+          sharedPresentation = snap.exists
+            ? {
+                ...snap.data(),
+                objects: normalizeOverviewItemDataList(
+                  JSON.parse(JSON.stringify(snap.data().objects || [])),
+                ).filter((item) =>
+                  ["text", "note", "heading", "line", "frame"].includes(item.type),
+                ),
+              }
+            : null;
+          const openAppLink = document.getElementById("shared-presentation-open-app");
+          if (openAppLink) openAppLink.href = getBaseAppUrl();
+          renderSharedPresentation();
+          show("shared-presentation");
+        } catch (e) {
+          sharedPresentation = null;
+          const openAppLink = document.getElementById("shared-presentation-open-app");
+          if (openAppLink) openAppLink.href = getBaseAppUrl();
+          renderSharedPresentation();
+          show("shared-presentation");
+        }
       }
 
       function getContentLines(text) {
@@ -6948,6 +8765,7 @@
         newProjectPosition = null;
         closeModal();
         renderDashboard();
+        renderPresentationScreen();
         showToast(editingProjectId ? "Card updated" : "Project saved");
       }
       function buildProject(name, desc) {
@@ -7101,6 +8919,7 @@
             overviewSelection = null;
             applyOverviewSelectionClasses();
             renderDashboard();
+            renderPresentationScreen();
           },
         });
       }
@@ -7398,7 +9217,7 @@
         const world = document.getElementById("projects-world");
         const canvas = document.getElementById("dashboard-canvas");
         if (world)
-          world.style.transform = `translate(${dashboardViewOffset.x}px,${dashboardViewOffset.y}px) scale(${dashboardScale})`;
+          world.style.transform = `translate3d(${dashboardViewOffset.x}px, ${dashboardViewOffset.y}px, 0) scale(${dashboardScale})`;
         if (canvas) {
           canvas.style.setProperty("--dashboard-scale", dashboardScale);
           canvas.style.setProperty(
@@ -7448,7 +9267,7 @@
         ];
         if (!items.length) {
           dashboardViewOffset = isMobile ? { x: 120, y: 84 } : { x: 180, y: 110 };
-          dashboardScale = isMobile ? 0.34 : 0.52;
+          dashboardScale = dashboardTargetScale = isMobile ? 0.34 : 0.52;
           applyDashboardTransform();
           return;
         }
@@ -7465,7 +9284,7 @@
         const pad = isMobile ? 360 : 260;
         const worldW = maxX - minX + pad * 2;
         const worldH = maxY - minY + pad * 2;
-        dashboardScale = Math.min(
+        dashboardScale = dashboardTargetScale = Math.min(
           isMobile ? 0.34 : 0.52,
           Math.max(0.18, Math.min(rect.width / worldW, rect.height / worldH)),
         );
@@ -7484,12 +9303,15 @@
           .getBoundingClientRect();
         const px = rect.width / 2;
         const py = rect.height / 2;
-        const worldX = (px - dashboardViewOffset.x) / dashboardScale;
-        const worldY = (py - dashboardViewOffset.y) / dashboardScale;
-        dashboardScale = Math.max(0.12, Math.min(2.5, dashboardScale + delta));
-        dashboardViewOffset.x = px - worldX * dashboardScale;
-        dashboardViewOffset.y = py - worldY * dashboardScale;
-        applyDashboardTransform();
+        dashboardZoomOrigin = { x: px, y: py };
+        const baseScale = dashboardIsZooming
+          ? dashboardTargetScale
+          : dashboardScale;
+        dashboardTargetScale = Math.max(
+          0.12,
+          Math.min(2.5, baseScale + delta),
+        );
+        startDashboardZoom();
       }
 
       function getNewProjectPosition() {
@@ -7748,21 +9570,32 @@
             const rect = canvas.getBoundingClientRect();
             const px = e.clientX - rect.left;
             const py = e.clientY - rect.top;
+            const wheelDeltaX = normalizeWheelDelta(e.deltaX, e.deltaMode, rect.width);
+            const wheelDeltaY = normalizeWheelDelta(
+              e.deltaY,
+              e.deltaMode,
+              rect.height,
+            );
             if (e.ctrlKey || e.metaKey) {
-              const worldX = (px - dashboardViewOffset.x) / dashboardScale;
-              const worldY = (py - dashboardViewOffset.y) / dashboardScale;
-              const zoomFactor = Math.exp(-e.deltaY * 0.0025);
-              dashboardScale = Math.max(
-                0.12,
-                Math.min(2.5, dashboardScale * zoomFactor),
+              dashboardZoomOrigin = { x: px, y: py };
+              const baseScale = dashboardIsZooming
+                ? dashboardTargetScale
+                : dashboardScale;
+              const zoomFactor = Math.exp(
+                -wheelDeltaY * NAVIGATION_TUNING.wheelZoomSensitivity,
               );
-              dashboardViewOffset.x = px - worldX * dashboardScale;
-              dashboardViewOffset.y = py - worldY * dashboardScale;
+              dashboardTargetScale = Math.max(
+                0.12,
+                Math.min(2.5, baseScale * zoomFactor),
+              );
+              startDashboardZoom();
             } else {
-              dashboardViewOffset.x -= e.deltaX;
-              dashboardViewOffset.y -= e.deltaY;
+              dashboardViewOffset.x -=
+                wheelDeltaX * NAVIGATION_TUNING.wheelPanMultiplier;
+              dashboardViewOffset.y -=
+                wheelDeltaY * NAVIGATION_TUNING.wheelPanMultiplier;
+              applyDashboardTransform();
             }
-            applyDashboardTransform();
           },
           { passive: false },
         );
@@ -8336,9 +10169,10 @@
       }
 
       // ===================== CANVAS =====================
-      function openProject(id) {
+      function openProject(id, sourceScreen = "dashboard") {
         currentProject = projects.find((p) => p.id === id);
         if (!currentProject) return;
+        canvasReturnScreen = sourceScreen;
         nodes = normalizeNodeDataList(
           JSON.parse(JSON.stringify(currentProject.nodes || [])),
         );
@@ -8376,6 +10210,12 @@
           minimapRAF = null;
         }
         currentProject = null;
+        if (canvasReturnScreen === "presentation") {
+          show("presentation");
+          renderPresentationScreen();
+          saveLastView("presentation", null, currentPresentation?.id || null);
+          return;
+        }
         show("dashboard");
         saveLastView("dashboard");
         renderDashboard();
@@ -8425,7 +10265,7 @@
 
       function applyTransform() {
         document.getElementById("canvas-world").style.transform =
-          `translate(${viewOffset.x}px,${viewOffset.y}px) scale(${viewScale})`;
+          `translate3d(${viewOffset.x}px, ${viewOffset.y}px, 0) scale(${viewScale})`;
         const canvas = document.getElementById("canvas-container");
         if (canvas) {
           canvas.style.setProperty("--canvas-scale", viewScale);
@@ -9535,6 +11375,24 @@
         return { x: nd.x + el.offsetWidth / 2, y: nd.y + el.offsetHeight / 2 };
       }
 
+      function normalizeWheelDelta(delta, deltaMode, pageSize) {
+        if (deltaMode === 1) return delta * 16;
+        if (deltaMode === 2) return delta * pageSize;
+        return delta;
+      }
+
+      function startCanvasZoom() {
+        isZooming = true;
+        if (zoomRAF) cancelAnimationFrame(zoomRAF);
+        zoomRAF = requestAnimationFrame(smoothZoomLoop);
+      }
+
+      function startDashboardZoom() {
+        dashboardIsZooming = true;
+        if (dashboardZoomRAF) cancelAnimationFrame(dashboardZoomRAF);
+        dashboardZoomRAF = requestAnimationFrame(smoothDashboardZoomLoop);
+      }
+
       // ===================== SMOOTH ZOOM =====================
       function smoothZoomLoop() {
         const diff = targetScale - viewScale;
@@ -9546,12 +11404,200 @@
           return;
         }
         const prev = viewScale;
-        viewScale += diff * (isMobileViewport() ? 0.1 : 0.18);
+        viewScale +=
+          diff *
+          (isMobileViewport()
+            ? NAVIGATION_TUNING.zoomLerpMobile
+            : NAVIGATION_TUNING.zoomLerpDesktop);
         const ratio = viewScale / prev;
         viewOffset.x = zoomOrigin.x - ratio * (zoomOrigin.x - viewOffset.x);
         viewOffset.y = zoomOrigin.y - ratio * (zoomOrigin.y - viewOffset.y);
         applyTransform();
         zoomRAF = requestAnimationFrame(smoothZoomLoop);
+      }
+
+      function smoothDashboardZoomLoop() {
+        const diff = dashboardTargetScale - dashboardScale;
+        if (Math.abs(diff) < 0.0005) {
+          dashboardScale = dashboardTargetScale;
+          dashboardIsZooming = false;
+          dashboardZoomRAF = null;
+          applyDashboardTransform();
+          return;
+        }
+        const prev = dashboardScale;
+        dashboardScale +=
+          diff *
+          (isMobileViewport()
+            ? NAVIGATION_TUNING.zoomLerpMobile
+            : NAVIGATION_TUNING.zoomLerpDesktop);
+        const ratio = dashboardScale / prev;
+        dashboardViewOffset.x =
+          dashboardZoomOrigin.x -
+          ratio * (dashboardZoomOrigin.x - dashboardViewOffset.x);
+        dashboardViewOffset.y =
+          dashboardZoomOrigin.y -
+          ratio * (dashboardZoomOrigin.y - dashboardViewOffset.y);
+        applyDashboardTransform();
+        dashboardZoomRAF = requestAnimationFrame(smoothDashboardZoomLoop);
+      }
+
+      function setupPresentationEvents() {
+        const titleInput = document.getElementById("presentation-title-input");
+        const pickerOverlay = document.getElementById("presentation-picker-overlay");
+        if (titleInput && !titleInput.dataset.bound) {
+          titleInput.dataset.bound = "1";
+          titleInput.addEventListener("input", () => {
+            if (!currentPresentation) return;
+            currentPresentation.name =
+              titleInput.value.trim() || "Untitled Presentation";
+            queuePresentationSave(currentPresentation);
+            renderPresentationList();
+          });
+          titleInput.addEventListener("blur", () => {
+            if (!currentPresentation) return;
+            titleInput.value =
+              currentPresentation.name || "Untitled Presentation";
+            queuePresentationSave(currentPresentation);
+          });
+        }
+        if (pickerOverlay && !pickerOverlay.dataset.bound) {
+          pickerOverlay.dataset.bound = "1";
+          pickerOverlay.addEventListener("mousedown", (e) => {
+            if (e.target === pickerOverlay) closePresentationPicker();
+          });
+        }
+        if (!window.__bevPresentationDragBound) {
+          window.__bevPresentationDragBound = true;
+          window.addEventListener("mousemove", (e) => {
+            const canvas = document.getElementById("presentation-canvas");
+            if (!canvas || !currentPresentation) return;
+            const rect = canvas.getBoundingClientRect();
+            if (presentationDragItemId) {
+              const el = document.querySelector(
+                `.presentation-card[data-presentation-item-id="${presentationDragItemId}"]`,
+              );
+              const item = currentPresentation.items.find(
+                (entry) => entry.id === presentationDragItemId,
+              );
+              if (!el || !item) return;
+              item.x = Math.max(
+                20,
+                Math.round(
+                  e.clientX -
+                    rect.left +
+                    canvas.scrollLeft -
+                    presentationDragOffset.x,
+                ),
+              );
+              item.y = Math.max(
+                20,
+                Math.round(
+                  e.clientY -
+                    rect.top +
+                    canvas.scrollTop -
+                    presentationDragOffset.y,
+                ),
+              );
+              el.style.left = `${item.x}px`;
+              el.style.top = `${item.y}px`;
+              return;
+            }
+            if (presentationDragObjectId) {
+              const el = document.querySelector(
+                `.presentation-object[data-object-id="${presentationDragObjectId}"]`,
+              );
+              const obj = (currentPresentation.objects || []).find(
+                (entry) => entry.id === presentationDragObjectId,
+              );
+              if (!el || !obj) return;
+              obj.x = Math.max(
+                20,
+                Math.round(
+                  e.clientX -
+                    rect.left +
+                    canvas.scrollLeft -
+                    presentationObjectDragOffset.x,
+                ),
+              );
+              obj.y = Math.max(
+                20,
+                Math.round(
+                  e.clientY -
+                    rect.top +
+                    canvas.scrollTop -
+                    presentationObjectDragOffset.y,
+                ),
+              );
+              el.style.left = `${obj.x}px`;
+              el.style.top = `${obj.y}px`;
+              return;
+            }
+            if (presentationResizeObjectId) {
+              const el = document.querySelector(
+                `.presentation-object[data-object-id="${presentationResizeObjectId}"]`,
+              );
+              const obj = (currentPresentation.objects || []).find(
+                (entry) => entry.id === presentationResizeObjectId,
+              );
+              if (!el || !obj || !presentationResizeStart) return;
+              const dx = e.clientX - presentationResizeStart.x;
+              const dy = e.clientY - presentationResizeStart.y;
+              let w = presentationResizeStart.w;
+              let h = presentationResizeStart.h;
+              let x = presentationResizeStart.startX;
+              let y = presentationResizeStart.startY;
+              if (presentationResizeStart.dir.includes("r"))
+                w = Math.max(180, Math.round(presentationResizeStart.w + dx));
+              if (presentationResizeStart.dir.includes("l")) {
+                w = Math.max(180, Math.round(presentationResizeStart.w - dx));
+                x = Math.round(
+                  presentationResizeStart.startX +
+                    (presentationResizeStart.w - w),
+                );
+              }
+              if (presentationResizeStart.dir.includes("b"))
+                h = Math.max(
+                  obj.type === "frame" ? 140 : 84,
+                  Math.round(presentationResizeStart.h + dy),
+                );
+              if (presentationResizeStart.dir.includes("t")) {
+                h = Math.max(
+                  obj.type === "frame" ? 140 : 84,
+                  Math.round(presentationResizeStart.h - dy),
+                );
+                y = Math.round(
+                  presentationResizeStart.startY +
+                    (presentationResizeStart.h - h),
+                );
+              }
+              obj.w = w;
+              obj.h = h;
+              obj.x = x;
+              obj.y = y;
+              el.style.width = `${w}px`;
+              el.style.height = `${h}px`;
+              el.style.left = `${x}px`;
+              el.style.top = `${y}px`;
+            }
+          });
+          window.addEventListener("mouseup", () => {
+            if (
+              !presentationDragItemId &&
+              !presentationDragObjectId &&
+              !presentationResizeObjectId
+            )
+              return;
+            document
+              .querySelectorAll(".presentation-card.dragging, .presentation-object.dragging")
+              .forEach((el) => el.classList.remove("dragging"));
+            presentationDragItemId = null;
+            presentationDragObjectId = null;
+            presentationResizeObjectId = null;
+            presentationResizeStart = null;
+            queuePresentationSave(currentPresentation);
+          });
+        }
       }
 
       // ===================== CANVAS EVENTS =====================
@@ -9845,21 +11891,23 @@
             const r = con.getBoundingClientRect();
             const px = e.clientX - r.left;
             const py = e.clientY - r.top;
+            const wheelDeltaX = normalizeWheelDelta(e.deltaX, e.deltaMode, r.width);
+            const wheelDeltaY = normalizeWheelDelta(e.deltaY, e.deltaMode, r.height);
             if (e.ctrlKey || e.metaKey) {
-              const worldX = (px - viewOffset.x) / viewScale;
-              const worldY = (py - viewOffset.y) / viewScale;
-              const zoomFactor = Math.exp(-e.deltaY * 0.0025);
-              viewScale = targetScale = Math.max(
-                0.05,
-                Math.min(5, viewScale * zoomFactor),
+              zoomOrigin = { x: px, y: py };
+              const baseScale = isZooming ? targetScale : viewScale;
+              const zoomFactor = Math.exp(
+                -wheelDeltaY * NAVIGATION_TUNING.wheelZoomSensitivity,
               );
-              viewOffset.x = px - worldX * viewScale;
-              viewOffset.y = py - worldY * viewScale;
-              applyTransform();
+              targetScale = Math.max(
+                0.05,
+                Math.min(5, baseScale * zoomFactor),
+              );
+              startCanvasZoom();
               return;
             }
-            viewOffset.x -= e.deltaX;
-            viewOffset.y -= e.deltaY;
+            viewOffset.x -= wheelDeltaX * NAVIGATION_TUNING.wheelPanMultiplier;
+            viewOffset.y -= wheelDeltaY * NAVIGATION_TUNING.wheelPanMultiplier;
             applyTransform();
           },
           { passive: false },
@@ -10230,11 +12278,7 @@
           .getBoundingClientRect();
         zoomOrigin = { x: r.width / 2, y: r.height / 2 };
         targetScale = Math.max(0.05, Math.min(5, targetScale + d));
-        if (!isZooming) {
-          isZooming = true;
-          if (zoomRAF) cancelAnimationFrame(zoomRAF);
-          zoomRAF = requestAnimationFrame(smoothZoomLoop);
-        }
+        startCanvasZoom();
       }
 
       // ===================== MINIMAP =====================
@@ -10482,7 +12526,9 @@
             };
             return;
           }
-          const pinchSpeed = isMobileViewport() ? 0.2 : 1;
+          const pinchSpeed = isMobileViewport()
+            ? NAVIGATION_TUNING.pinchZoomExponentMobile
+            : NAVIGATION_TUNING.pinchZoomExponentDesktop;
           const rawScaleRatio = distance / Math.max(1, pinchState.distance);
           const scaleRatio = Math.pow(rawScaleRatio, pinchSpeed);
           const currentScale = kind === "dashboard" ? dashboardScale : viewScale;
@@ -10498,7 +12544,7 @@
           const worldX = (centerX - currentOffset.x) / currentScale;
           const worldY = (centerY - currentOffset.y) / currentScale;
           if (kind === "dashboard") {
-            dashboardScale = nextScale;
+            dashboardScale = dashboardTargetScale = nextScale;
             dashboardViewOffset = {
               x: centerX - worldX * nextScale,
               y: centerY - worldY * nextScale,
