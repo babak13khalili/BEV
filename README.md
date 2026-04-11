@@ -4,12 +4,12 @@ Single-page Firebase + Firestore project mind map app.
 
 ## Local setup
 
-1. Open `firebase-config.js`.
-2. Replace `null` with your Firebase web app config object.
+1. Open `js/firebase-config.js`.
+2. Set `window.BEV_FIREBASE_CONFIG` to your Firebase web app config object (or edit the existing fields).
 3. In Firebase Console, make sure these are enabled:
    - Authentication -> Sign-in method -> Google
    - Firestore Database
-4. Open `BEV.html` in a browser.
+4. Open `index.html` in a browser (or load the site root on GitHub Pages; it serves `index.html` automatically).
 
 ## GitHub Pages deployment
 
