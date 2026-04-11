@@ -438,6 +438,37 @@ function getSharedPresentationUrl(token) {
   return url.toString();
 }
 
+/** Clipboard API is blocked on non-HTTPS and some browsers; use fallbacks. */
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      /* try fallbacks */
+    }
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "0";
+    ta.style.top = "0";
+    ta.style.opacity = "0";
+    ta.style.pointerEvents = "none";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 function makePresentationId() {
   return `pr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -3957,12 +3988,17 @@ async function copyCurrentPresentationShareLink() {
       currentPresentation.shareToken = makePresentationShareToken();
     }
     await savePresentationToFirestore(currentPresentation);
-    const shareUrl = getSharedPresentationUrl(currentPresentation.shareToken);
-    await navigator.clipboard.writeText(shareUrl);
-    renderPresentationScreen();
-    showToast("Presentation link copied");
   } catch (e) {
-    showToast("Could not copy link: " + e.message);
+    showToast("Could not save or publish presentation: " + e.message);
+    return;
+  }
+  const shareUrl = getSharedPresentationUrl(currentPresentation.shareToken);
+  renderPresentationScreen();
+  const copied = await copyTextToClipboard(shareUrl);
+  if (copied) {
+    showToast("Presentation link copied to clipboard");
+  } else {
+    window.prompt("Clipboard unavailable — copy this viewer link manually:", shareUrl);
   }
 }
 
