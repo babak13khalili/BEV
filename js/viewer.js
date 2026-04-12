@@ -223,6 +223,11 @@ function initViewerCardInspect() {
     window.__bevViewerInspectEsc = true;
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
+      const depth = document.getElementById('viewer-card-depth');
+      if (depth && depth.classList.contains('is-open')) {
+        closeViewerCardDepth();
+        return;
+      }
       const root = document.getElementById('viewer-card-inspect');
       if (root && root.classList.contains('visible')) closeViewerCardInspect();
     });
@@ -242,7 +247,7 @@ function renderProjectCard(item) {
     width: ${Math.max(snap.w || 280, 280)}px;
     cursor: pointer;
   `;
-  el.title = 'Click to read everything in this card';
+  el.title = 'Click to open this card — same layout as in BEV (read-only)';
 
   const date = snap.created
     ? new Date(snap.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -264,7 +269,7 @@ function renderProjectCard(item) {
       </div>
     </div>`;
 
-  el.addEventListener('click', () => openViewerCardInspect(item));
+  el.addEventListener('click', () => openViewerCardDepth(item));
   return el;
 }
 
@@ -272,6 +277,277 @@ function renderProjectCard(item) {
 
 function renderTextHTML(text) {
   return esc(String(text || '')).replace(/\n/g, '<br>');
+}
+
+function depthCurve(f, t) {
+  const dx = t.x - f.x;
+  return `M${f.x},${f.y} C${f.x + dx * 0.5},${f.y} ${f.x + dx * 0.5},${t.y} ${t.x},${t.y}`;
+}
+
+function viewerDepthDefaultSize(nd) {
+  const t = canonicalType(nd.type);
+  if (t === 'line') return { w: nd.w || 220, h: nd.h || 8 };
+  if (t === 'heading') return { w: nd.w || 280, h: nd.h || 72 };
+  if (t === 'frame') return { w: nd.w || 260, h: nd.h || 180 };
+  if (t === 'bullet') return { w: nd.w || 220, h: nd.h || 120 };
+  if (t === 'progress') return { w: nd.w || 220, h: nd.h || 100 };
+  if (t === 'embed') return { w: nd.w || 260, h: nd.h || 120 };
+  if (t === 'file') return { w: nd.w || 220, h: nd.h || 100 };
+  return { w: nd.w || 180, h: nd.h || 96 };
+}
+
+function viewerDepthNodeCenter(nd) {
+  const { w, h } = viewerDepthDefaultSize(nd);
+  return { x: (nd.x || 0) + w / 2, y: (nd.y || 0) + h / 2 };
+}
+
+function renderViewerDepthConnections(svg, nodes, connections) {
+  svg.innerHTML = '';
+  const byId = Object.fromEntries(nodes.map((n) => [String(n.id), n]));
+  (connections || []).forEach((c) => {
+    const fn = byId[String(c.fromId)];
+    const tn = byId[String(c.toId)];
+    if (!fn || !tn) return;
+    const f = viewerDepthNodeCenter(fn);
+    const t = viewerDepthNodeCenter(tn);
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', depthCurve(f, t));
+    path.setAttribute('class', 'conn-line');
+    path.style.pointerEvents = 'none';
+    svg.appendChild(path);
+    const ang = Math.atan2(t.y - f.y, t.x - f.x);
+    const ax = t.x - 10 * Math.cos(ang);
+    const ay = t.y - 10 * Math.sin(ang);
+    const arr = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    arr.setAttribute(
+      'points',
+      `${t.x},${t.y} ${ax + 4 * Math.sin(ang)},${ay - 4 * Math.cos(ang)} ${ax - 4 * Math.sin(ang)},${ay + 4 * Math.cos(ang)}`,
+    );
+    arr.setAttribute('fill', '#333');
+    arr.style.pointerEvents = 'none';
+    svg.appendChild(arr);
+  });
+}
+
+function renderViewerDepthNode(nd, accent) {
+  const t = canonicalType(nd.type);
+  const el = document.createElement('div');
+  el.className = `viewer-depth-node-el node node-${t}`;
+  el.style.left = `${nd.x || 0}px`;
+  el.style.top = `${nd.y || 0}px`;
+  const ac = esc(accent || '#888');
+
+  if (t === 'line') {
+    el.style.width = `${nd.w || 220}px`;
+    el.innerHTML = '<div class="content overview-item-line"></div>';
+    el.style.transform = `rotate(${Number(nd.lineAngle) || 0}rad)`;
+    return el;
+  }
+  if (t === 'frame') {
+    el.classList.add('overview-item-frame');
+    el.style.width = `${nd.w || 260}px`;
+    el.style.height = `${nd.h || 180}px`;
+    el.innerHTML = `<div class="content">${renderTextHTML(nd.text)}</div>`;
+    return el;
+  }
+  if (t === 'heading') {
+    if (nd.w) el.style.width = `${nd.w}px`;
+    if (nd.h) el.style.height = `${nd.h}px`;
+    el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
+      <div class="node-body"><div class="content node-content shared-heading-text">${renderTextHTML(nd.text)}</div></div>`;
+    return el;
+  }
+  if (isTextNote(t)) {
+    const { w, h } = viewerDepthDefaultSize(nd);
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+    const label = esc(nd.customTitle || 'Note');
+    el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
+      <div class="node-header"><span class="node-type-label">${label}</span></div>
+      <div class="node-body"><div class="content node-content">${renderTextHTML(nd.text)}</div></div>`;
+    return el;
+  }
+  if (t === 'bullet') {
+    const { w, h } = viewerDepthDefaultSize(nd);
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+    const items = (nd.items || [])
+      .map((it) => {
+        const text = typeof it === 'string' ? it : (it.text || '');
+        const done = typeof it === 'object' && it.done ? ' class="is-done"' : '';
+        return `<li${done}>${renderTextHTML(text)}</li>`;
+      })
+      .join('');
+    el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
+      <div class="node-header"><span class="node-type-label">List</span></div>
+      <div class="node-body"><ul class="node-content" style="margin:0;padding-left:18px">${items || '<li class="viewer-inspect-muted">Empty</li>'}</ul></div>`;
+    return el;
+  }
+  if (t === 'progress') {
+    const { w, h } = viewerDepthDefaultSize(nd);
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+    const val = Math.round(Math.min(100, Math.max(0, Number(nd.value) || 0)));
+    let stepsHtml = '';
+    if (Array.isArray(nd.steps) && nd.steps.length) {
+      stepsHtml =
+        '<ul style="margin:8px 0 0;padding-left:18px;font-size:12px">' +
+        nd.steps
+          .map((s, i) => {
+            const lab = esc(String(s.label || `Step ${i + 1}`));
+            const done = s.done ? ' style="text-decoration:line-through;opacity:0.65"' : '';
+            return `<li${done}>${lab}</li>`;
+          })
+          .join('') +
+        '</ul>';
+    }
+    el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
+      <div class="node-header"><span class="node-type-label">Progress</span></div>
+      <div class="node-body"><div class="content"><strong>${val}%</strong>${stepsHtml}</div></div>`;
+    return el;
+  }
+  if (t === 'embed') {
+    const { w, h } = viewerDepthDefaultSize(nd);
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+    const u = String(nd.url || '').trim();
+    const safe = esc(u);
+    const body = u
+      ? `<a class="node-embed-link" href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a>`
+      : '<span class="viewer-inspect-muted">No URL</span>';
+    el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
+      <div class="node-header"><span class="node-type-label">Embed</span></div>
+      <div class="node-body"><div class="content">${body}</div></div>`;
+    return el;
+  }
+  if (t === 'file') {
+    const { w, h } = viewerDepthDefaultSize(nd);
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+    const name = esc(nd.name || 'File');
+    const ext = esc(nd.ext || '');
+    const extBit = ext ? ` <span class="viewer-inspect-muted">.${ext}</span>` : '';
+    const note =
+      nd.fileKind === 'image'
+        ? '<p class="viewer-inspect-muted" style="margin:8px 0 0;font-size:11px">Image preview is not included in the shared view.</p>'
+        : '';
+    el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
+      <div class="node-header"><span class="node-type-label">File</span></div>
+      <div class="node-body"><div class="content">${name}${extBit}${note}</div></div>`;
+    return el;
+  }
+  el.style.width = `${nd.w || 200}px`;
+  el.style.height = `${nd.h || 80}px`;
+  el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
+    <div class="node-body"><div class="content node-content">${renderTextHTML(String(nd.type))}</div></div>`;
+  return el;
+}
+
+function computeViewerDepthLayout(nodes) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  nodes.forEach((nd) => {
+    const { w, h } = viewerDepthDefaultSize(nd);
+    const x = nd.x || 0;
+    const y = nd.y || 0;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + w);
+    maxY = Math.max(maxY, y + h);
+  });
+  const pad = 100;
+  const offX = pad - minX;
+  const offY = pad - minY;
+  const bw = Math.max(960, maxX - minX + 2 * pad);
+  const bh = Math.max(640, maxY - minY + 2 * pad);
+  return { offX, offY, bw, bh };
+}
+
+function openViewerCardDepth(item) {
+  closeViewerCardInspect();
+  const root = document.getElementById('viewer-card-depth');
+  const titleEl = document.getElementById('viewer-card-depth-title');
+  const world = document.getElementById('viewer-card-depth-world');
+  const viewport = document.getElementById('viewer-card-depth-viewport');
+  if (!root || !titleEl || !world || !viewport) return;
+  const snap = item.snapshot || {};
+  titleEl.textContent = snap.name || 'Card';
+  world.innerHTML = '';
+
+  const rawNodes = Array.isArray(snap.nodes) ? snap.nodes : [];
+  if (!rawNodes.length) {
+    world.style.width = '100%';
+    world.style.minHeight = '420px';
+    world.innerHTML = `<div class="viewer-card-depth-empty">
+      <h3>No saved canvas for this card</h3>
+      <p>The owner can open this presentation in BEV, open each card once, and use <strong>Share</strong> again so published snapshots include all notes and links.</p>
+      <p>You can still read the summary on the presentation slide.</p>
+    </div>`;
+    root.classList.add('is-open');
+    root.setAttribute('aria-hidden', 'false');
+    return;
+  }
+
+  const lay = computeViewerDepthLayout(rawNodes);
+  const shifted = rawNodes.map((nd) => ({
+    ...nd,
+    x: (nd.x || 0) + lay.offX,
+    y: (nd.y || 0) + lay.offY,
+  }));
+
+  world.style.width = `${lay.bw}px`;
+  world.style.height = `${lay.bh}px`;
+  world.style.minWidth = '';
+  world.style.minHeight = '';
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.id = 'viewer-card-depth-connections-svg';
+  svg.setAttribute('width', String(lay.bw));
+  svg.setAttribute('height', String(lay.bh));
+  world.appendChild(svg);
+  renderViewerDepthConnections(svg, shifted, snap.connections || []);
+
+  const accent = snap.color || '#888';
+  shifted.forEach((nd) => {
+    world.appendChild(renderViewerDepthNode(nd, accent));
+  });
+
+  root.classList.add('is-open');
+  root.setAttribute('aria-hidden', 'false');
+  requestAnimationFrame(() => {
+    viewport.scrollLeft = Math.max(
+      0,
+      (lay.bw - viewport.clientWidth) / 2,
+    );
+    viewport.scrollTop = Math.max(
+      0,
+      (lay.bh - viewport.clientHeight) / 2,
+    );
+  });
+}
+
+function closeViewerCardDepth() {
+  const root = document.getElementById('viewer-card-depth');
+  if (!root) return;
+  root.classList.remove('is-open');
+  root.setAttribute('aria-hidden', 'true');
+  const world = document.getElementById('viewer-card-depth-world');
+  if (world) world.innerHTML = '';
+}
+
+function initViewerCardDepth() {
+  const backdrop = document.getElementById('viewer-card-depth-backdrop');
+  const closeBtn = document.getElementById('viewer-card-depth-close');
+  if (backdrop && !backdrop.dataset.bound) {
+    backdrop.dataset.bound = '1';
+    backdrop.addEventListener('click', closeViewerCardDepth);
+  }
+  if (closeBtn && !closeBtn.dataset.bound) {
+    closeBtn.dataset.bound = '1';
+    closeBtn.addEventListener('click', closeViewerCardDepth);
+  }
 }
 
 function renderOverlayObject(obj) {
@@ -515,6 +791,7 @@ function wireViewerShareControls() {
 /* ── Exports ─────────────────────────────────────────────── */
 
 initViewerCardInspect();
+initViewerCardDepth();
 
 window.BEVViewer = {
   start: startViewer,

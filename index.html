@@ -99,6 +99,20 @@
         </div>
       </div>
 
+      <!-- Read-only card canvas (spatial layout + links, like the editor) -->
+      <div id="viewer-card-depth" class="viewer-card-depth" aria-hidden="true">
+        <div class="viewer-card-depth-backdrop" id="viewer-card-depth-backdrop"></div>
+        <div class="viewer-card-depth-shell">
+          <header class="viewer-card-depth-head">
+            <button type="button" class="viewer-card-depth-back" id="viewer-card-depth-close" aria-label="Back to presentation">← Presentation</button>
+            <h2 id="viewer-card-depth-title" class="viewer-card-depth-title"></h2>
+          </header>
+          <div id="viewer-card-depth-viewport" class="viewer-card-depth-viewport">
+            <div id="viewer-card-depth-world" class="viewer-card-depth-world"></div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ═══════════════════════════════════════════════════════
@@ -360,25 +374,38 @@
 
         <div id="presentation-main">
           <div id="presentation-toolbar">
-            <button class="tool-btn" id="presentation-tool-cards" onclick="openPresentationPicker()">
+            <button class="tool-btn pres-tool-mode active" type="button" data-pres-tool="select" id="presentation-tool-select" onclick="setPresentationTool('select')">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2l5 12 2.5-4.5 4.5-2.5z"/></svg>
+              <span class="tip">Select</span>
+            </button>
+            <button class="tool-btn pres-tool-mode" type="button" data-pres-tool="pan" id="presentation-tool-pan" onclick="setPresentationTool('pan')">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3v10M3 5h10M3 13l2-2M13 5l-2 2"/></svg>
+              <span class="tip">Pan</span>
+            </button>
+            <button class="tool-btn pres-tool-mode" type="button" data-pres-tool="connect" id="presentation-tool-connect" onclick="setPresentationTool('connect')">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="3" cy="8" r="2"/><circle cx="13" cy="8" r="2"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+              <span class="tip">Connect</span>
+            </button>
+            <div class="presentation-toolbar-divider" aria-hidden="true"></div>
+            <button class="tool-btn presentation-add-tool" type="button" id="presentation-tool-cards" onclick="openPresentationPicker()">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="2.5" y="3" width="11" height="8.5" rx="1"/><path d="M5 13h6"/><path d="M8 5.2v4.1M5.9 7.25h4.2"/>
               </svg>
               <span class="tip">Add Cards</span>
             </button>
-            <button class="tool-btn" onclick="addPresentationObject('note')">
+            <button class="tool-btn presentation-add-tool" type="button" onclick="addPresentationObject('note')">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/></svg>
               <span class="tip">Text Note</span>
             </button>
-            <button class="tool-btn" onclick="addPresentationObject('heading')">
+            <button class="tool-btn presentation-add-tool" type="button" onclick="addPresentationObject('heading')">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4v8M13 4v8M3 8h10"/></svg>
               <span class="tip">Heading</span>
             </button>
-            <button class="tool-btn" onclick="addPresentationObject('line')">
+            <button class="tool-btn presentation-add-tool" type="button" onclick="addPresentationObject('line')">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="8" x2="14" y2="8"/></svg>
               <span class="tip">Line</span>
             </button>
-            <button class="tool-btn" onclick="addPresentationObject('frame')">
+            <button class="tool-btn presentation-add-tool" type="button" onclick="addPresentationObject('frame')">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg>
               <span class="tip">Annotate</span>
             </button>
@@ -537,7 +564,7 @@
          CONTEXT MENU
     ═══════════════════════════════════════════════════════ -->
     <div id="ctx-menu">
-      <div class="ctx-section">
+      <div class="ctx-section" id="ctx-canvas-add-section">
         <div class="ctx-label">Add Node</div>
         <div class="ctx-item" onclick="addNodeFromMenu('note')"><span class="ci">Ⅱ</span>Text Note</div>
         <div class="ctx-item" onclick="addNodeFromMenu('heading')"><span class="ci">H</span>Heading</div>
@@ -560,8 +587,29 @@
         <div class="ctx-label">Selection</div>
         <div class="ctx-item danger" onclick="deleteOverviewSelection()"><span class="ci">✕</span>Delete selection</div>
       </div>
-      <div class="ctx-section">
+      <div class="ctx-section" id="ctx-fit-canvas-wrap">
         <div class="ctx-item" onclick="resetView()"><span class="ci">⊡</span>Fit to screen</div>
+      </div>
+      <div class="ctx-section" id="ctx-pres-add-section" style="display:none">
+        <div class="ctx-label">Add Object</div>
+        <div class="ctx-item" onclick="addPresentationObjectFromMenu('note')"><span class="ci">Ⅱ</span>Text Note</div>
+        <div class="ctx-item" onclick="addPresentationObjectFromMenu('heading')"><span class="ci">H</span>Heading</div>
+        <div class="ctx-item" onclick="addPresentationObjectFromMenu('line')"><span class="ci">—</span>Line</div>
+        <div class="ctx-item" onclick="addPresentationObjectFromMenu('frame')"><span class="ci">▭</span>Annotate</div>
+      </div>
+      <div class="ctx-section" id="ctx-pres-object-section" style="display:none">
+        <div class="ctx-label">Object</div>
+        <div class="ctx-item danger" onclick="deletePresentationCtxObject()"><span class="ci">✕</span>Delete object</div>
+      </div>
+      <div class="ctx-section" id="ctx-pres-card-section" style="display:none">
+        <div class="ctx-label">Card</div>
+        <div class="ctx-item danger" onclick="removePresentationCtxCard()"><span class="ci">✕</span>Remove from presentation</div>
+      </div>
+      <div class="ctx-section" id="ctx-pres-conn-section" style="display:none">
+        <div class="ctx-item danger" onclick="deletePresentationCtxConnection()"><span class="ci">✕</span>Delete connection</div>
+      </div>
+      <div class="ctx-section" id="ctx-fit-presentation-wrap" style="display:none">
+        <div class="ctx-item" onclick="presentationResetView()"><span class="ci">⊡</span>Fit to screen</div>
       </div>
     </div>
 

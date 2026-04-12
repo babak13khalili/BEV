@@ -70,6 +70,7 @@ let dashboardDragOffset = { x: 0, y: 0 },
 let dashboardResizeProjectId = null,
   dashboardResizeStart = null;
 let presentationSaveTimer = null,
+  presentationCardOpenIntent = null,
   presentationDragItemId = null,
   presentationDragOffset = { x: 0, y: 0 },
   presentationDragObjectId = null,
@@ -84,6 +85,16 @@ let presentationViewOffset = { x: 180, y: 110 },
   presentationZoomOrigin = { x: 0, y: 0 },
   presentationPanActive = false,
   presentationPanStart = { x: 0, y: 0 };
+/** Match canvas zoom limits (see zoomBy / canvas wheel). */
+const PRESENTATION_SCALE_MIN = 0.05;
+const PRESENTATION_SCALE_MAX = 5;
+let presentationTool = "select",
+  presentationPendingConnSourceId = null,
+  presentationSelectedConnId = null,
+  presentationCtxWorldPos = null,
+  presentationCtxMenuObjectId = null,
+  presentationCtxMenuItemId = null,
+  presentationCtxMenuConnId = null;
 let overviewItems = [],
   overviewDragItemId = null,
   overviewDragOffset = { x: 0, y: 0 },
@@ -218,6 +229,7 @@ let currentScreenName = "loading",
   canvasReturnScreen = "dashboard";
 let presentationPickerSelection = new Set();
 const PRESENTATION_PUBLIC_QUERY_KEY = "presentation";
+const PRESENTATION_CARD_TAP_PX = 8;
 
 // ===================== STARTUP =====================
 function startup() {
@@ -274,6 +286,13 @@ function show(name) {
         : "flex";
   syncDailyTodoWidgetVisibility(name);
   syncGeneralTodoWidgetVisibility(name);
+  const presCanvas = document.getElementById("presentation-canvas");
+  if (presCanvas && name !== "presentation") {
+    presCanvas.style.cursor = "";
+  }
+  if (name === "presentation") {
+    queueMicrotask(() => setPresentationTool(presentationTool));
+  }
 }
 
 function saveLastView(screen, projectId = null, presentationId = null) {
@@ -608,6 +627,17 @@ function normalizePresentationData(presentation = {}) {
           .filter((item) => item.projectId)
       : [],
     objects: presentationObjectsFromRaw(presentation.objects),
+    spatialConnections: Array.isArray(presentation.spatialConnections)
+      ? presentation.spatialConnections
+          .filter((c) => c && c.fromId && c.toId && c.fromId !== c.toId)
+          .map((c) => ({
+            id:
+              c.id ||
+              `pc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            fromId: String(c.fromId),
+            toId: String(c.toId),
+          }))
+      : [],
   };
 }
 
@@ -641,16 +671,31 @@ function getPresentationViewportCenter() {
   };
 }
 
-function makePresentationObject(type) {
-  const pos = getPresentationViewportCenter();
-  const x = Math.max(60, Math.round(pos.x - 110));
-  const y = Math.max(60, Math.round(pos.y - 60));
+function presentationClientToWorld(clientX, clientY) {
+  const canvas = document.getElementById("presentation-canvas");
+  if (!canvas) return { x: 200, y: 160 };
+  const r = canvas.getBoundingClientRect();
+  const sc = presentationScale || 1;
+  return {
+    x: (clientX - r.left - presentationViewOffset.x) / sc,
+    y: (clientY - r.top - presentationViewOffset.y) / sc,
+  };
+}
+
+function makePresentationObjectAt(type, worldX, worldY) {
+  const x = Math.max(60, Math.round(worldX - 110));
+  const y = Math.max(60, Math.round(worldY - 60));
   const id = "po" + Date.now() + Math.floor(Math.random() * 1000);
   if (isSharedTextObjectType(type)) {
     return createSharedTextObjectState(id, type, x, y, {}, SURFACES.PRESENTATION);
   }
   if (type === "line") return createSimpleLineItem(id, x, y);
   return createQuickNoteFallbackItem(id, type, x, y);
+}
+
+function makePresentationObject(type) {
+  const pos = getPresentationViewportCenter();
+  return makePresentationObjectAt(type, pos.x, pos.y);
 }
 
 function formatPresentationTimestamp(ts) {
@@ -690,6 +735,9 @@ function buildPublishedPresentationPayload(presentation) {
     created: presentation.created || Date.now(),
     updatedAt: Date.now(),
     objects: JSON.parse(JSON.stringify(presentation.objects || [])),
+    spatialConnections: JSON.parse(
+      JSON.stringify(presentation.spatialConnections || []),
+    ),
     items: (presentation.items || [])
       .map((item) => {
         const project = projects.find((entry) => entry.id === item.projectId);
@@ -742,6 +790,7 @@ async function savePresentationToFirestore(presentation) {
         shareToken: presentation.shareToken || null,
         items: presentation.items || [],
         objects: presentation.objects || [],
+        spatialConnections: presentation.spatialConnections || [],
       },
       { merge: true },
     );
@@ -3033,6 +3082,18 @@ function bindUnifiedNoteObjectBehavior({
     )
       return;
     if (
+      currentScreenName === "presentation" &&
+      presentationTool === "connect" &&
+      e.button === 0 &&
+      el.classList.contains("presentation-object") &&
+      el.dataset.objectId
+    ) {
+      if (
+        beginOrCompletePresentationSpatialConnection(e, el.dataset.objectId)
+      )
+        return;
+    }
+    if (
       e.target.tagName === "INPUT" ||
       e.target.tagName === "TEXTAREA" ||
       e.target.tagName === "A" ||
@@ -3531,6 +3592,10 @@ function createPresentationProjectCardEl(
   el.style.setProperty("--card-width", `${cardWidth}px`);
   el.dataset.presentationItemId = item.id;
   el.dataset.projectId = item.projectId || project.id;
+  if (!viewer) {
+    el.title =
+      "Click anywhere on the card to open it (or drag to move). Double-click also opens.";
+  }
   const statusMarkup = viewer
     ? `<div class="card-status" data-status="${statusSlug(project.status)}">${esc(project.status || "In Progress")}</div>`
     : `<div class="card-status-wrap">
@@ -3598,6 +3663,19 @@ function createPresentationProjectCardEl(
       e.target.closest(".card-status") ||
       e.target.closest(".card-status-menu")
     ) {
+      return;
+    }
+    if (beginOrCompletePresentationSpatialConnection(e, item.id)) return;
+    if (e.button !== 0) return;
+    if (presentationTool === "select") {
+      presentationCardOpenIntent = {
+        projectId: project.id,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        item,
+        el,
+      };
+      e.preventDefault();
       return;
     }
     startPresentationItemDrag(e, item, el);
@@ -3773,6 +3851,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
       ) {
         return;
       }
+      if (beginOrCompletePresentationSpatialConnection(e, obj.id)) return;
       if (e.target.isContentEditable && !e.altKey) return;
       startPresentationObjectDrag(e, obj, el);
     });
@@ -3788,7 +3867,19 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
 function renderPresentationWorld() {
   const world = document.getElementById("presentation-world");
   if (!world) return;
-  world.innerHTML = "";
+  world
+    .querySelectorAll(".presentation-card, .presentation-object")
+    .forEach((el) => el.remove());
+  let svg = document.getElementById("presentation-connections-svg");
+  if (!svg) {
+    svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.id = "presentation-connections-svg";
+    svg.setAttribute("width", "4200");
+    svg.setAttribute("height", "3000");
+    svg.style.cssText =
+      "position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:0";
+    world.insertBefore(svg, world.firstChild);
+  }
   if (!currentPresentation) return;
   (currentPresentation.objects || []).forEach((obj) => {
     world.appendChild(createPresentationObjectEl(obj));
@@ -3798,6 +3889,7 @@ function renderPresentationWorld() {
     if (!project) return;
     world.appendChild(createPresentationProjectCardEl(item, project));
   });
+  renderPresentationSpatialConnections();
 }
 
 function renderPresentationScreen() {
@@ -3812,10 +3904,13 @@ function renderPresentationScreen() {
   const sidebarCurrent = document.getElementById("presentation-sidebar-current");
   const world = document.getElementById("presentation-world");
   document
-    .querySelectorAll("#presentation-toolbar .tool-btn")
+    .querySelectorAll("#presentation-toolbar .presentation-add-tool")
     .forEach((btn) => {
       btn.disabled = !currentPresentation;
     });
+  document.querySelectorAll(".pres-tool-mode").forEach((btn) => {
+    btn.disabled = !currentPresentation;
+  });
   renderPresentationList();
   if (!world) return;
   const hasPresentation = Boolean(currentPresentation);
@@ -3862,6 +3957,7 @@ function renderPresentationScreen() {
   updatePresentationPrivacyUI();
   renderPresentationWorld();
   applyPresentationTransform();
+  updatePresentationToolbar();
 }
 
 function createPresentation(initialProjectIds = []) {
@@ -3935,6 +4031,7 @@ function addPresentationObject(type) {
 
 function removePresentationItem(itemId) {
   if (!currentPresentation) return;
+  prunePresentationSpatialConnections([itemId]);
   currentPresentation.items = (currentPresentation.items || []).filter(
     (item) => item.id !== itemId,
   );
@@ -3951,6 +4048,7 @@ function requestDeletePresentationObject(id) {
     message: `Delete "${obj.type}"?`,
     confirmLabel: "Delete",
     onConfirm: () => {
+      prunePresentationSpatialConnections([id]);
       currentPresentation.objects = (currentPresentation.objects || []).filter(
         (entry) => entry.id !== id,
       );
@@ -4896,16 +4994,16 @@ function presentationResetView() {
   const world = document.getElementById("presentation-world");
   if (!canvas || !world) return;
   const rect = canvas.getBoundingClientRect();
-  const nodes = [
+  const isMobile = isMobileViewport();
+  const els = [
     ...world.querySelectorAll(".presentation-card, .presentation-object"),
   ];
-  if (!nodes.length) {
-    presentationViewOffset = isMobileViewport()
-      ? { x: 100, y: 72 }
-      : { x: 160, y: 96 };
-    presentationScale = presentationTargetScale = isMobileViewport()
-      ? 0.5
-      : 0.62;
+  if (!els.length) {
+    presentationViewOffset = isMobile ? { x: 40, y: 40 } : { x: 56, y: 56 };
+    presentationScale = presentationTargetScale = Math.max(
+      PRESENTATION_SCALE_MIN,
+      Math.min(PRESENTATION_SCALE_MAX, isMobile ? 0.28 : 0.48),
+    );
     applyPresentationTransform();
     return;
   }
@@ -4913,7 +5011,7 @@ function presentationResetView() {
     minY = Infinity,
     maxX = -Infinity,
     maxY = -Infinity;
-  nodes.forEach((el) => {
+  els.forEach((el) => {
     const x = parseFloat(el.style.left) || 0;
     const y = parseFloat(el.style.top) || 0;
     const w = el.offsetWidth || 280;
@@ -4923,18 +5021,23 @@ function presentationResetView() {
     maxX = Math.max(maxX, x + w);
     maxY = Math.max(maxY, y + h);
   });
-  const pad = isMobileViewport() ? 120 : 160;
-  const worldW = maxX - minX + pad * 2;
-  const worldH = maxY - minY + pad * 2;
-  presentationScale = presentationTargetScale = Math.min(
-    1.35,
-    Math.max(0.14, Math.min(rect.width / worldW, rect.height / worldH)),
+  const pad = isMobile ? 340 : 220;
+  const cw = maxX - minX + pad * 2;
+  const ch = maxY - minY + pad * 2;
+  presentationScale = presentationTargetScale = Math.max(
+    PRESENTATION_SCALE_MIN,
+    Math.min(
+      PRESENTATION_SCALE_MAX,
+      Math.min(
+        isMobile ? 0.3 : 0.5,
+        Math.min(rect.width / cw, rect.height / ch),
+      ),
+    ),
   );
   presentationViewOffset.x =
-    (rect.width - worldW * presentationScale) / 2 -
-    (minX - pad) * presentationScale;
+    (rect.width - cw * presentationScale) / 2 - (minX - pad) * presentationScale;
   presentationViewOffset.y =
-    (rect.height - worldH * presentationScale) / 2 -
+    (rect.height - ch * presentationScale) / 2 -
     (minY - pad) * presentationScale;
   applyPresentationTransform();
 }
@@ -4943,15 +5046,10 @@ function presentationZoomBy(delta) {
   const canvas = document.getElementById("presentation-canvas");
   if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
-  const px = rect.width / 2;
-  const py = rect.height / 2;
-  presentationZoomOrigin = { x: px, y: py };
-  const baseScale = presentationIsZooming
-    ? presentationTargetScale
-    : presentationScale;
+  presentationZoomOrigin = { x: rect.width / 2, y: rect.height / 2 };
   presentationTargetScale = Math.max(
-    0.12,
-    Math.min(2.5, baseScale + delta),
+    PRESENTATION_SCALE_MIN,
+    Math.min(PRESENTATION_SCALE_MAX, presentationTargetScale + delta),
   );
   startPresentationZoom();
 }
@@ -5261,6 +5359,10 @@ function setupDashboardEvents() {
   });
   canvas.addEventListener("contextmenu", (e) => {
     e.preventDefault();
+    syncCtxMenuSurface("dashboard");
+    presentationCtxMenuObjectId = null;
+    presentationCtxMenuItemId = null;
+    presentationCtxMenuConnId = null;
     const cardEl = e.target.closest(".project-card");
     const itemEl = e.target.closest(".overview-item");
     if (cardEl) {
@@ -5923,6 +6025,10 @@ function openProject(id, sourceScreen = "dashboard") {
   setTimeout(resetView, 60);
   updateInfoBar();
   startMinimapLoop();
+  const backBtn = document.getElementById("back-btn");
+  if (backBtn)
+    backBtn.textContent =
+      sourceScreen === "presentation" ? "← Presentation" : "←";
 }
 
 function goToDashboard() {
@@ -5932,6 +6038,8 @@ function goToDashboard() {
     minimapRAF = null;
   }
   currentProject = null;
+  const backBtn = document.getElementById("back-btn");
+  if (backBtn) backBtn.textContent = "←";
   if (canvasReturnScreen === "presentation") {
     show("presentation");
     renderPresentationScreen();
@@ -7060,6 +7168,210 @@ function curve(f, t) {
   const dx = t.x - f.x;
   return `M${f.x},${f.y} C${f.x + dx * 0.5},${f.y} ${f.x + dx * 0.5},${t.y} ${t.x},${t.y}`;
 }
+
+function prunePresentationSpatialConnections(removedIds) {
+  if (!currentPresentation || !removedIds?.length) return;
+  const drop = new Set(removedIds.map(String));
+  const arr = currentPresentation.spatialConnections || [];
+  const next = arr.filter(
+    (c) => c && !drop.has(String(c.fromId)) && !drop.has(String(c.toId)),
+  );
+  if (next.length !== arr.length) {
+    currentPresentation.spatialConnections = next;
+    queuePresentationSave(currentPresentation);
+  }
+}
+
+function getPresentationSpatialEndpointCenter(id) {
+  const sid = String(id);
+  const world = document.getElementById("presentation-world");
+  if (world) {
+    const el =
+      world.querySelector(`[data-object-id="${sid}"]`) ||
+      world.querySelector(`[data-presentation-item-id="${sid}"]`);
+    if (el) {
+      const x = parseFloat(el.style.left) || el.offsetLeft || 0;
+      const y = parseFloat(el.style.top) || el.offsetTop || 0;
+      const w = el.offsetWidth || 200;
+      const h = el.offsetHeight || 120;
+      return { x: x + w / 2, y: y + h / 2 };
+    }
+  }
+  if (!currentPresentation) return null;
+  const obj = (currentPresentation.objects || []).find(
+    (o) => String(o.id) === sid,
+  );
+  if (obj) {
+    const w = obj.w || 200;
+    const h = obj.h || (obj.type === "line" ? 4 : 100);
+    return {
+      x: (obj.x || 0) + w / 2,
+      y: (obj.y || 0) + h / 2,
+    };
+  }
+  const item = (currentPresentation.items || []).find(
+    (it) => String(it.id) === sid,
+  );
+  if (item) {
+    const project = projects.find((p) => p.id === item.projectId);
+    const w = project
+      ? Math.max(project.w || DEFAULT_PROJECT_CARD_WIDTH, 200)
+      : 280;
+    const h = project
+      ? Math.max(project.h || DEFAULT_PROJECT_CARD_HEIGHT, 120)
+      : 200;
+    return { x: (item.x || 0) + w / 2, y: (item.y || 0) + h / 2 };
+  }
+  return null;
+}
+
+function renderPresentationSpatialConnections() {
+  const svg = document.getElementById("presentation-connections-svg");
+  if (!svg || !currentPresentation) return;
+  svg.innerHTML = "";
+  const conns = currentPresentation.spatialConnections || [];
+  conns.forEach((c) => {
+    if (!c?.fromId || !c.toId) return;
+    const f = getPresentationSpatialEndpointCenter(c.fromId);
+    const t = getPresentationSpatialEndpointCenter(c.toId);
+    if (!f || !t) return;
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", curve(f, t));
+    path.setAttribute("class", "conn-line presentation-conn-line");
+    path.dataset.presentationConnectionId = c.id;
+    if (presentationSelectedConnId && c.id === presentationSelectedConnId) {
+      path.classList.add("selected");
+    }
+    svg.appendChild(path);
+  });
+}
+
+function clearPresentationSpatialSelection() {
+  presentationSelectedConnId = null;
+  document
+    .querySelectorAll(".presentation-conn-line.selected")
+    .forEach((el) => el.classList.remove("selected"));
+}
+
+function beginOrCompletePresentationSpatialConnection(e, endpointId) {
+  if (presentationTool !== "connect" || e.button !== 0) return false;
+  if (!currentPresentation) return false;
+  e.stopPropagation();
+  e.preventDefault();
+  currentPresentation.spatialConnections =
+    currentPresentation.spatialConnections || [];
+  const eid = String(endpointId);
+  if (!presentationPendingConnSourceId) {
+    presentationPendingConnSourceId = eid;
+    showToast("Click another object or card to finish the connection");
+    return true;
+  }
+  if (String(presentationPendingConnSourceId) === eid) return true;
+  const dup = currentPresentation.spatialConnections.some(
+    (c) =>
+      (String(c.fromId) === String(presentationPendingConnSourceId) &&
+        String(c.toId) === eid) ||
+      (String(c.fromId) === eid &&
+        String(c.toId) === String(presentationPendingConnSourceId)),
+  );
+  if (!dup) {
+    currentPresentation.spatialConnections.push({
+      id: `pc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      fromId: String(presentationPendingConnSourceId),
+      toId: eid,
+    });
+    queuePresentationSave(currentPresentation);
+    renderPresentationSpatialConnections();
+  }
+  presentationPendingConnSourceId = null;
+  setPresentationTool("select");
+  return true;
+}
+
+function setPresentationTool(t) {
+  presentationTool = t;
+  if (t !== "connect") presentationPendingConnSourceId = null;
+  if (t !== "select") presentationCardOpenIntent = null;
+  updatePresentationToolbar();
+  const pc = document.getElementById("presentation-canvas");
+  if (pc && currentScreenName === "presentation") {
+    pc.style.cursor =
+      t === "connect" ? "crosshair" : t === "pan" ? "grab" : "default";
+  }
+}
+
+function updatePresentationToolbar() {
+  document.querySelectorAll(".pres-tool-mode").forEach((btn) => {
+    const mode = btn.getAttribute("data-pres-tool");
+    btn.classList.toggle("active", mode === presentationTool);
+  });
+}
+
+function addPresentationObjectFromMenu(type) {
+  if (!currentPresentation) return;
+  document.getElementById("ctx-menu")?.classList.remove("visible");
+  const p = presentationCtxWorldPos || getPresentationViewportCenter();
+  currentPresentation.objects = currentPresentation.objects || [];
+  currentPresentation.objects.push(makePresentationObjectAt(type, p.x, p.y));
+  queuePresentationSave(currentPresentation);
+  renderPresentationScreen();
+}
+
+function deletePresentationCtxObject() {
+  const id = presentationCtxMenuObjectId;
+  presentationCtxMenuObjectId = null;
+  document.getElementById("ctx-menu")?.classList.remove("visible");
+  if (!id || !currentPresentation) return;
+  prunePresentationSpatialConnections([id]);
+  currentPresentation.objects = (currentPresentation.objects || []).filter(
+    (o) => String(o.id) !== String(id),
+  );
+  queuePresentationSave(currentPresentation);
+  renderPresentationScreen();
+}
+
+function removePresentationCtxCard() {
+  const id = presentationCtxMenuItemId;
+  presentationCtxMenuItemId = null;
+  document.getElementById("ctx-menu")?.classList.remove("visible");
+  if (!id) return;
+  removePresentationItem(id);
+}
+
+function deletePresentationCtxConnection() {
+  const id = presentationCtxMenuConnId;
+  presentationCtxMenuConnId = null;
+  document.getElementById("ctx-menu")?.classList.remove("visible");
+  if (!currentPresentation || !id) return;
+  currentPresentation.spatialConnections = (
+    currentPresentation.spatialConnections || []
+  ).filter((c) => String(c.id) !== String(id));
+  presentationSelectedConnId = null;
+  queuePresentationSave(currentPresentation);
+  renderPresentationSpatialConnections();
+}
+
+/** @param {"canvas" | "dashboard" | "presentation"} surface */
+function syncCtxMenuSurface(surface) {
+  const show = (id, on) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = on ? "block" : "none";
+  };
+  const isPres = surface === "presentation";
+  const isCanvas = surface === "canvas";
+  const isDash = surface === "dashboard";
+  show("ctx-canvas-add-section", isCanvas || isDash);
+  show("ctx-node-section", false);
+  show("ctx-conn-section", false);
+  show("ctx-dashboard-section", false);
+  show("ctx-fit-canvas-wrap", isCanvas);
+  show("ctx-fit-presentation-wrap", isPres);
+  show("ctx-pres-add-section", isPres);
+  show("ctx-pres-object-section", false);
+  show("ctx-pres-card-section", false);
+  show("ctx-pres-conn-section", false);
+}
+
 function getElementWorldCenter(el) {
   if (!el) return null;
   const rect = el.getBoundingClientRect();
@@ -7173,7 +7485,10 @@ function startPresentationZoom() {
 function smoothPresentationZoomLoop() {
   const diff = presentationTargetScale - presentationScale;
   if (Math.abs(diff) < 0.0005) {
-    presentationScale = presentationTargetScale;
+    presentationScale = presentationTargetScale = Math.max(
+      PRESENTATION_SCALE_MIN,
+      Math.min(PRESENTATION_SCALE_MAX, presentationTargetScale),
+    );
     presentationIsZooming = false;
     presentationZoomRAF = null;
     applyPresentationTransform();
@@ -7226,32 +7541,100 @@ function setupPresentationEvents() {
     const presCanvas = document.getElementById("presentation-canvas");
     if (presCanvas) {
       presCanvas.addEventListener("mousedown", (e) => {
-        if (currentScreenName !== "presentation") return;
-        if (e.target.closest(".presentation-card, .presentation-object"))
+        if (currentScreenName !== "presentation" || !currentPresentation)
           return;
+        const pan =
+          e.button === 1 ||
+          (e.button === 0 && presentationTool === "pan");
+        if (pan) {
+          presentationPanActive = true;
+          presentationPanStart = {
+            x: e.clientX - presentationViewOffset.x,
+            y: e.clientY - presentationViewOffset.y,
+          };
+          presCanvas.classList.add("panning");
+          e.preventDefault();
+          return;
+        }
         const world = document.getElementById("presentation-world");
         const onEmpty =
           e.target === presCanvas ||
           e.target === world ||
+          e.target.id === "presentation-connections-svg" ||
+          e.target.classList.contains("presentation-conn-line") ||
           e.target.closest("#presentation-empty-state");
-        const shouldPan =
-          e.button === 1 || (e.button === 0 && onEmpty && !e.ctrlKey);
-        if (!shouldPan) return;
-        const rect = presCanvas.getBoundingClientRect();
-        presentationPanActive = true;
-        presentationPanStart = {
-          x: e.clientX - rect.left - presentationViewOffset.x,
-          y: e.clientY - rect.top - presentationViewOffset.y,
-        };
-        presCanvas.classList.add("panning");
-        e.preventDefault();
+        if (
+          onEmpty &&
+          e.button === 0 &&
+          presentationTool === "select" &&
+          !e.target.closest("#presentation-empty-state button")
+        ) {
+          clearPresentationSpatialSelection();
+          presentationPendingConnSourceId = null;
+          renderPresentationSpatialConnections();
+        }
+        if (e.target.closest(".presentation-card, .presentation-object"))
+          return;
       });
-      presCanvas.addEventListener(
+      presCanvas.addEventListener("contextmenu", (e) => {
+        if (currentScreenName !== "presentation" || !currentPresentation)
+          return;
+        if (e.target.closest("#presentation-empty-state button")) return;
+        e.preventDefault();
+        presentationCtxWorldPos = presentationClientToWorld(
+          e.clientX,
+          e.clientY,
+        );
+        presentationCtxMenuObjectId = null;
+        presentationCtxMenuItemId = null;
+        presentationCtxMenuConnId = null;
+        syncCtxMenuSurface("presentation");
+        document.getElementById("ctx-pres-object-section").style.display =
+          "none";
+        document.getElementById("ctx-pres-card-section").style.display =
+          "none";
+        document.getElementById("ctx-pres-conn-section").style.display =
+          "none";
+        const connEl = e.target.closest(".presentation-conn-line");
+        const objEl = e.target.closest(".presentation-object");
+        const cardEl = e.target.closest(".presentation-card");
+        if (connEl) {
+          presentationCtxMenuConnId =
+            connEl.dataset.presentationConnectionId || null;
+          presentationSelectedConnId = presentationCtxMenuConnId;
+          document.getElementById("ctx-pres-conn-section").style.display =
+            "block";
+          renderPresentationSpatialConnections();
+        } else if (objEl) {
+          presentationCtxMenuObjectId = objEl.dataset.objectId || null;
+          document.getElementById("ctx-pres-object-section").style.display =
+            "block";
+        } else if (cardEl) {
+          presentationCtxMenuItemId =
+            cardEl.dataset.presentationItemId || null;
+          document.getElementById("ctx-pres-card-section").style.display =
+            "block";
+        }
+        const m = document.getElementById("ctx-menu");
+        m.style.left = e.clientX + "px";
+        m.style.top = e.clientY + "px";
+        m.classList.add("visible");
+      });
+    }
+  }
+  if (!window.__bevPresentationMainWheelBound) {
+    window.__bevPresentationMainWheelBound = true;
+    const presMain = document.getElementById("presentation-main");
+    if (presMain) {
+      presMain.addEventListener(
         "wheel",
         (e) => {
-          if (currentScreenName !== "presentation") return;
+          if (currentScreenName !== "presentation" || !currentPresentation)
+            return;
+          const canvas = document.getElementById("presentation-canvas");
+          if (!canvas) return;
           e.preventDefault();
-          const rect = presCanvas.getBoundingClientRect();
+          const rect = canvas.getBoundingClientRect();
           const px = e.clientX - rect.left;
           const py = e.clientY - rect.top;
           const wheelDeltaX = normalizeWheelDelta(
@@ -7273,8 +7656,8 @@ function setupPresentationEvents() {
               -wheelDeltaY * NAVIGATION_TUNING.wheelZoomSensitivity,
             );
             presentationTargetScale = Math.max(
-              0.12,
-              Math.min(2.5, baseScale * zoomFactor),
+              PRESENTATION_SCALE_MIN,
+              Math.min(PRESENTATION_SCALE_MAX, baseScale * zoomFactor),
             );
             startPresentationZoom();
           } else {
@@ -7289,6 +7672,28 @@ function setupPresentationEvents() {
       );
     }
   }
+  if (!window.__bevPresentationKeysBound) {
+    window.__bevPresentationKeysBound = true;
+    document.addEventListener("keydown", (e) => {
+      if (currentScreenName !== "presentation" || !currentPresentation)
+        return;
+      if (isActiveEditableElement(e.target)) return;
+      if (e.key === " ") {
+        e.preventDefault();
+        setPresentationTool(
+          presentationTool === "pan" ? "select" : "pan",
+        );
+        return;
+      }
+      if (e.key === "Escape") {
+        presentationCardOpenIntent = null;
+        presentationPendingConnSourceId = null;
+        clearPresentationSpatialSelection();
+        renderPresentationSpatialConnections();
+        setPresentationTool("select");
+      }
+    });
+  }
   if (!window.__bevPresentationDragBound) {
     window.__bevPresentationDragBound = true;
     window.addEventListener("mousemove", (e) => {
@@ -7299,11 +7704,22 @@ function setupPresentationEvents() {
       const ox = presentationViewOffset.x;
       const oy = presentationViewOffset.y;
       if (presentationPanActive) {
-        presentationViewOffset.x =
-          e.clientX - rect.left - presentationPanStart.x;
-        presentationViewOffset.y =
-          e.clientY - rect.top - presentationPanStart.y;
+        presentationViewOffset.x = e.clientX - presentationPanStart.x;
+        presentationViewOffset.y = e.clientY - presentationPanStart.y;
         applyPresentationTransform();
+        return;
+      }
+      if (presentationCardOpenIntent && presentationTool === "select") {
+        const ix = presentationCardOpenIntent.clientX;
+        const iy = presentationCardOpenIntent.clientY;
+        if (
+          Math.hypot(e.clientX - ix, e.clientY - iy) >=
+          PRESENTATION_CARD_TAP_PX
+        ) {
+          const intent = presentationCardOpenIntent;
+          presentationCardOpenIntent = null;
+          startPresentationItemDrag(e, intent.item, intent.el);
+        }
         return;
       }
       if (presentationDragItemId) {
@@ -7328,6 +7744,7 @@ function setupPresentationEvents() {
         );
         el.style.left = `${item.x}px`;
         el.style.top = `${item.y}px`;
+        renderPresentationSpatialConnections();
         return;
       }
       if (presentationDragObjectId) {
@@ -7354,6 +7771,7 @@ function setupPresentationEvents() {
         );
         el.style.left = `${obj.x}px`;
         el.style.top = `${obj.y}px`;
+        renderPresentationSpatialConnections();
         return;
       }
       if (presentationResizeObjectId) {
@@ -7402,14 +7820,29 @@ function setupPresentationEvents() {
         el.style.height = `${h}px`;
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
+        renderPresentationSpatialConnections();
       }
     });
-    window.addEventListener("mouseup", () => {
+    window.addEventListener("mouseup", (e) => {
       if (presentationPanActive) {
         presentationPanActive = false;
         document
           .getElementById("presentation-canvas")
           ?.classList.remove("panning");
+      }
+      if (presentationCardOpenIntent && currentPresentation) {
+        const intent = presentationCardOpenIntent;
+        presentationCardOpenIntent = null;
+        if (
+          !presentationDragItemId &&
+          presentationTool === "select" &&
+          Math.hypot(
+            e.clientX - intent.clientX,
+            e.clientY - intent.clientY,
+          ) < PRESENTATION_CARD_TAP_PX
+        ) {
+          openProject(intent.projectId, "presentation");
+        }
       }
       if (
         !presentationDragItemId &&
@@ -7425,6 +7858,7 @@ function setupPresentationEvents() {
       presentationResizeObjectId = null;
       presentationResizeStart = null;
       queuePresentationSave(currentPresentation);
+      renderPresentationSpatialConnections();
     });
   }
 }
@@ -7744,6 +8178,10 @@ function setupCanvasEvents() {
 
   con.addEventListener("contextmenu", (e) => {
     e.preventDefault();
+    syncCtxMenuSurface("canvas");
+    presentationCtxMenuObjectId = null;
+    presentationCtxMenuItemId = null;
+    presentationCtxMenuConnId = null;
     ctxMenuPos = s2w(e.clientX, e.clientY);
     const nodeEl = e.target.closest(".node");
     const connEl = e.target.closest(".conn-line");
