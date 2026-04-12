@@ -26,6 +26,13 @@ function viewerSpatialScaleRange() {
   return B?.DEFAULT_SPATIAL_SCALE_RANGE || { min: 0.05, max: 5 };
 }
 
+/** Same breakpoint as BEVCore.isMobileViewport (820px); safe if bev-core.js is missing. */
+function viewerIsMobileViewport() {
+  const B = typeof BEVCore !== 'undefined' ? BEVCore : null;
+  if (B && typeof B.isMobileViewport === 'function') return B.isMobileViewport();
+  return typeof window.innerWidth === 'number' && window.innerWidth <= 820;
+}
+
 function viewerIsTypingTarget(el) {
   if (!el || !el.tagName) return false;
   const t = el.tagName;
@@ -680,7 +687,7 @@ function fitViewerViewportToData(data) {
     })),
   ];
   const rect = canvas.getBoundingClientRect();
-  const isMobile = BEVCore.isMobileViewport();
+  const isMobile = viewerIsMobileViewport();
   if (!all.length) {
     const g = isMobile ? 40 : 56;
     const sc = Math.max(smin, Math.min(smax, isMobile ? 0.28 : 0.48));
