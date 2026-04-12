@@ -65,6 +65,7 @@
 }
 
 /* Open BEV button */
+.viewer-share-btn,
 .viewer-open-btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 14px;
@@ -76,11 +77,16 @@
   text-decoration: none;
   transition: all 0.2s; cursor: pointer;
 }
+.viewer-share-btn {
+  font: inherit;
+}
+.viewer-share-btn:hover,
 .viewer-open-btn:hover {
   background: rgba(255,255,255,0.12);
   border-color: rgba(255,255,255,0.22);
   color: var(--text);
 }
+.viewer-share-btn svg,
 .viewer-open-btn svg { flex-shrink: 0; }
 
 /* ── Viewer canvas (full screen) ──────────────────────────── */

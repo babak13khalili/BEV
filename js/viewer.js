@@ -269,6 +269,8 @@ async function startViewer() {
     else el.addEventListener('click', () => window.location.href = baseUrl);
   });
 
+  wireViewerShareControls();
+
   // Firebase
   if (!initFirebase()) {
     showLoading(false);
@@ -327,6 +329,42 @@ async function copyToClipboard(text) {
     document.body.removeChild(ta);
     return ok;
   } catch { return false; }
+}
+
+function showViewerToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/** Share sheet (if supported) or copy the current viewer URL — works without main app scripts. */
+function wireViewerShareControls() {
+  const shareBtn = document.getElementById('viewer-share-btn');
+  if (!shareBtn) return;
+  shareBtn.onclick = async () => {
+    const token = getShareToken();
+    if (!token) return;
+    const url = buildShareUrl(token);
+    const title = (_data && _data.name) ? String(_data.name) : 'Presentation';
+    if (navigator.share && window.isSecureContext) {
+      try {
+        await navigator.share({
+          title,
+          text: 'View this Bird Eye View presentation',
+          url,
+        });
+        showViewerToast('Link shared');
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+    const ok = await copyToClipboard(url);
+    if (ok) showViewerToast('Link copied to clipboard');
+    else window.prompt('Copy this viewer link:', url);
+  };
 }
 
 /* ── Exports ─────────────────────────────────────────────── */

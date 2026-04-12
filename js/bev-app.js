@@ -709,7 +709,7 @@ async function deletePresentationFromFirestore(presentation) {
 }
 
 async function savePresentationToFirestore(presentation) {
-  if (!presentation || !currentUser) return;
+  if (!presentation || !currentUser) return false;
   presentation.updatedAt = Date.now();
   setSyncStatus("syncing");
   try {
@@ -727,9 +727,11 @@ async function savePresentationToFirestore(presentation) {
     );
     if (presentation.shareToken) await publishPresentation(presentation);
     setSyncStatus("synced");
+    return true;
   } catch (e) {
     setSyncStatus("error");
     showToast("Presentation save failed: " + e.message);
+    return false;
   }
 }
 
@@ -3617,10 +3619,11 @@ function updatePresentationPrivacyUI() {
     dot.classList.add(shared ? "shared" : "private");
   }
   if (label) label.textContent = shared ? "Shared" : "Private";
-  if (pathStatus)
+  if (pathStatus) {
     pathStatus.textContent = shared
-      ? "Shared Presentation"
+      ? "Shared — anyone with the link can view"
       : "Private Presentation";
+  }
 }
 
 function createPresentationObjectEl(obj, { viewer = false } = {}) {
@@ -3983,20 +3986,36 @@ function startPresentationObjectResize(e, obj, dir, el) {
 
 async function copyCurrentPresentationShareLink() {
   if (!currentPresentation) return;
-  try {
-    if (!currentPresentation.shareToken) {
-      currentPresentation.shareToken = makePresentationShareToken();
-    }
-    await savePresentationToFirestore(currentPresentation);
-  } catch (e) {
-    showToast("Could not save or publish presentation: " + e.message);
+  const hadToken = !!currentPresentation.shareToken;
+  if (!currentPresentation.shareToken) {
+    currentPresentation.shareToken = makePresentationShareToken();
+  }
+  const saved = await savePresentationToFirestore(currentPresentation);
+  if (!saved) {
+    if (!hadToken) currentPresentation.shareToken = null;
+    renderPresentationScreen();
     return;
   }
   const shareUrl = getSharedPresentationUrl(currentPresentation.shareToken);
   renderPresentationScreen();
+
+  if (navigator.share && window.isSecureContext) {
+    try {
+      await navigator.share({
+        title: (currentPresentation.name || "").trim() || "BEV Presentation",
+        text: "View this Bird Eye View presentation",
+        url: shareUrl,
+      });
+      showToast("Presentation link shared");
+      return;
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+    }
+  }
+
   const copied = await copyTextToClipboard(shareUrl);
   if (copied) {
-    showToast("Presentation link copied to clipboard");
+    showToast("Viewer link copied to clipboard");
   } else {
     window.prompt("Clipboard unavailable — copy this viewer link manually:", shareUrl);
   }

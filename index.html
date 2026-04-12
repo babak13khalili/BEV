@@ -57,6 +57,13 @@
           <span id="viewer-title"></span>
         </div>
         <div class="viewer-bar-right">
+          <button type="button" class="viewer-share-btn" id="viewer-share-btn" aria-label="Share or copy presentation link" title="Share or copy link">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <circle cx="12" cy="3" r="2"/><circle cx="4" cy="8" r="2"/><circle cx="12" cy="13" r="2"/>
+              <path d="M6 7l5-3M6 9l5 3"/>
+            </svg>
+            Share
+          </button>
           <a class="viewer-open-btn" href="#" id="viewer-open-link" title="Open BEV to create your own">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
               <rect x="2.5" y="2.5" width="11" height="11" rx="1"/>
@@ -303,7 +310,7 @@
         </div>
         <div class="path-right">
           <!-- Share button: copies viewer URL to clipboard -->
-          <button class="icon-btn" id="presentation-share-btn" onclick="copyCurrentPresentationShareLink()" aria-label="Copy share link" title="Copy viewer link">
+          <button class="icon-btn" id="presentation-share-btn" onclick="copyCurrentPresentationShareLink()" aria-label="Share presentation" title="Share or copy viewer link">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
               <circle cx="4" cy="8" r="1.6"/><circle cx="12" cy="4" r="1.6"/><circle cx="12" cy="12" r="1.6"/>
               <path d="M5.4 7.3l5-2.6M5.4 8.7l5 2.6"/>

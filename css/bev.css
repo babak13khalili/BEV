@@ -1,4 +1,7 @@
 :root {
+  /* Shared with css/viewer.css (wordmark + viewer chrome) */
+  --font-head: "Syne", sans-serif;
+  --font-ui: "Barlow", sans-serif;
   --bg: #080808;
   --bg2: #0f0f0f;
   --bg3: #161616;
@@ -3377,7 +3380,7 @@ textarea,
   background: var(--bg4);
   border: 1px solid var(--border2);
   padding: 10px 20px;
-  font-family: "Syne", sans-serif;
+  font-family: var(--font-head);
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
