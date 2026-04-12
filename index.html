@@ -616,14 +616,28 @@
     <script src="js/viewer.js"></script>
     <script>
       // Boot: try shared viewer first, fall through to main app if not a viewer URL
-      BEVViewer.start().then(isViewer => {
-        if (!isViewer) {
-          // Normal app boot
-          const appScript = document.createElement('script');
+      (function bootBEV() {
+        function loadMainApp() {
+          var vl = document.getElementById('viewer-loading');
+          if (vl) {
+            vl.classList.remove('is-active');
+            vl.style.display = 'none';
+          }
+          if (document.querySelector('script[data-bev-app]')) return;
+          var appScript = document.createElement('script');
           appScript.src = 'js/bev-app.js';
+          appScript.setAttribute('data-bev-app', '1');
           document.body.appendChild(appScript);
         }
-      });
+        BEVViewer.start()
+          .then(function (isViewer) {
+            if (!isViewer) loadMainApp();
+          })
+          .catch(function (err) {
+            console.error('BEVViewer.start failed:', err);
+            loadMainApp();
+          });
+      })();
     </script>
   </body>
 </html>

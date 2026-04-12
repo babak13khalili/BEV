@@ -52,8 +52,20 @@ function initFirebase() {
   }
 }
 
+function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function fetchPresentation(token) {
-  const snap = await _fbDb.collection('public_presentations').doc(token).get();
+  const snap = await withTimeout(
+    _fbDb.collection('public_presentations').doc(token).get(),
+    45000,
+    'Request timed out',
+  );
   return snap.exists ? snap.data() : null;
 }
 
@@ -222,7 +234,14 @@ function resetIdleTimer() {
 
 function showLoading(show) {
   const el = document.getElementById('viewer-loading');
-  if (el) el.classList.toggle('hidden', !show);
+  if (!el) return;
+  if (show) {
+    el.classList.add('is-active');
+    el.classList.remove('hidden');
+  } else {
+    el.classList.remove('is-active');
+    el.classList.add('hidden');
+  }
 }
 
 function showUnavailable(show) {
@@ -253,7 +272,10 @@ function scrollToContent(data) {
 
 async function startViewer() {
   const token = getShareToken();
-  if (!token) return false;       // not a viewer URL — let main app handle it
+  if (!token) {
+    showLoading(false);
+    return false;
+  }
 
   // Hide all other screens, show viewer loading
   document.querySelectorAll('[id^="screen-"]').forEach(s => s.style.display = 'none');

@@ -160,13 +160,18 @@
 
 /* ── Loading state ────────────────────────────────────────── */
 
+/* Hidden unless shared viewer is active (?presentation=token) — was display:flex by default and covered the main app */
 #viewer-loading {
   position: absolute; inset: 0;
-  display: flex; flex-direction: column;
+  display: none;
+  flex-direction: column;
   align-items: center; justify-content: center;
   gap: 16px; background: var(--bg);
   z-index: 300;
   transition: opacity 0.3s;
+}
+#viewer-loading.is-active {
+  display: flex;
 }
 #viewer-loading.hidden { opacity: 0; pointer-events: none; }
 

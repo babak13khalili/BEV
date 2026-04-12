@@ -438,6 +438,14 @@ function getSharedPresentationUrl(token) {
   return url.toString();
 }
 
+function promiseWithTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 /** Clipboard API is blocked on non-HTTPS and some browsers; use fallbacks. */
 async function copyTextToClipboard(text) {
   if (navigator.clipboard?.writeText && window.isSecureContext) {
@@ -920,12 +928,16 @@ async function loadProjects() {
   setSyncStatus("syncing");
   try {
     const [snap, dashboardSnap, imageAssetSnap, presentationSnap] =
-      await Promise.all([
-      pRef().orderBy("created", "asc").get(),
-      dashboardRef().get(),
-      imageAssetRef().get(),
-      presentationRef().orderBy("created", "asc").get(),
-    ]);
+      await promiseWithTimeout(
+        Promise.all([
+          pRef().orderBy("created", "asc").get(),
+          dashboardRef().get(),
+          imageAssetRef().get(),
+          presentationRef().orderBy("created", "asc").get(),
+        ]),
+        60000,
+        "Loading timed out — check your connection and try again.",
+      );
     const imageAssetMap = buildImageAssetMap(imageAssetSnap.docs);
     projects = snap.docs.map((d) => {
       const project = { id: d.id, ...d.data() };
@@ -4104,7 +4116,11 @@ function renderSharedPresentation() {
 async function loadSharedPresentation(token) {
   show("loading");
   try {
-    const snap = await publicPresentationRef(token).get();
+    const snap = await promiseWithTimeout(
+      publicPresentationRef(token).get(),
+      45000,
+      "Presentation load timed out — check your connection.",
+    );
     sharedPresentation = snap.exists
       ? {
           ...snap.data(),
