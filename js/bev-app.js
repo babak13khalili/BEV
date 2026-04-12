@@ -76,6 +76,14 @@ let presentationSaveTimer = null,
   presentationObjectDragOffset = { x: 0, y: 0 },
   presentationResizeObjectId = null,
   presentationResizeStart = null;
+let presentationViewOffset = { x: 180, y: 110 },
+  presentationScale = 0.55,
+  presentationTargetScale = 0.55,
+  presentationIsZooming = false,
+  presentationZoomRAF = null,
+  presentationZoomOrigin = { x: 0, y: 0 },
+  presentationPanActive = false,
+  presentationPanStart = { x: 0, y: 0 };
 let overviewItems = [],
   overviewDragItemId = null,
   overviewDragOffset = { x: 0, y: 0 },
@@ -626,9 +634,10 @@ function getPresentationGridPosition(index = 0) {
 function getPresentationViewportCenter() {
   const canvas = document.getElementById("presentation-canvas");
   if (!canvas) return { x: 220, y: 180 };
+  const sc = presentationScale || 1;
   return {
-    x: canvas.scrollLeft + canvas.clientWidth / 2,
-    y: canvas.scrollTop + canvas.clientHeight / 2,
+    x: (canvas.clientWidth / 2 - presentationViewOffset.x) / sc,
+    y: (canvas.clientHeight / 2 - presentationViewOffset.y) / sc,
   };
 }
 
@@ -654,6 +663,7 @@ function formatPresentationTimestamp(ts) {
 }
 
 function buildPublicProjectSnapshot(project) {
+  const safe = sanitizeProjectForSave(project);
   return {
     id: project.id,
     name: project.name || "Untitled",
@@ -666,6 +676,8 @@ function buildPublicProjectSnapshot(project) {
     connectionCount: Array.isArray(project.connections)
       ? project.connections.length
       : 0,
+    nodes: JSON.parse(JSON.stringify(safe.nodes || [])),
+    connections: JSON.parse(JSON.stringify(project.connections || [])),
   };
 }
 
@@ -3542,7 +3554,7 @@ function createPresentationProjectCardEl(
         ${statusMarkup}
         <div class="card-stats"><div class="card-stat"><span>${nodeCount}</span> nodes</div><div class="card-stat"><span>${connectionCount}</span> links</div></div>
       </div>
-      ${viewer ? "" : `<button class="card-open" type="button" aria-label="Open linked card">→</button>`}
+      ${viewer ? "" : `<button class="card-open" type="button" aria-label="Open card to read everything inside">Open</button>`}
     </div>`;
   if (viewer) return el;
   el.querySelector(".card-del")?.addEventListener("click", (e) => {
@@ -3557,6 +3569,16 @@ function createPresentationProjectCardEl(
     e.stopPropagation();
     openProject(project.id, "presentation");
   });
+  const titleEl = el.querySelector(".card-title");
+  const descEl = el.querySelector(".card-desc");
+  const openFromCard = (e) => {
+    e.stopPropagation();
+    openProject(project.id, "presentation");
+  };
+  titleEl?.addEventListener("mousedown", (e) => e.stopPropagation());
+  descEl?.addEventListener("mousedown", (e) => e.stopPropagation());
+  titleEl?.addEventListener("click", openFromCard);
+  descEl?.addEventListener("click", openFromCard);
   bindEditableProjectStatus({
     project,
     statusBtn: el.querySelector(".card-status"),
@@ -3571,6 +3593,8 @@ function createPresentationProjectCardEl(
       e.target.closest(".card-del") ||
       e.target.closest(".card-edit") ||
       e.target.closest(".card-open") ||
+      e.target.closest(".card-title") ||
+      e.target.closest(".card-desc") ||
       e.target.closest(".card-status") ||
       e.target.closest(".card-status-menu")
     ) {
@@ -3608,6 +3632,7 @@ function renderPresentationList() {
     item.addEventListener("click", () => {
       currentPresentation = presentation;
       renderPresentationScreen();
+      setTimeout(presentationResetView, 60);
       saveLastView("presentation", null, presentation.id);
     });
     item
@@ -3836,6 +3861,7 @@ function renderPresentationScreen() {
     countEl.textContent = `${(currentPresentation.items || []).length} cards`;
   updatePresentationPrivacyUI();
   renderPresentationWorld();
+  applyPresentationTransform();
 }
 
 function createPresentation(initialProjectIds = []) {
@@ -3852,6 +3878,7 @@ function createPresentation(initialProjectIds = []) {
   savePresentationToFirestore(presentation);
   show("presentation");
   renderPresentationScreen();
+  setTimeout(presentationResetView, 60);
   saveLastView("presentation", null, presentation.id);
 }
 
@@ -3861,6 +3888,7 @@ function openPresentationHub(presentationId = null) {
     : currentPresentation || presentations[0] || null;
   show("presentation");
   renderPresentationScreen();
+  setTimeout(presentationResetView, 60);
   saveLastView("presentation", null, currentPresentation?.id || null);
 }
 
@@ -3894,6 +3922,7 @@ function addProjectsToPresentation(projectIds = [], shouldSave = true) {
   if (!added) return;
   if (shouldSave) queuePresentationSave(currentPresentation);
   renderPresentationScreen();
+  setTimeout(presentationResetView, 60);
 }
 
 function addPresentationObject(type) {
@@ -3959,10 +3988,13 @@ function startPresentationItemDrag(e, item, el) {
   const canvas = document.getElementById("presentation-canvas");
   if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
+  const sc = presentationScale || 1;
+  const ox = presentationViewOffset.x;
+  const oy = presentationViewOffset.y;
   presentationDragItemId = item.id;
   presentationDragOffset = {
-    x: e.clientX - rect.left + canvas.scrollLeft - (item.x || 0),
-    y: e.clientY - rect.top + canvas.scrollTop - (item.y || 0),
+    x: (e.clientX - rect.left - ox) / sc - (item.x || 0),
+    y: (e.clientY - rect.top - oy) / sc - (item.y || 0),
   };
   el.classList.add("dragging");
   e.preventDefault();
@@ -3973,10 +4005,13 @@ function startPresentationObjectDrag(e, obj, el) {
   const canvas = document.getElementById("presentation-canvas");
   if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
+  const sc = presentationScale || 1;
+  const ox = presentationViewOffset.x;
+  const oy = presentationViewOffset.y;
   presentationDragObjectId = obj.id;
   presentationObjectDragOffset = {
-    x: e.clientX - rect.left + canvas.scrollLeft - (obj.x || 0),
-    y: e.clientY - rect.top + canvas.scrollTop - (obj.y || 0),
+    x: (e.clientX - rect.left - ox) / sc - (obj.x || 0),
+    y: (e.clientY - rect.top - oy) / sc - (obj.y || 0),
   };
   el.classList.add("dragging");
   e.preventDefault();
@@ -4833,6 +4868,92 @@ function applyDashboardTransform() {
   const level = document.getElementById("dashboard-zoom-level");
   if (level) level.textContent = Math.round(dashboardScale * 100) + "%";
   drawDashboardMinimap();
+}
+
+function applyPresentationTransform() {
+  const world = document.getElementById("presentation-world");
+  const canvas = document.getElementById("presentation-canvas");
+  if (world) {
+    world.style.transform = `translate3d(${presentationViewOffset.x}px, ${presentationViewOffset.y}px, 0) scale(${presentationScale})`;
+  }
+  if (canvas) {
+    canvas.style.setProperty("--presentation-scale", presentationScale);
+    canvas.style.setProperty(
+      "--presentation-grid-x",
+      `${presentationViewOffset.x}px`,
+    );
+    canvas.style.setProperty(
+      "--presentation-grid-y",
+      `${presentationViewOffset.y}px`,
+    );
+  }
+  const level = document.getElementById("presentation-zoom-level");
+  if (level) level.textContent = Math.round(presentationScale * 100) + "%";
+}
+
+function presentationResetView() {
+  const canvas = document.getElementById("presentation-canvas");
+  const world = document.getElementById("presentation-world");
+  if (!canvas || !world) return;
+  const rect = canvas.getBoundingClientRect();
+  const nodes = [
+    ...world.querySelectorAll(".presentation-card, .presentation-object"),
+  ];
+  if (!nodes.length) {
+    presentationViewOffset = isMobileViewport()
+      ? { x: 100, y: 72 }
+      : { x: 160, y: 96 };
+    presentationScale = presentationTargetScale = isMobileViewport()
+      ? 0.5
+      : 0.62;
+    applyPresentationTransform();
+    return;
+  }
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  nodes.forEach((el) => {
+    const x = parseFloat(el.style.left) || 0;
+    const y = parseFloat(el.style.top) || 0;
+    const w = el.offsetWidth || 280;
+    const h = el.offsetHeight || 200;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + w);
+    maxY = Math.max(maxY, y + h);
+  });
+  const pad = isMobileViewport() ? 120 : 160;
+  const worldW = maxX - minX + pad * 2;
+  const worldH = maxY - minY + pad * 2;
+  presentationScale = presentationTargetScale = Math.min(
+    1.35,
+    Math.max(0.14, Math.min(rect.width / worldW, rect.height / worldH)),
+  );
+  presentationViewOffset.x =
+    (rect.width - worldW * presentationScale) / 2 -
+    (minX - pad) * presentationScale;
+  presentationViewOffset.y =
+    (rect.height - worldH * presentationScale) / 2 -
+    (minY - pad) * presentationScale;
+  applyPresentationTransform();
+}
+
+function presentationZoomBy(delta) {
+  const canvas = document.getElementById("presentation-canvas");
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const px = rect.width / 2;
+  const py = rect.height / 2;
+  presentationZoomOrigin = { x: px, y: py };
+  const baseScale = presentationIsZooming
+    ? presentationTargetScale
+    : presentationScale;
+  presentationTargetScale = Math.max(
+    0.12,
+    Math.min(2.5, baseScale + delta),
+  );
+  startPresentationZoom();
 }
 
 function updateDashboardInfo() {
@@ -7043,6 +7164,38 @@ function smoothDashboardZoomLoop() {
   dashboardZoomRAF = requestAnimationFrame(smoothDashboardZoomLoop);
 }
 
+function startPresentationZoom() {
+  presentationIsZooming = true;
+  if (presentationZoomRAF) cancelAnimationFrame(presentationZoomRAF);
+  presentationZoomRAF = requestAnimationFrame(smoothPresentationZoomLoop);
+}
+
+function smoothPresentationZoomLoop() {
+  const diff = presentationTargetScale - presentationScale;
+  if (Math.abs(diff) < 0.0005) {
+    presentationScale = presentationTargetScale;
+    presentationIsZooming = false;
+    presentationZoomRAF = null;
+    applyPresentationTransform();
+    return;
+  }
+  const prev = presentationScale;
+  presentationScale +=
+    diff *
+    (isMobileViewport()
+      ? NAVIGATION_TUNING.zoomLerpMobile
+      : NAVIGATION_TUNING.zoomLerpDesktop);
+  const ratio = presentationScale / prev;
+  presentationViewOffset.x =
+    presentationZoomOrigin.x -
+    ratio * (presentationZoomOrigin.x - presentationViewOffset.x);
+  presentationViewOffset.y =
+    presentationZoomOrigin.y -
+    ratio * (presentationZoomOrigin.y - presentationViewOffset.y);
+  applyPresentationTransform();
+  presentationZoomRAF = requestAnimationFrame(smoothPresentationZoomLoop);
+}
+
 function setupPresentationEvents() {
   const titleInput = document.getElementById("presentation-title-input");
   const pickerOverlay = document.getElementById("presentation-picker-overlay");
@@ -7068,12 +7221,91 @@ function setupPresentationEvents() {
       if (e.target === pickerOverlay) closePresentationPicker();
     });
   }
+  if (!window.__bevPresentationCanvasNavBound) {
+    window.__bevPresentationCanvasNavBound = true;
+    const presCanvas = document.getElementById("presentation-canvas");
+    if (presCanvas) {
+      presCanvas.addEventListener("mousedown", (e) => {
+        if (currentScreenName !== "presentation") return;
+        if (e.target.closest(".presentation-card, .presentation-object"))
+          return;
+        const world = document.getElementById("presentation-world");
+        const onEmpty =
+          e.target === presCanvas ||
+          e.target === world ||
+          e.target.closest("#presentation-empty-state");
+        const shouldPan =
+          e.button === 1 || (e.button === 0 && onEmpty && !e.ctrlKey);
+        if (!shouldPan) return;
+        const rect = presCanvas.getBoundingClientRect();
+        presentationPanActive = true;
+        presentationPanStart = {
+          x: e.clientX - rect.left - presentationViewOffset.x,
+          y: e.clientY - rect.top - presentationViewOffset.y,
+        };
+        presCanvas.classList.add("panning");
+        e.preventDefault();
+      });
+      presCanvas.addEventListener(
+        "wheel",
+        (e) => {
+          if (currentScreenName !== "presentation") return;
+          e.preventDefault();
+          const rect = presCanvas.getBoundingClientRect();
+          const px = e.clientX - rect.left;
+          const py = e.clientY - rect.top;
+          const wheelDeltaX = normalizeWheelDelta(
+            e.deltaX,
+            e.deltaMode,
+            rect.width,
+          );
+          const wheelDeltaY = normalizeWheelDelta(
+            e.deltaY,
+            e.deltaMode,
+            rect.height,
+          );
+          if (e.ctrlKey || e.metaKey) {
+            presentationZoomOrigin = { x: px, y: py };
+            const baseScale = presentationIsZooming
+              ? presentationTargetScale
+              : presentationScale;
+            const zoomFactor = Math.exp(
+              -wheelDeltaY * NAVIGATION_TUNING.wheelZoomSensitivity,
+            );
+            presentationTargetScale = Math.max(
+              0.12,
+              Math.min(2.5, baseScale * zoomFactor),
+            );
+            startPresentationZoom();
+          } else {
+            presentationViewOffset.x -=
+              wheelDeltaX * NAVIGATION_TUNING.wheelPanMultiplier;
+            presentationViewOffset.y -=
+              wheelDeltaY * NAVIGATION_TUNING.wheelPanMultiplier;
+            applyPresentationTransform();
+          }
+        },
+        { passive: false },
+      );
+    }
+  }
   if (!window.__bevPresentationDragBound) {
     window.__bevPresentationDragBound = true;
     window.addEventListener("mousemove", (e) => {
       const canvas = document.getElementById("presentation-canvas");
       if (!canvas || !currentPresentation) return;
       const rect = canvas.getBoundingClientRect();
+      const sc = presentationScale || 1;
+      const ox = presentationViewOffset.x;
+      const oy = presentationViewOffset.y;
+      if (presentationPanActive) {
+        presentationViewOffset.x =
+          e.clientX - rect.left - presentationPanStart.x;
+        presentationViewOffset.y =
+          e.clientY - rect.top - presentationPanStart.y;
+        applyPresentationTransform();
+        return;
+      }
       if (presentationDragItemId) {
         const el = document.querySelector(
           `.presentation-card[data-presentation-item-id="${presentationDragItemId}"]`,
@@ -7085,19 +7317,13 @@ function setupPresentationEvents() {
         item.x = Math.max(
           20,
           Math.round(
-            e.clientX -
-              rect.left +
-              canvas.scrollLeft -
-              presentationDragOffset.x,
+            (e.clientX - rect.left - ox) / sc - presentationDragOffset.x,
           ),
         );
         item.y = Math.max(
           20,
           Math.round(
-            e.clientY -
-              rect.top +
-              canvas.scrollTop -
-              presentationDragOffset.y,
+            (e.clientY - rect.top - oy) / sc - presentationDragOffset.y,
           ),
         );
         el.style.left = `${item.x}px`;
@@ -7115,18 +7341,14 @@ function setupPresentationEvents() {
         obj.x = Math.max(
           20,
           Math.round(
-            e.clientX -
-              rect.left +
-              canvas.scrollLeft -
+            (e.clientX - rect.left - ox) / sc -
               presentationObjectDragOffset.x,
           ),
         );
         obj.y = Math.max(
           20,
           Math.round(
-            e.clientY -
-              rect.top +
-              canvas.scrollTop -
+            (e.clientY - rect.top - oy) / sc -
               presentationObjectDragOffset.y,
           ),
         );
@@ -7142,8 +7364,8 @@ function setupPresentationEvents() {
           (entry) => entry.id === presentationResizeObjectId,
         );
         if (!el || !obj || !presentationResizeStart) return;
-        const dx = e.clientX - presentationResizeStart.x;
-        const dy = e.clientY - presentationResizeStart.y;
+        const dx = (e.clientX - presentationResizeStart.x) / sc;
+        const dy = (e.clientY - presentationResizeStart.y) / sc;
         let w = presentationResizeStart.w;
         let h = presentationResizeStart.h;
         let x = presentationResizeStart.startX;
@@ -7183,6 +7405,12 @@ function setupPresentationEvents() {
       }
     });
     window.addEventListener("mouseup", () => {
+      if (presentationPanActive) {
+        presentationPanActive = false;
+        document
+          .getElementById("presentation-canvas")
+          ?.classList.remove("panning");
+      }
       if (
         !presentationDragItemId &&
         !presentationDragObjectId &&

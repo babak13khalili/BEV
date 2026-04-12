@@ -189,7 +189,14 @@
 
 /* ── Viewer cards — strip all interactive chrome ──────────── */
 
-#viewer-world .project-card { cursor: default; }
+#viewer-world .project-card:not(.viewer-shared-card) { cursor: default; }
+#viewer-world .viewer-shared-card {
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+#viewer-world .viewer-shared-card:hover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
 
 #viewer-world .card-del,
 #viewer-world .card-edit,
@@ -209,6 +216,159 @@
 #viewer-world .conn-handle  { display: none !important; }
 #viewer-world .node-resize-handle   { display: none !important; }
 #viewer-world .overview-resize-handle { display: none !important; }
+
+/* ── Read-only card drill-in (snapshot nodes) ─────────────── */
+
+.viewer-card-inspect {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: none;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+.viewer-card-inspect.visible {
+  display: flex;
+}
+.viewer-card-inspect-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+}
+.viewer-card-inspect-panel {
+  position: relative;
+  width: min(520px, 100vw);
+  max-width: 100%;
+  background: var(--bg2);
+  border-left: 1px solid var(--border2);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -12px 0 48px rgba(0, 0, 0, 0.45);
+  z-index: 1;
+}
+.viewer-card-inspect-head {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.viewer-card-inspect-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 10px;
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.viewer-card-inspect-close:hover {
+  color: var(--text);
+}
+.viewer-card-inspect-head h2 {
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+  margin: 0;
+}
+.viewer-card-inspect-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 16px 32px;
+}
+.viewer-inspect-desc {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.55;
+  margin-bottom: 18px;
+}
+.viewer-inspect-nodes {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.viewer-inspect-block {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 14px;
+  background: var(--bg3);
+}
+.viewer-inspect-block-heading h3 {
+  font-family: var(--font-head);
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text);
+  line-height: 1.35;
+}
+.viewer-inspect-block-muted {
+  opacity: 0.65;
+}
+.viewer-inspect-kind {
+  font-family: var(--font-head);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 8px;
+}
+.viewer-inspect-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.viewer-inspect-link {
+  font-size: 12px;
+  color: var(--blue);
+  word-break: break-all;
+}
+.viewer-inspect-muted {
+  font-size: 12px;
+  color: var(--text3);
+  margin: 8px 0 0;
+}
+.viewer-inspect-legacy,
+.viewer-inspect-legacy-sub {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.55;
+}
+.viewer-inspect-legacy-sub {
+  font-size: 12px;
+  color: var(--text3);
+}
+.viewer-inspect-conn-meta {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 16px;
+  letter-spacing: 0.04em;
+}
+.viewer-inspect-bullets {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.viewer-inspect-bullets li.is-done {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+.viewer-inspect-pre {
+  font-size: 11px;
+  color: var(--text2);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+}
 
 /* ── Responsive ───────────────────────────────────────────── */
 

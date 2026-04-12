@@ -87,6 +87,18 @@
         <a class="viewer-unavailable-cta" href="#">Open BEV →</a>
       </div>
 
+      <!-- Read-only drill-in for a linked card (uses snapshot.nodes when published) -->
+      <div id="viewer-card-inspect" class="viewer-card-inspect" aria-hidden="true">
+        <div class="viewer-card-inspect-backdrop" id="viewer-card-inspect-backdrop"></div>
+        <div class="viewer-card-inspect-panel" role="dialog" aria-modal="true" aria-labelledby="viewer-card-inspect-title">
+          <div class="viewer-card-inspect-head">
+            <button type="button" class="viewer-card-inspect-close" id="viewer-card-inspect-close" aria-label="Close">← Back</button>
+            <h2 id="viewer-card-inspect-title"></h2>
+          </div>
+          <div class="viewer-card-inspect-scroll" id="viewer-card-inspect-body"></div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ═══════════════════════════════════════════════════════
@@ -381,6 +393,12 @@
                 Create Presentation
               </button>
             </div>
+          </div>
+          <div id="presentation-zoom-controls">
+            <button class="zoom-btn" type="button" onclick="presentationZoomBy(-0.2)">−</button>
+            <div id="presentation-zoom-level">100%</div>
+            <button class="zoom-btn" type="button" onclick="presentationZoomBy(0.2)">+</button>
+            <button class="zoom-btn zoom-fit" type="button" onclick="presentationResetView()">FIT</button>
           </div>
         </div>
       </div>

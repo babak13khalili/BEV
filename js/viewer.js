@@ -108,19 +108,141 @@ function isSharedTextType(t) {
 
 /* ── Card rendering ──────────────────────────────────────── */
 
+function closeViewerCardInspect() {
+  const root = document.getElementById('viewer-card-inspect');
+  if (!root) return;
+  root.classList.remove('visible');
+  root.setAttribute('aria-hidden', 'true');
+}
+
+function renderPublicNodeInspect(node) {
+  const t = canonicalType(node.type);
+  const typeLabel = esc(String(node.customTitle || t || 'Item'));
+  if (t === 'heading') {
+    return `<section class="viewer-inspect-block viewer-inspect-block-heading"><h3>${renderTextHTML(node.text)}</h3></section>`;
+  }
+  if (isTextNote(t)) {
+    return `<section class="viewer-inspect-block"><div class="viewer-inspect-kind">${typeLabel}</div><div class="viewer-inspect-text">${renderTextHTML(node.text)}</div></section>`;
+  }
+  if (t === 'frame') {
+    return `<section class="viewer-inspect-block"><div class="viewer-inspect-kind">Area — ${typeLabel}</div><div class="viewer-inspect-text">${renderTextHTML(node.text)}</div></section>`;
+  }
+  if (t === 'line') {
+    return '<section class="viewer-inspect-block viewer-inspect-block-muted"><span class="viewer-inspect-kind">Line</span></section>';
+  }
+  if (t === 'progress') {
+    const val = Math.round(Math.min(100, Math.max(0, Number(node.value) || 0)));
+    let stepsHtml = '';
+    if (Array.isArray(node.steps) && node.steps.length) {
+      stepsHtml =
+        '<ul class="viewer-inspect-bullets">' +
+        node.steps
+          .map((s, i) => {
+            const lab = esc(String(s.label || `Step ${i + 1}`));
+            const done = s.done ? ' class="is-done"' : '';
+            return `<li${done}>${lab}</li>`;
+          })
+          .join('') +
+        '</ul>';
+    }
+    return `<section class="viewer-inspect-block"><div class="viewer-inspect-kind">Progress</div><div class="viewer-inspect-text">${esc(String(val))}%</div>${stepsHtml}</section>`;
+  }
+  if (t === 'embed') {
+    const u = String(node.url || '').trim();
+    const safe = esc(u);
+    return u
+      ? `<section class="viewer-inspect-block"><div class="viewer-inspect-kind">Embed</div><a class="viewer-inspect-link" href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a></section>`
+      : '<section class="viewer-inspect-block viewer-inspect-block-muted"><div class="viewer-inspect-kind">Embed</div><p class="viewer-inspect-muted">No URL</p></section>';
+  }
+  if (t === 'file') {
+    const isImg = node.fileKind === 'image';
+    const name = esc(node.name || 'File');
+    const ext = esc(node.ext || '');
+    const extra = isImg
+      ? '<p class="viewer-inspect-muted">Image preview is not included in the shared view.</p>'
+      : '';
+    const extBit = ext ? ` <span class="viewer-inspect-muted">.${ext}</span>` : '';
+    return `<section class="viewer-inspect-block"><div class="viewer-inspect-kind">File</div><div class="viewer-inspect-text">${name}${extBit}</div>${extra}</section>`;
+  }
+  if (t === 'bullet') {
+    const items = (node.items || []).map((it) => {
+      const text = typeof it === 'string' ? it : (it.text || '');
+      const done = typeof it === 'object' && it.done ? ' class="is-done"' : '';
+      return `<li${done}>${renderTextHTML(text)}</li>`;
+    }).join('');
+    return `<section class="viewer-inspect-block"><div class="viewer-inspect-kind">List</div><ul class="viewer-inspect-bullets">${items || '<li class="viewer-inspect-muted">Empty list</li>'}</ul></section>`;
+  }
+  return `<section class="viewer-inspect-block"><div class="viewer-inspect-kind">${typeLabel}</div><pre class="viewer-inspect-pre">${esc(JSON.stringify(node).slice(0, 500))}</pre></section>`;
+}
+
+function openViewerCardInspect(item) {
+  const root = document.getElementById('viewer-card-inspect');
+  const titleEl = document.getElementById('viewer-card-inspect-title');
+  const bodyEl = document.getElementById('viewer-card-inspect-body');
+  if (!root || !titleEl || !bodyEl) return;
+  const snap = item.snapshot || {};
+  titleEl.textContent = snap.name || 'Card';
+  const hasNodes = Array.isArray(snap.nodes) && snap.nodes.length;
+  let html = '';
+  if ((snap.desc || '').trim()) {
+    html += `<p class="viewer-inspect-desc">${esc(snap.desc)}</p>`;
+  }
+  if (hasNodes) {
+    html += '<div class="viewer-inspect-nodes">';
+    const sorted = snap.nodes.slice().sort((a, b) =>
+      (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0),
+    );
+    sorted.forEach((n) => {
+      html += renderPublicNodeInspect(n);
+    });
+    html += '</div>';
+    if (Array.isArray(snap.connections) && snap.connections.length) {
+      html += `<p class="viewer-inspect-conn-meta">${snap.connections.length} connection(s) between items on this card (not drawn in this read-only view).</p>`;
+    }
+  } else {
+    html += '<p class="viewer-inspect-legacy">This shared card does not include saved note content yet. Ask the owner to open the presentation in BEV and use Share again so the latest version is published.</p>';
+    html += '<p class="viewer-inspect-legacy-sub">You can still read the summary on the slide.</p>';
+  }
+  bodyEl.innerHTML = html;
+  root.classList.add('visible');
+  root.setAttribute('aria-hidden', 'false');
+}
+
+function initViewerCardInspect() {
+  const backdrop = document.getElementById('viewer-card-inspect-backdrop');
+  const closeBtn = document.getElementById('viewer-card-inspect-close');
+  if (backdrop && !backdrop.dataset.bound) {
+    backdrop.dataset.bound = '1';
+    backdrop.addEventListener('click', closeViewerCardInspect);
+  }
+  if (closeBtn && !closeBtn.dataset.bound) {
+    closeBtn.dataset.bound = '1';
+    closeBtn.addEventListener('click', closeViewerCardInspect);
+  }
+  if (!window.__bevViewerInspectEsc) {
+    window.__bevViewerInspectEsc = true;
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const root = document.getElementById('viewer-card-inspect');
+      if (root && root.classList.contains('visible')) closeViewerCardInspect();
+    });
+  }
+}
+
 function renderProjectCard(item) {
   const snap = item.snapshot;
   if (!snap) return null;
 
   const el = document.createElement('div');
-  el.className = 'project-card';
+  el.className = 'project-card viewer-shared-card';
   el.style.cssText = `
     left: ${item.x || 0}px;
     top:  ${item.y || 0}px;
     --card-accent: ${esc(snap.color || '#fff')};
     width: ${Math.max(snap.w || 280, 280)}px;
-    cursor: default;
+    cursor: pointer;
   `;
+  el.title = 'Click to read everything in this card';
 
   const date = snap.created
     ? new Date(snap.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -142,6 +264,7 @@ function renderProjectCard(item) {
       </div>
     </div>`;
 
+  el.addEventListener('click', () => openViewerCardInspect(item));
   return el;
 }
 
@@ -390,6 +513,8 @@ function wireViewerShareControls() {
 }
 
 /* ── Exports ─────────────────────────────────────────────── */
+
+initViewerCardInspect();
 
 window.BEVViewer = {
   start: startViewer,
