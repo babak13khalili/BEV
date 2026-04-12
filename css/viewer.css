@@ -1,0 +1,207 @@
+/* ============================================================
+   BEV — Shared Presentation Viewer (view-only, no auth required)
+   ============================================================ */
+
+/* ── Full-screen viewer shell ─────────────────────────────── */
+
+#screen-shared-presentation {
+  position: absolute; inset: 0;
+  display: none; /* shown by JS */
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ── Floating top bar ─────────────────────────────────────── */
+
+#viewer-bar {
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 48px; z-index: 200;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  /* glassy frosted strip */
+  background: rgba(8, 8, 8, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  /* fade out when idle */
+  transition: opacity 0.4s;
+}
+#viewer-bar.idle { opacity: 0; pointer-events: none; }
+
+.viewer-bar-left  { display: flex; align-items: center; gap: 14px; }
+.viewer-bar-right { display: flex; align-items: center; gap: 10px; }
+
+/* BEV wordmark inside viewer */
+.viewer-logo {
+  font-family: var(--font-head);
+  font-size: 18px; font-weight: 800;
+  letter-spacing: 0.18em; color: var(--accent);
+}
+
+/* Presentation title in bar */
+#viewer-title {
+  font-family: var(--font-ui);
+  font-size: 13px; color: var(--text2);
+  letter-spacing: 0.06em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 320px;
+}
+
+/* View-only badge */
+.viewer-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  font-family: var(--font-ui);
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text3);
+}
+.viewer-badge-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2.5s infinite;
+}
+
+/* Open BEV button */
+.viewer-open-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text2);
+  font-family: var(--font-ui); font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  text-decoration: none;
+  transition: all 0.2s; cursor: pointer;
+}
+.viewer-open-btn:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.22);
+  color: var(--text);
+}
+.viewer-open-btn svg { flex-shrink: 0; }
+
+/* ── Viewer canvas (full screen) ──────────────────────────── */
+
+#viewer-canvas {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  overflow: auto;
+  /* subtle grid */
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: 0 0;
+  background-color: var(--bg);
+}
+
+/* Fade in the grid softly */
+#viewer-canvas::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: inherit;
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+#viewer-world {
+  position: relative;
+  min-width: 3200px; min-height: 2200px;
+  padding: 96px 80px 80px; /* top pad = bar height + breathing room */
+}
+
+/* ── Unavailable state ────────────────────────────────────── */
+
+#viewer-unavailable {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(380px, calc(100% - 40px));
+  text-align: center; padding: 36px 30px;
+  background: rgba(12,12,12,0.96);
+  border: 1px solid var(--border2);
+  display: none;
+}
+#viewer-unavailable.visible { display: block; }
+
+.viewer-unavailable-icon {
+  font-size: 32px; margin-bottom: 16px; opacity: 0.4;
+}
+
+#viewer-unavailable h2 {
+  font-family: var(--font-head);
+  font-size: 22px; font-weight: 700;
+  color: var(--text); margin-bottom: 10px;
+}
+
+#viewer-unavailable p {
+  font-size: 13px; color: var(--text2);
+  line-height: 1.65; margin-bottom: 24px;
+}
+
+.viewer-unavailable-cta {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 11px 24px;
+  background: var(--accent); color: #000;
+  font-family: var(--font-head); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.viewer-unavailable-cta:hover { opacity: 0.85; }
+
+/* ── Loading state ────────────────────────────────────────── */
+
+#viewer-loading {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px; background: var(--bg);
+  z-index: 300;
+  transition: opacity 0.3s;
+}
+#viewer-loading.hidden { opacity: 0; pointer-events: none; }
+
+.viewer-loading-logo {
+  font-family: var(--font-head);
+  font-size: 26px; font-weight: 800;
+  letter-spacing: 0.2em; color: var(--accent);
+}
+
+.viewer-loading-label {
+  font-family: var(--font-ui);
+  font-size: 11px; color: var(--text3);
+  letter-spacing: 0.14em; text-transform: uppercase;
+}
+
+/* ── Viewer cards — strip all interactive chrome ──────────── */
+
+#viewer-world .project-card { cursor: default; }
+
+#viewer-world .card-del,
+#viewer-world .card-edit,
+#viewer-world .card-open,
+#viewer-world .card-resize-handle,
+#viewer-world .card-readmore { display: none !important; }
+
+#viewer-world .card-status { cursor: default; }
+#viewer-world .card-status::after { display: none; }
+#viewer-world .card-bottom { justify-content: flex-start; }
+
+/* Viewer overlay objects */
+#viewer-world .presentation-object { cursor: default; }
+#viewer-world .presentation-object-delete { display: none !important; }
+#viewer-world [contenteditable] { pointer-events: none !important; }
+#viewer-world .node-actions { display: none !important; }
+#viewer-world .conn-handle  { display: none !important; }
+#viewer-world .node-resize-handle   { display: none !important; }
+#viewer-world .overview-resize-handle { display: none !important; }
+
+/* ── Responsive ───────────────────────────────────────────── */
+
+@media (max-width: 820px) {
+  #viewer-bar { padding: 0 12px; }
+  #viewer-title { max-width: 160px; }
+}

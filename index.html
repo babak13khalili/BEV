@@ -4,21 +4,88 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BEV — Bird Eye View</title>
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Barlow:ital,wght@0,300;0,400;0,500;1,300&display=swap"
-      rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Barlow:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+
+    <!-- Firebase -->
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <!-- BEV config + shared core (must precede app) -->
     <script src="js/firebase-config.js"></script>
+    <script src="js/bev-core.js"></script>
+
+    <!-- Styles -->
     <link rel="stylesheet" href="css/bev.css" />
+    <link rel="stylesheet" href="css/viewer.css" />
   </head>
+
   <body>
-    <!-- LOADING -->
-    <div id="screen-loading">
+
+    <!-- ═══════════════════════════════════════════════════════
+         VIEWER LOADING OVERLAY
+         Shown while fetching a shared presentation.
+         Removed by BEVViewer.start() once data arrives.
+    ═══════════════════════════════════════════════════════ -->
+    <div id="viewer-loading">
+      <div class="viewer-loading-logo">BEV</div>
+      <div class="viewer-loading-label">Loading presentation</div>
+      <div class="loading-dots" style="margin-top: 8px">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SHARED PRESENTATION VIEWER  (?presentation=TOKEN)
+         Shown to anonymous viewers — no auth, no toolbars.
+    ═══════════════════════════════════════════════════════ -->
+    <div id="screen-shared-presentation" style="display:none">
+
+      <!-- Floating bar — fades when idle -->
+      <div id="viewer-bar">
+        <div class="viewer-bar-left">
+          <span class="viewer-logo">BEV</span>
+          <div class="viewer-badge">
+            <span class="viewer-badge-dot"></span>
+            View Only
+          </div>
+          <span id="viewer-title"></span>
+        </div>
+        <div class="viewer-bar-right">
+          <a class="viewer-open-btn" href="#" id="viewer-open-link" title="Open BEV to create your own">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2.5" y="2.5" width="11" height="11" rx="1"/>
+              <path d="M6 10l4-4"/><path d="M7.5 6H10v2.5"/>
+            </svg>
+            Open BEV
+          </a>
+        </div>
+      </div>
+
+      <!-- Full-screen scrollable canvas -->
+      <div id="viewer-canvas">
+        <div id="viewer-world"></div>
+      </div>
+
+      <!-- Shown when token is missing / presentation is private / deleted -->
+      <div id="viewer-unavailable">
+        <div class="viewer-unavailable-icon">🔒</div>
+        <h2>Presentation unavailable</h2>
+        <p>This link may have expired, been made private, or no longer exists. The owner can share a new link from within BEV.</p>
+        <a class="viewer-unavailable-cta" href="#">Open BEV →</a>
+      </div>
+
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         LOADING GATE  (main app init)
+    ═══════════════════════════════════════════════════════ -->
+    <div id="screen-loading" style="display:none">
       <div class="auth-logo">BEV</div>
       <p>Connecting</p>
       <div class="loading-dots" style="margin-top: 12px">
@@ -26,50 +93,40 @@
       </div>
     </div>
 
-    <!-- SETUP (first time) -->
-    <div id="screen-setup" style="display: none">
+    <!-- ═══════════════════════════════════════════════════════
+         SETUP  (first-time Firebase config)
+    ═══════════════════════════════════════════════════════ -->
+    <div id="screen-setup" style="display:none">
       <div class="auth-box">
         <div class="auth-logo">BEV</div>
         <div class="auth-tagline">Bird Eye View</div>
         <div class="section-label">Connect Your Firebase Project</div>
-        <div class="auth-hint" style="margin-top: 0; margin-bottom: 18px">
+        <div class="auth-hint" style="margin-top:0;margin-bottom:18px">
           Fastest setup: edit <code>js/firebase-config.js</code> in this folder,
-          then refresh.<br />
+          then refresh.<br/>
           You can still paste the config object below if you prefer.
         </div>
         <label class="form-label">Paste Your Firebase Config Object</label>
-        <textarea
-          class="form-textarea"
-          id="firebase-config-input"
-          placeholder='{
-  apiKey: "AIza...",
-  authDomain: "your-app.firebaseapp.com",
-  projectId: "your-app",
-  storageBucket: "your-app.appspot.com",
-  messagingSenderId: "123456...",
-  appId: "1:123...:web:abc..."
-}'></textarea>
+        <textarea class="form-textarea" id="firebase-config-input"
+          placeholder='{&#10;  apiKey: "AIza...",&#10;  authDomain: "your-app.firebaseapp.com",&#10;  projectId: "your-app",&#10;  storageBucket: "your-app.appspot.com",&#10;  messagingSenderId: "123456...",&#10;  appId: "1:123...:web:abc..."&#10;}'></textarea>
         <button class="btn-primary" onclick="connectFirebase()">
           Connect &amp; Continue →
         </button>
         <div class="auth-error" id="setup-error"></div>
         <div class="auth-hint">
-          <strong>How to get your config:</strong><br />
-          1. Go to
-          <a href="https://console.firebase.google.com" target="_blank"
-            >console.firebase.google.com</a
-          ><br />
-          2. Create a project → Project Settings → Add a <strong>Web App</strong
-          ><br />
-          3. Copy the <code>firebaseConfig</code> object and paste above<br />
-          4. In Firebase: enable <strong>Firestore Database</strong> +
-          <strong>Authentication → Google</strong>
+          <strong>How to get your config:</strong><br/>
+          1. Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a><br/>
+          2. Create a project → Project Settings → Add a <strong>Web App</strong><br/>
+          3. Copy the <code>firebaseConfig</code> object and paste above<br/>
+          4. In Firebase: enable <strong>Firestore Database</strong> + <strong>Authentication → Google</strong>
         </div>
       </div>
     </div>
 
-    <!-- AUTH -->
-    <div id="screen-auth" style="display: none">
+    <!-- ═══════════════════════════════════════════════════════
+         AUTH
+    ═══════════════════════════════════════════════════════ -->
+    <div id="screen-auth" style="display:none">
       <div class="auth-box">
         <div class="auth-logo">BEV</div>
         <div class="auth-tagline">Bird Eye View</div>
@@ -77,101 +134,63 @@
         <div class="section-label">Sign in to continue</div>
         <button class="btn-google" onclick="signInWithGoogle()">
           <svg width="18" height="18" viewBox="0 0 48 48">
-            <path
-              fill="#FFC107"
-              d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z" />
-            <path
-              fill="#FF3D00"
-              d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.8 1.1 7.9 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
-            <path
-              fill="#4CAF50"
-              d="M24 44c5.2 0 9.9-1.9 13.4-5l-6.2-5.2C29.4 35.6 26.8 36.5 24 36.5c-5.3 0-9.7-3.4-11.3-8.1l-6.5 5C9.6 39.6 16.2 44 24 44z" />
-            <path
-              fill="#1976D2"
-              d="M43.6 20.1H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.7l6.2 5.2C41.4 35.4 44 30.1 44 24c0-1.3-.1-2.6-.4-3.9z" />
+            <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
+            <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.8 1.1 7.9 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+            <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.4-5l-6.2-5.2C29.4 35.6 26.8 36.5 24 36.5c-5.3 0-9.7-3.4-11.3-8.1l-6.5 5C9.6 39.6 16.2 44 24 44z"/>
+            <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.7l6.2 5.2C41.4 35.4 44 30.1 44 24c0-1.3-.1-2.6-.4-3.9z"/>
           </svg>
           Sign in with Google
         </button>
         <div class="auth-error" id="auth-error"></div>
         <div class="auth-divider"></div>
-        <div style="text-align: center">
-          <button class="link-btn" onclick="resetSetup()">
-            ← Use a different Firebase project
-          </button>
+        <div style="text-align:center">
+          <button class="link-btn" onclick="resetSetup()">← Use a different Firebase project</button>
         </div>
       </div>
     </div>
 
-    <!-- DASHBOARD -->
-    <div id="screen-dashboard" style="display: none">
+    <!-- ═══════════════════════════════════════════════════════
+         DASHBOARD
+    ═══════════════════════════════════════════════════════ -->
+    <div id="screen-dashboard" style="display:none">
       <div id="dashboard-header">
         <div>
           <div class="logo">BEV</div>
           <div class="tagline">Bird Eye View</div>
         </div>
         <div class="header-right">
-          <button
-            class="icon-btn"
-            onclick="openPresentationHub()"
-            aria-label="Open presentations"
-            title="Presentations">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <rect x="2.2" y="3" width="11.6" height="10" rx="1" />
-              <path d="M6.2 5.5l4 2.5-4 2.5z" fill="currentColor" stroke="none" />
+          <button class="icon-btn" onclick="openPresentationHub()" aria-label="Presentations" title="Presentations">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2.2" y="3" width="11.6" height="10" rx="1"/>
+              <path d="M6.2 5.5l4 2.5-4 2.5z" fill="currentColor" stroke="none"/>
             </svg>
           </button>
-          <div id="sync-bar" style="margin-bottom: 0">
+          <div id="sync-bar" style="margin-bottom:0">
             <div class="sync-dot" id="sync-dot"></div>
             <span id="sync-label">Synced</span>
           </div>
           <div class="user-badge">
             <div class="user-avatar" id="user-avatar">?</div>
-            <span
-              id="user-name"
-              style="font-size: 12px; color: var(--text3)"></span>
+            <span id="user-name" style="font-size:12px;color:var(--text3)"></span>
           </div>
           <button class="icon-btn" onclick="signOut()" aria-label="Sign out">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <path d="M6 3H3v10h3" />
-              <path d="M9 5l4 3-4 3" />
-              <path d="M13 8H6" />
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M6 3H3v10h3"/><path d="M9 5l4 3-4 3"/><path d="M13 8H6"/>
             </svg>
           </button>
         </div>
       </div>
+
       <div id="dashboard-pathbar">
-        <div class="path-left">
-          <span class="path-current">Home</span>
-        </div>
+        <div class="path-left"><span class="path-current">Home</span></div>
         <div class="path-center">
           <div class="path-status" id="dashboard-path-status"></div>
         </div>
         <div class="path-right">
           <div id="workspace-menu-wrap">
-            <button
-              class="icon-btn"
-              id="workspace-menu-btn"
-              aria-label="Workspace settings">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="currentColor">
-                <circle cx="3" cy="8" r="1.2" />
-                <circle cx="8" cy="8" r="1.2" />
-                <circle cx="13" cy="8" r="1.2" />
+            <button class="icon-btn" id="workspace-menu-btn" aria-label="Workspace settings">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <circle cx="3" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="13" cy="8" r="1.2"/>
               </svg>
             </button>
             <div id="workspace-menu">
@@ -196,116 +215,67 @@
           </div>
         </div>
       </div>
+
       <div id="dashboard-body">
         <div id="dashboard-toolbar">
-          <button
-            class="tool-btn active"
-            id="dashboard-tool-select"
-            onclick="setDashboardTool('select')">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M2 2l5 12 2.5-4.5 4.5-2.5z" /></svg
-            ><span class="tip">Select</span>
+          <button class="tool-btn active" id="dashboard-tool-select" onclick="setDashboardTool('select')">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2l5 12 2.5-4.5 4.5-2.5z"/></svg>
+            <span class="tip">Select</span>
           </button>
           <div id="tdiv"></div>
           <button class="tool-btn" onclick="openNewProjectModal()">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <rect x="2" y="2" width="12" height="12" rx="1" />
-              <line x1="8" y1="5" x2="8" y2="11" />
-              <line x1="5" y1="8" x2="11" y2="8" /></svg
-            ><span class="tip">Add Card</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+            <span class="tip">Add Card</span>
           </button>
           <button class="tool-btn" onclick="addOverviewItem('note')">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <rect x="2" y="2" width="12" height="12" rx="1" />
-              <line x1="5" y1="6" x2="11" y2="6" />
-              <line x1="5" y1="9" x2="9" y2="9" /></svg
-            ><span class="tip">Text Note</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/></svg>
+            <span class="tip">Text Note</span>
           </button>
           <button class="tool-btn" onclick="addOverviewItem('heading')">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <path d="M3 4v8M13 4v8M3 8h10" /></svg
-            ><span class="tip">Heading</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4v8M13 4v8M3 8h10"/></svg>
+            <span class="tip">Heading</span>
           </button>
           <button class="tool-btn" onclick="addOverviewItem('category')">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <rect x="2.5" y="3" width="11" height="10" rx="1" />
-              <circle cx="5.2" cy="8" r="0.9" fill="currentColor" stroke="none" />
-              <line x1="7.4" y1="8" x2="11.5" y2="8" /></svg
-            ><span class="tip">Category</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3" width="11" height="10" rx="1"/><circle cx="5.2" cy="8" r="0.9" fill="currentColor" stroke="none"/><line x1="7.4" y1="8" x2="11.5" y2="8"/></svg>
+            <span class="tip">Category</span>
           </button>
           <button class="tool-btn" onclick="addOverviewItem('line')">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <line x1="2" y1="8" x2="14" y2="8" /></svg
-            ><span class="tip">Line</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="8" x2="14" y2="8"/></svg>
+            <span class="tip">Line</span>
           </button>
           <button class="tool-btn" onclick="addOverviewItem('frame')">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <rect x="2.5" y="2.5" width="11" height="11" rx="1" /></svg
-            ><span class="tip">Annotate</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg>
+            <span class="tip">Annotate</span>
           </button>
         </div>
+
         <div id="dashboard-canvas">
           <div id="projects-world"></div>
         </div>
+
         <div id="dashboard-minimap">
-          <canvas
-            id="dashboard-minimap-canvas"
-            width="88"
-            height="88"></canvas>
+          <canvas id="dashboard-minimap-canvas" width="88" height="88"></canvas>
           <div id="dashboard-minimap-label">Overview</div>
         </div>
+
         <div id="dashboard-zoom-controls">
           <button class="zoom-btn" onclick="dashboardZoomBy(-0.2)">−</button>
           <div id="dashboard-zoom-level">100%</div>
           <button class="zoom-btn" onclick="dashboardZoomBy(0.2)">+</button>
-          <button class="zoom-btn zoom-fit" onclick="dashboardResetView()">
-            FIT
-          </button>
+          <button class="zoom-btn zoom-fit" onclick="dashboardResetView()">FIT</button>
         </div>
+
         <div id="dashboard-info">
-          <span id="dashboard-info-cards">0 cards</span
-          ><span id="dashboard-info-items">0 items</span>
+          <span id="dashboard-info-cards">0 cards</span>
+          <span id="dashboard-info-items">0 items</span>
         </div>
       </div>
     </div>
 
-    <div id="screen-presentation" style="display: none">
+    <!-- ═══════════════════════════════════════════════════════
+         PRESENTATION EDITOR  (owner view)
+    ═══════════════════════════════════════════════════════ -->
+    <div id="screen-presentation" style="display:none">
       <div id="presentation-header">
         <div class="presentation-header-group">
           <div class="presentation-header-copy">
@@ -318,103 +288,49 @@
             <div class="sync-dot private" id="presentation-privacy-dot"></div>
             <span id="presentation-privacy-label">Private</span>
           </div>
-          <button
-            class="icon-btn"
-            id="presentation-home-btn"
-            onclick="returnFromPresentation()"
-            aria-label="Go to dashboard"
-            title="Dashboard">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <path d="M2.5 7.3L8 2.8l5.5 4.5" />
-              <path d="M4.4 6.9V13h7.2V6.9" />
+          <button class="icon-btn" id="presentation-home-btn" onclick="returnFromPresentation()" aria-label="Dashboard" title="Dashboard">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2.5 7.3L8 2.8l5.5 4.5"/><path d="M4.4 6.9V13h7.2V6.9"/>
             </svg>
           </button>
         </div>
       </div>
+
       <div id="presentation-pathbar">
-        <div class="path-left">
-          <span class="path-current">Presentation</span>
-        </div>
+        <div class="path-left"><span class="path-current">Presentation</span></div>
         <div class="path-center">
-          <div class="path-status visible" id="presentation-path-status">
-            Standalone Viewer Ready
-          </div>
+          <div class="path-status visible" id="presentation-path-status">Private Presentation</div>
         </div>
         <div class="path-right">
-          <button
-            class="icon-btn"
-            id="presentation-share-btn"
-            onclick="copyCurrentPresentationShareLink()"
-            aria-label="Share presentation"
-            title="Share presentation">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <circle cx="4" cy="8" r="1.6" />
-              <circle cx="12" cy="4" r="1.6" />
-              <circle cx="12" cy="12" r="1.6" />
-              <path d="M5.4 7.3l5-2.6M5.4 8.7l5 2.6" />
+          <!-- Share button: copies viewer URL to clipboard -->
+          <button class="icon-btn" id="presentation-share-btn" onclick="copyCurrentPresentationShareLink()" aria-label="Copy share link" title="Copy viewer link">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="4" cy="8" r="1.6"/><circle cx="12" cy="4" r="1.6"/><circle cx="12" cy="12" r="1.6"/>
+              <path d="M5.4 7.3l5-2.6M5.4 8.7l5 2.6"/>
             </svg>
           </button>
-          <button
-            class="icon-btn"
-            id="presentation-delete-btn"
-            onclick="requestDeleteCurrentPresentation()"
-            aria-label="Delete presentation"
-            title="Delete presentation">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <path d="M3.5 4.5h9" />
-              <path d="M6 4.5V3h4v1.5" />
-              <path d="M5.1 6.2v5.6M8 6.2v5.6M10.9 6.2v5.6" />
-              <path d="M4.5 4.5l.6 8.5h5.8l.6-8.5" />
+          <button class="icon-btn" id="presentation-delete-btn" onclick="requestDeleteCurrentPresentation()" aria-label="Delete" title="Delete presentation">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3.5 4.5h9"/><path d="M6 4.5V3h4v1.5"/>
+              <path d="M5.1 6.2v5.6M8 6.2v5.6M10.9 6.2v5.6"/>
+              <path d="M4.5 4.5l.6 8.5h5.8l.6-8.5"/>
             </svg>
           </button>
         </div>
       </div>
+
       <div id="presentation-body">
         <aside id="presentation-sidebar">
           <div class="presentation-sidebar-head">
             <div class="presentation-sidebar-title">Your Presentations</div>
-            <button
-              class="icon-btn"
-              id="presentation-new-btn"
-              onclick="createPresentation()"
-              aria-label="New presentation"
-              title="New presentation">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5">
-                <rect x="2.5" y="2.5" width="11" height="11" rx="1" />
-                <path d="M8 5v6M5 8h6" />
+            <button class="icon-btn" onclick="createPresentation()" aria-label="New presentation" title="New">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2.5" y="2.5" width="11" height="11" rx="1"/><path d="M8 5v6M5 8h6"/>
               </svg>
             </button>
           </div>
           <div class="presentation-sidebar-current" id="presentation-sidebar-current">
-            <input
-              id="presentation-title-input"
-              type="text"
-              placeholder="Untitled Presentation"
-              maxlength="80" />
+            <input id="presentation-title-input" type="text" placeholder="Untitled Presentation" maxlength="80"/>
             <div class="presentation-sidebar-meta">
               <span id="presentation-meta">No presentation selected</span>
               <span id="presentation-card-count">0 cards</span>
@@ -422,89 +338,39 @@
           </div>
           <div class="presentation-list" id="presentation-list"></div>
         </aside>
+
         <div id="presentation-main">
           <div id="presentation-toolbar">
-            <button
-              class="tool-btn"
-              id="presentation-tool-cards"
-              onclick="openPresentationPicker()">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5">
-                <rect x="2.5" y="3" width="11" height="8.5" rx="1" />
-                <path d="M5 13h6" />
-                <path d="M8 5.2v4.1M5.9 7.25h4.2" />
+            <button class="tool-btn" id="presentation-tool-cards" onclick="openPresentationPicker()">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2.5" y="3" width="11" height="8.5" rx="1"/><path d="M5 13h6"/><path d="M8 5.2v4.1M5.9 7.25h4.2"/>
               </svg>
               <span class="tip">Add Cards</span>
             </button>
             <button class="tool-btn" onclick="addPresentationObject('note')">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5">
-                <rect x="2" y="2" width="12" height="12" rx="1" />
-                <line x1="5" y1="6" x2="11" y2="6" />
-                <line x1="5" y1="9" x2="9" y2="9" />
-              </svg>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/></svg>
               <span class="tip">Text Note</span>
             </button>
             <button class="tool-btn" onclick="addPresentationObject('heading')">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5">
-                <path d="M3 4v8M13 4v8M3 8h10" />
-              </svg>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4v8M13 4v8M3 8h10"/></svg>
               <span class="tip">Heading</span>
             </button>
             <button class="tool-btn" onclick="addPresentationObject('line')">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5">
-                <line x1="2" y1="8" x2="14" y2="8" />
-              </svg>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="8" x2="14" y2="8"/></svg>
               <span class="tip">Line</span>
             </button>
             <button class="tool-btn" onclick="addPresentationObject('frame')">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5">
-                <rect x="2.5" y="2.5" width="11" height="11" rx="1" />
-              </svg>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg>
               <span class="tip">Annotate</span>
             </button>
           </div>
+
           <div id="presentation-canvas">
             <div id="presentation-world"></div>
             <div class="presentation-empty-state" id="presentation-empty-state">
               <h3>Build a linked presentation</h3>
-              <p>
-                Create a presentation, then pull in any existing cards from your
-                workspace. The presentation keeps its own layout while every
-                card stays connected to the original project.
-              </p>
-              <button
-                class="btn-primary"
-                id="presentation-empty-action"
-                onclick="createPresentation()">
+              <p>Create a presentation, add existing cards, then share a view-only link with anyone — no sign-in required.</p>
+              <button class="btn-primary" id="presentation-empty-action" onclick="createPresentation()">
                 Create Presentation
               </button>
             </div>
@@ -513,222 +379,74 @@
       </div>
     </div>
 
-    <div id="screen-shared-presentation" style="display: none">
-      <div id="shared-presentation-header">
-        <div class="presentation-header-group">
-          <div class="presentation-header-copy">
-            <div class="logo">BEV</div>
-            <div class="tagline">Bird Eye View</div>
-          </div>
-        </div>
-        <div class="header-right">
-          <button
-            class="icon-btn"
-            onclick="window.location.href = getBaseAppUrl()"
-            aria-label="Go to home"
-            title="Home">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <path d="M2.5 7.3L8 2.8l5.5 4.5" />
-              <path d="M4.4 6.9V13h7.2V6.9" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div id="shared-presentation-pathbar">
-        <div class="path-left">
-          <span class="path-current">Presentation</span>
-        </div>
-        <div class="path-right">
-          <a
-            class="icon-btn"
-            id="shared-presentation-open-app"
-            href="./index.html"
-            aria-label="Open app"
-            title="Open app">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5">
-              <rect x="2.5" y="2.5" width="11" height="11" rx="1" />
-              <path d="M6 10l4-4" />
-              <path d="M7.5 6H10v2.5" />
-            </svg>
-          </a>
-        </div>
-      </div>
-      <div id="shared-presentation-body">
-        <div id="shared-presentation-main">
-          <div id="shared-presentation-toolbar">
-            <div class="presentation-privacy">
-              <div class="sync-dot shared"></div>
-              <span>Viewer Access</span>
-            </div>
-          </div>
-          <div id="shared-presentation-canvas">
-            <div id="shared-presentation-world"></div>
-            <div class="shared-presentation-empty" id="shared-presentation-empty">
-              <h3>Presentation unavailable</h3>
-              <p>
-                This link is missing, private, or no longer published.
-              </p>
-              <a class="btn-primary" style="display: inline-flex" href="./index.html">
-                Open BEV
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- CANVAS -->
-    <div id="screen-canvas" style="display: none">
+    <!-- ═══════════════════════════════════════════════════════
+         CANVAS  (per-project node editor)
+    ═══════════════════════════════════════════════════════ -->
+    <div id="screen-canvas" style="display:none">
       <div id="canvas-header">
         <button id="back-btn" onclick="goToDashboard()">←</button>
-        <div
-          id="canvas-project-title"
-          contenteditable="true"
-          spellcheck="false"></div>
-        <div style="flex: 1"></div>
+        <div id="canvas-project-title" contenteditable="true" spellcheck="false"></div>
+        <div style="flex:1"></div>
         <div id="save-indicator">
           <div id="save-dot"></div>
           <span id="save-label">Saved</span>
         </div>
       </div>
+
       <div id="canvas-pathbar">
         <div class="path-left">
-          <span id="canvas-path-category">Projects</span
-          ><span class="path-sep">/</span
-          ><span class="path-current" id="canvas-path-current">Card</span>
+          <span id="canvas-path-category">Projects</span>
+          <span class="path-sep">/</span>
+          <span class="path-current" id="canvas-path-current">Card</span>
         </div>
       </div>
+
       <div id="toolbar">
-        <button
-          class="tool-btn active"
-          id="tool-select"
-          onclick="setTool('select')">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M2 2l5 12 2.5-4.5 4.5-2.5z" /></svg
-          ><span class="tip">Select</span>
+        <button class="tool-btn active" id="tool-select" onclick="setTool('select')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2l5 12 2.5-4.5 4.5-2.5z"/></svg>
+          <span class="tip">Select</span>
         </button>
         <button class="tool-btn" id="tool-connect" onclick="setTool('connect')">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <circle cx="3" cy="8" r="2" />
-            <circle cx="13" cy="8" r="2" />
-            <line x1="5" y1="8" x2="11" y2="8" /></svg
-          ><span class="tip">Connect</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="3" cy="8" r="2"/><circle cx="13" cy="8" r="2"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+          <span class="tip">Connect</span>
         </button>
         <div id="tdiv"></div>
         <button class="tool-btn" onclick="addNodeCtx('note')">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <rect x="2" y="2" width="12" height="12" rx="1" />
-            <line x1="5" y1="6" x2="11" y2="6" />
-            <line x1="5" y1="9" x2="9" y2="9" /></svg
-          ><span class="tip">Text Note</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/></svg>
+          <span class="tip">Text Note</span>
         </button>
         <button class="tool-btn" onclick="addNodeCtx('heading')">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <path d="M3 4v8M13 4v8M3 8h10" /></svg
-          ><span class="tip">Heading</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4v8M13 4v8M3 8h10"/></svg>
+          <span class="tip">Heading</span>
         </button>
         <button class="tool-btn" onclick="addNodeCtx('line')">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <line x1="2" y1="8" x2="14" y2="8" /></svg
-          ><span class="tip">Line</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="8" x2="14" y2="8"/></svg>
+          <span class="tip">Line</span>
         </button>
         <button class="tool-btn" onclick="addNodeCtx('progress')">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <rect x="2" y="7" width="12" height="2" rx="1" />
-            <rect
-              x="2"
-              y="7"
-              width="7"
-              height="2"
-              rx="1"
-              fill="currentColor"
-              stroke="none" /></svg
-          ><span class="tip">Progress</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="7" width="12" height="2" rx="1"/><rect x="2" y="7" width="7" height="2" rx="1" fill="currentColor" stroke="none"/>
+          </svg>
+          <span class="tip">Progress</span>
         </button>
         <button class="tool-btn" onclick="addNodeCtx('file')">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <rect x="3" y="2" width="10" height="12" rx="1" />
-            <path d="M10 2v4h4" stroke-width="1.2" />
-            <line x1="5" y1="9" x2="11" y2="9" />
-            <line x1="5" y1="12" x2="9" y2="12" /></svg
-          ><span class="tip">File</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="2" width="10" height="12" rx="1"/><path d="M10 2v4h4" stroke-width="1.2"/><line x1="5" y1="9" x2="11" y2="9"/><line x1="5" y1="12" x2="9" y2="12"/></svg>
+          <span class="tip">File</span>
         </button>
         <button class="tool-btn" onclick="addNodeCtx('embed')">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <path d="M6 4L2 8l4 4" />
-            <path d="M10 4l4 4-4 4" />
-            <line x1="6.5" y1="11.5" x2="9.5" y2="4.5" /></svg
-          ><span class="tip">Embed Link</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4L2 8l4 4"/><path d="M10 4l4 4-4 4"/><line x1="6.5" y1="11.5" x2="9.5" y2="4.5"/></svg>
+          <span class="tip">Embed Link</span>
         </button>
         <button class="tool-btn" onclick="addNodeCtx('frame')">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5">
-            <rect x="2.5" y="2.5" width="11" height="11" rx="1" /></svg
-          ><span class="tip">Annotate</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg>
+          <span class="tip">Annotate</span>
         </button>
       </div>
+
       <div id="canvas-container">
         <div id="canvas-world"><svg id="connections-svg"></svg></div>
       </div>
+
       <div id="minimap">
         <canvas id="minimap-canvas" width="88" height="88"></canvas>
         <div id="minimap-label">Overview</div>
@@ -737,16 +455,17 @@
         <button class="zoom-btn" onclick="zoomBy(-0.2)">−</button>
         <div id="zoom-level">100%</div>
         <button class="zoom-btn" onclick="zoomBy(0.2)">+</button>
-        <button class="zoom-btn zoom-fit" onclick="resetView()">
-          FIT
-        </button>
+        <button class="zoom-btn zoom-fit" onclick="resetView()">FIT</button>
       </div>
       <div id="canvas-info">
-        <span id="info-nodes">0 nodes</span
-        ><span id="info-conns">0 connections</span>
+        <span id="info-nodes">0 nodes</span>
+        <span id="info-conns">0 connections</span>
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════
+         DAILY TODO WIDGET
+    ═══════════════════════════════════════════════════════ -->
     <div id="daily-todo-widget" class="daily-todo-widget collapsed">
       <div class="daily-todo-head">
         <div class="daily-todo-meta">
@@ -754,20 +473,8 @@
           <div class="daily-todo-stamp" id="daily-todo-stamp"></div>
         </div>
         <div class="daily-todo-head-actions">
-          <button
-            class="daily-todo-btn"
-            id="daily-todo-today"
-            type="button"
-            title="Jump to today">
-            •
-          </button>
-          <button
-            class="daily-todo-btn"
-            id="daily-todo-toggle"
-            type="button"
-            title="Open daily to do">
-            ▾
-          </button>
+          <button class="daily-todo-btn" id="daily-todo-today" type="button" title="Jump to today">•</button>
+          <button class="daily-todo-btn" id="daily-todo-toggle" type="button" title="Open daily to do">▾</button>
         </div>
       </div>
       <div class="daily-todo-body">
@@ -777,12 +484,13 @@
           <button id="daily-todo-next" type="button">→</button>
         </div>
         <div class="daily-todo-list" id="daily-todo-list"></div>
-        <button class="daily-todo-add" id="daily-todo-add" type="button">
-          + Add quick task
-        </button>
+        <button class="daily-todo-add" id="daily-todo-add" type="button">+ Add quick task</button>
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════
+         GENERAL TODO WIDGET
+    ═══════════════════════════════════════════════════════ -->
     <div id="general-todo-widget" class="general-todo-widget collapsed">
       <div class="general-todo-head">
         <div class="general-todo-meta">
@@ -790,179 +498,125 @@
           <div class="general-todo-stamp" id="general-todo-stamp"></div>
         </div>
         <div class="general-todo-head-actions">
-          <button
-            class="general-todo-btn"
-            id="general-todo-visibility"
-            type="button"
-            title="Hide done tasks">
-            ✓
-          </button>
-          <button
-            class="general-todo-btn"
-            id="general-todo-toggle"
-            type="button"
-            title="Open general to do">
-            ▾
-          </button>
+          <button class="general-todo-btn" id="general-todo-visibility" type="button" title="Toggle done">✓</button>
+          <button class="general-todo-btn" id="general-todo-toggle" type="button" title="Open general to do">▾</button>
         </div>
       </div>
       <div class="general-todo-body">
         <div class="general-todo-list" id="general-todo-list"></div>
-        <button class="general-todo-add" id="general-todo-add" type="button">
-          + Add general task
-        </button>
+        <button class="general-todo-add" id="general-todo-add" type="button">+ Add general task</button>
       </div>
     </div>
 
-    <!-- CTX MENU -->
+    <!-- ═══════════════════════════════════════════════════════
+         CONTEXT MENU
+    ═══════════════════════════════════════════════════════ -->
     <div id="ctx-menu">
       <div class="ctx-section">
         <div class="ctx-label">Add Node</div>
-        <div class="ctx-item" onclick="addNodeFromMenu('note')">
-          <span class="ci">Ⅱ</span>Text Note
-        </div>
-        <div class="ctx-item" onclick="addNodeFromMenu('heading')">
-          <span class="ci">H</span>Heading
-        </div>
-        <div class="ctx-item" onclick="addNodeFromMenu('line')">
-          <span class="ci">—</span>Line
-        </div>
-        <div class="ctx-item" onclick="addNodeFromMenu('bullet')">
-          <span class="ci">≡</span>Bullet List
-        </div>
-        <div class="ctx-item" onclick="addNodeFromMenu('progress')">
-          <span class="ci">▣</span>Progress Block
-        </div>
-        <div class="ctx-item" onclick="addNodeFromMenu('file')">
-          <span class="ci">☐</span>File
-        </div>
-        <div class="ctx-item" onclick="addNodeFromMenu('embed')">
-          <span class="ci">↗</span>Embed Link
-        </div>
-        <div class="ctx-item" onclick="addNodeFromMenu('frame')">
-          <span class="ci">▭</span>Annotate
-        </div>
+        <div class="ctx-item" onclick="addNodeFromMenu('note')"><span class="ci">Ⅱ</span>Text Note</div>
+        <div class="ctx-item" onclick="addNodeFromMenu('heading')"><span class="ci">H</span>Heading</div>
+        <div class="ctx-item" onclick="addNodeFromMenu('line')"><span class="ci">—</span>Line</div>
+        <div class="ctx-item" onclick="addNodeFromMenu('bullet')"><span class="ci">≡</span>Bullet List</div>
+        <div class="ctx-item" onclick="addNodeFromMenu('progress')"><span class="ci">▣</span>Progress Block</div>
+        <div class="ctx-item" onclick="addNodeFromMenu('file')"><span class="ci">☐</span>File</div>
+        <div class="ctx-item" onclick="addNodeFromMenu('embed')"><span class="ci">↗</span>Embed Link</div>
+        <div class="ctx-item" onclick="addNodeFromMenu('frame')"><span class="ci">▭</span>Annotate</div>
       </div>
-      <div class="ctx-section" id="ctx-node-section" style="display: none">
+      <div class="ctx-section" id="ctx-node-section" style="display:none">
         <div class="ctx-label">Node</div>
-        <div class="ctx-item" onclick="startConnectionFromMenu()">
-          <span class="ci">↗</span>Connect from here
-        </div>
-        <div class="ctx-item danger" onclick="deleteSelected()">
-          <span class="ci">✕</span>Delete node
-        </div>
+        <div class="ctx-item" onclick="startConnectionFromMenu()"><span class="ci">↗</span>Connect from here</div>
+        <div class="ctx-item danger" onclick="deleteSelected()"><span class="ci">✕</span>Delete node</div>
       </div>
-      <div class="ctx-section" id="ctx-conn-section" style="display: none">
-        <div class="ctx-item danger" onclick="deleteSelectedConnection()">
-          <span class="ci">✕</span>Delete connection
-        </div>
+      <div class="ctx-section" id="ctx-conn-section" style="display:none">
+        <div class="ctx-item danger" onclick="deleteSelectedConnection()"><span class="ci">✕</span>Delete connection</div>
       </div>
-      <div class="ctx-section" id="ctx-dashboard-section" style="display: none">
+      <div class="ctx-section" id="ctx-dashboard-section" style="display:none">
         <div class="ctx-label">Selection</div>
-        <div class="ctx-item danger" onclick="deleteOverviewSelection()">
-          <span class="ci">✕</span>Delete selection
-        </div>
+        <div class="ctx-item danger" onclick="deleteOverviewSelection()"><span class="ci">✕</span>Delete selection</div>
       </div>
       <div class="ctx-section">
-        <div class="ctx-item" onclick="resetView()">
-          <span class="ci">⊡</span>Fit to screen
-        </div>
+        <div class="ctx-item" onclick="resetView()"><span class="ci">⊡</span>Fit to screen</div>
       </div>
     </div>
 
-    <!-- PROJECT MODAL -->
+    <!-- ═══════════════════════════════════════════════════════
+         PROJECT MODAL
+    ═══════════════════════════════════════════════════════ -->
     <div id="modal-overlay">
       <div id="modal">
         <h3 id="modal-title">Add Card</h3>
         <label class="form-label">Card Title</label>
-        <input
-          class="form-input"
-          id="proj-name-input"
-          type="text"
-          placeholder="Untitled Card"
-          maxlength="60"
-          style="margin-bottom: 14px" />
+        <input class="form-input" id="proj-name-input" type="text" placeholder="Untitled Card" maxlength="60" style="margin-bottom:14px"/>
         <label class="form-label">Description</label>
-        <textarea
-          class="form-textarea"
-          id="proj-desc-input"
-          placeholder="What is this project about?"
-          style="height: 70px; margin-bottom: 14px"></textarea>
+        <textarea class="form-textarea" id="proj-desc-input" placeholder="What is this project about?" style="height:70px;margin-bottom:14px"></textarea>
         <label class="form-label">Status</label>
-        <select
-          class="form-input"
-          id="proj-status-input"
-          style="margin-bottom: 14px">
-          <option>In Progress</option>
-          <option>On Going</option>
-          <option>Done</option>
-          <option>Cancelled</option>
-          <option>Postponed</option>
-          <option>On Hold</option>
+        <select class="form-input" id="proj-status-input" style="margin-bottom:14px">
+          <option>In Progress</option><option>On Going</option><option>Done</option>
+          <option>Cancelled</option><option>Postponed</option><option>On Hold</option>
         </select>
         <label class="form-label">Accent Color</label>
         <div class="color-swatches" id="color-swatches"></div>
         <label class="form-label">Main Category</label>
-        <select
-          class="form-input"
-          id="proj-category-input"
-          style="margin-bottom: 14px"></select>
+        <select class="form-input" id="proj-category-input" style="margin-bottom:14px"></select>
         <div class="modal-actions">
           <button class="btn-ghost" onclick="closeModal()">Cancel</button>
-          <button
-            class="btn-primary"
-            style="width: auto; padding: 10px 22px"
-            onclick="saveProject()">
-            Create
-          </button>
+          <button class="btn-primary" style="width:auto;padding:10px 22px" onclick="saveProject()">Create</button>
         </div>
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════
+         CONFIRM DIALOG
+    ═══════════════════════════════════════════════════════ -->
     <div id="confirm-overlay">
       <div id="confirm-modal">
         <h3 id="confirm-title">Delete</h3>
         <div id="confirm-message"></div>
         <div class="modal-actions">
-          <button class="btn-ghost" onclick="closeConfirmDialog()">
-            Cancel
-          </button>
-          <button
-            class="btn-primary"
-            id="confirm-action-btn"
-            style="width: auto; padding: 10px 22px"
-            onclick="runConfirmAction()">
-            Delete
-          </button>
+          <button class="btn-ghost" onclick="closeConfirmDialog()">Cancel</button>
+          <button class="btn-primary" id="confirm-action-btn" style="width:auto;padding:10px 22px" onclick="runConfirmAction()">Delete</button>
         </div>
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════
+         PRESENTATION CARD PICKER
+    ═══════════════════════════════════════════════════════ -->
     <div id="presentation-picker-overlay">
       <div id="presentation-picker-modal">
         <h3>Add Existing Cards</h3>
-        <div class="presentation-toolbar-meta">
-          Select cards from your workspace to place on this presentation canvas.
-        </div>
+        <div class="presentation-toolbar-meta">Select cards to place on this presentation canvas.</div>
         <div class="presentation-picker-list" id="presentation-picker-list"></div>
         <div class="modal-actions">
-          <button class="btn-ghost" onclick="closePresentationPicker()">
-            Cancel
-          </button>
-          <button
-            class="btn-primary"
-            style="width: auto; padding: 10px 22px"
-            onclick="addSelectedProjectsToPresentation()">
-            Add Selected
-          </button>
+          <button class="btn-ghost" onclick="closePresentationPicker()">Cancel</button>
+          <button class="btn-primary" style="width:auto;padding:10px 22px" onclick="addSelectedProjectsToPresentation()">Add Selected</button>
         </div>
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════
+         GLOBAL CHROME
+    ═══════════════════════════════════════════════════════ -->
     <div id="toast"></div>
     <input type="file" id="file-input" />
 
-    <script src="js/bev-core.js"></script>
-    <script src="js/bev-app.js" defer></script>
+    <!-- ═══════════════════════════════════════════════════════
+         SCRIPTS
+         Viewer runs first — if it detects ?presentation=TOKEN
+         it renders and blocks the main app from booting.
+    ═══════════════════════════════════════════════════════ -->
+    <script src="js/viewer.js"></script>
+    <script>
+      // Boot: try shared viewer first, fall through to main app if not a viewer URL
+      BEVViewer.start().then(isViewer => {
+        if (!isViewer) {
+          // Normal app boot
+          const appScript = document.createElement('script');
+          appScript.src = 'js/bev-app.js';
+          document.body.appendChild(appScript);
+        }
+      });
+    </script>
   </body>
 </html>
