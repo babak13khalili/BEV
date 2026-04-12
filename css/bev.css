@@ -2723,6 +2723,18 @@ textarea,
   flex-direction: column;
   position: relative;
 }
+
+/* Anonymous viewer: deck canvas fills presentation main (matches #presentation-canvas). */
+#shared-presentation-main #viewer-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  cursor: default;
+  touch-action: none;
+  background: var(--bg);
+}
 #presentation-toolbar,
 #shared-presentation-toolbar {
   position: absolute;
@@ -2873,19 +2885,6 @@ textarea,
 #presentation-world .presentation-card .card-title,
 #presentation-world .presentation-card .card-desc {
   cursor: pointer;
-}
-#presentation-world .presentation-card .card-open {
-  width: auto;
-  min-width: 52px;
-  height: 26px;
-  padding: 0 10px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  border: 1px solid var(--border2);
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.05);
 }
 .presentation-object {
   position: absolute;

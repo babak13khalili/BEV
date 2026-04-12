@@ -11,112 +11,64 @@
   overflow: hidden;
 }
 
-/* ── Floating top bar ─────────────────────────────────────── */
-
-#viewer-bar {
-  position: absolute; top: 0; left: 0; right: 0;
-  height: 48px; z-index: 200;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 20px;
-  /* glassy frosted strip */
-  background: rgba(8, 8, 8, 0.72);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  /* fade out when idle */
+/* Wraps shared-presentation-header + pathbar; fades on idle (replaces old floating bar). */
+#viewer-top-chrome {
   transition: opacity 0.4s;
+  z-index: 200;
 }
-#viewer-bar.idle { opacity: 0; pointer-events: none; }
-
-.viewer-bar-left  { display: flex; align-items: center; gap: 14px; }
-.viewer-bar-right { display: flex; align-items: center; gap: 10px; }
-
-/* BEV wordmark inside viewer */
-.viewer-logo {
-  font-family: var(--font-head);
-  font-size: 18px; font-weight: 800;
-  letter-spacing: 0.18em; color: var(--accent);
-}
-
-/* Presentation title in bar */
-#viewer-title {
-  font-family: var(--font-ui);
-  font-size: 13px; color: var(--text2);
-  letter-spacing: 0.06em;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  max-width: 320px;
-}
-
-/* View-only badge */
-.viewer-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 9px;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 999px;
-  background: rgba(255,255,255,0.04);
-  font-family: var(--font-ui);
-  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--text3);
-}
-.viewer-badge-dot {
-  width: 5px; height: 5px; border-radius: 50%;
-  background: var(--green);
-  animation: pulse 2.5s infinite;
-}
-
-/* Open BEV button */
-.viewer-share-btn,
-.viewer-open-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 14px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.12);
-  color: var(--text2);
-  font-family: var(--font-ui); font-size: 11px;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  text-decoration: none;
-  transition: all 0.2s; cursor: pointer;
-}
-.viewer-share-btn {
-  font: inherit;
-}
-.viewer-share-btn:hover,
-.viewer-open-btn:hover {
-  background: rgba(255,255,255,0.12);
-  border-color: rgba(255,255,255,0.22);
-  color: var(--text);
-}
-.viewer-share-btn svg,
-.viewer-open-btn svg { flex-shrink: 0; }
-
-/* ── Viewer canvas (full screen) ──────────────────────────── */
-
-#viewer-canvas {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  overflow: auto;
-  /* subtle grid */
-  background-image:
-    linear-gradient(var(--border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--border) 1px, transparent 1px);
-  background-size: 40px 40px;
-  background-position: 0 0;
-  background-color: var(--bg);
-}
-
-/* Fade in the grid softly */
-#viewer-canvas::before {
-  content: "";
-  position: absolute; inset: 0;
-  background: inherit;
-  opacity: 0.22;
+#viewer-top-chrome.idle {
+  opacity: 0;
   pointer-events: none;
 }
 
+/* Path bar has no path-right actions (viewer has no share / open icons). */
+
+/* ── Viewer canvas ─────────────────────────────────────────── */
+
+#viewer-canvas {
+  overflow: hidden;
+  touch-action: none;
+  cursor: default;
+  background: var(--bg);
+}
+
+/* Grid matches canvas / presentation (CSS vars from BEVCore viewport) */
+#viewer-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: calc(40px * var(--viewer-scale, 1))
+    calc(40px * var(--viewer-scale, 1));
+  background-position: var(--viewer-grid-x, 0px) var(--viewer-grid-y, 0px);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+#viewer-canvas.panning {
+  cursor: grabbing;
+}
+
+/* Hold Space + drag to pan (same affordance as in-app presentation). */
+#viewer-canvas.viewer-space-pan-armed {
+  cursor: grab;
+}
+#viewer-canvas.viewer-space-pan-armed.panning {
+  cursor: grabbing;
+}
+
 #viewer-world {
-  position: relative;
-  min-width: 3200px; min-height: 2200px;
-  padding: 96px 80px 80px; /* top pad = bar height + breathing room */
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+  backface-visibility: hidden;
+  width: 3200px;
+  min-height: 2200px;
+  padding: 96px 80px 80px;
 }
 
 /* ── Unavailable state ────────────────────────────────────── */
@@ -370,11 +322,33 @@
   overflow: auto;
 }
 
+.viewer-inspect-block-image .img-wrap {
+  margin-top: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  max-width: 100%;
+}
+.viewer-inspect-block-image .img-wrap img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  vertical-align: top;
+}
+
 /* ── Responsive ───────────────────────────────────────────── */
 
 @media (max-width: 820px) {
-  #viewer-bar { padding: 0 12px; }
-  #viewer-title { max-width: 160px; }
+  #shared-presentation-header,
+  #shared-presentation-pathbar {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  #viewer-path-status {
+    max-width: min(200px, 42vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 /* ── Read-only card canvas (spatial layout) ───────────────── */
@@ -407,36 +381,70 @@
   border-left: 1px solid var(--border2);
   box-shadow: -8px 0 40px rgba(0, 0, 0, 0.5);
 }
-.viewer-card-depth-head {
+/* Card depth: same header + path strip pattern as canvas (back + title, then path row). */
+.viewer-card-depth-app-header {
   flex-shrink: 0;
-  padding: 12px 16px 10px;
-  border-bottom: 1px solid var(--border);
+  height: 52px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  padding: 0 20px;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
 }
-.viewer-card-depth-back {
-  align-self: flex-start;
-  padding: 6px 0;
+.viewer-card-depth-back-btn {
   background: none;
   border: none;
-  color: var(--text2);
-  font-family: var(--font-ui);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
   cursor: pointer;
+  color: var(--text3);
+  font-size: 18px;
+  padding: 6px;
+  line-height: 1;
+  transition: color 0.15s;
 }
-.viewer-card-depth-back:hover {
+.viewer-card-depth-back-btn:hover {
   color: var(--text);
 }
-.viewer-card-depth-title {
+.viewer-card-depth-project-title {
   font-family: var(--font-head);
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text);
-  margin: 0;
-  line-height: 1.25;
+  letter-spacing: 0;
+  flex: 1;
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.viewer-card-depth-header-spacer {
+  display: none;
+}
+.viewer-card-depth-pathbar {
+  flex-shrink: 0;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(10, 10, 10, 0.94);
+  font-family: var(--font-head);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+.viewer-card-depth-pathbar .path-left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.viewer-card-depth-pathbar .path-current {
+  color: var(--text2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .viewer-card-depth-viewport {
   flex: 1;

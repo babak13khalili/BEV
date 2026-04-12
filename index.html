@@ -46,37 +46,42 @@
     ═══════════════════════════════════════════════════════ -->
     <div id="screen-shared-presentation" style="display:none">
 
-      <!-- Floating bar — fades when idle -->
-      <div id="viewer-bar">
-        <div class="viewer-bar-left">
-          <span class="viewer-logo">BEV</span>
-          <div class="viewer-badge">
-            <span class="viewer-badge-dot"></span>
-            View Only
+      <!-- Same chrome as in-app presentation (header + path bar); fades together when idle -->
+      <div id="viewer-top-chrome">
+        <div id="shared-presentation-header">
+          <div class="presentation-header-group">
+            <div class="presentation-header-copy">
+              <div class="logo">BEV</div>
+              <div class="tagline">Bird Eye View</div>
+            </div>
           </div>
-          <span id="viewer-title"></span>
+          <div class="header-right">
+            <button type="button" class="icon-btn" id="viewer-home-btn" aria-label="Open BEV" title="Open BEV">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M2.5 7.3L8 2.8l5.5 4.5"/><path d="M4.4 6.9V13h7.2V6.9"/>
+              </svg>
+            </button>
+            <div class="presentation-privacy" id="viewer-privacy-chip" aria-label="View only">
+              <div class="sync-dot shared" id="viewer-privacy-dot"></div>
+              <span id="viewer-privacy-label">View only</span>
+            </div>
+          </div>
         </div>
-        <div class="viewer-bar-right">
-          <button type="button" class="viewer-share-btn" id="viewer-share-btn" aria-label="Share or copy presentation link" title="Share or copy link">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-              <circle cx="12" cy="3" r="2"/><circle cx="4" cy="8" r="2"/><circle cx="12" cy="13" r="2"/>
-              <path d="M6 7l5-3M6 9l5 3"/>
-            </svg>
-            Share
-          </button>
-          <a class="viewer-open-btn" href="#" id="viewer-open-link" title="Open BEV to create your own">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="2.5" y="2.5" width="11" height="11" rx="1"/>
-              <path d="M6 10l4-4"/><path d="M7.5 6H10v2.5"/>
-            </svg>
-            Open BEV
-          </a>
+
+        <div id="shared-presentation-pathbar">
+          <div class="path-left"><span class="path-current" id="viewer-path-deck">Presentation</span></div>
+          <div class="path-center">
+            <div class="path-status visible" id="viewer-path-status">Shared presentation</div>
+          </div>
         </div>
       </div>
 
-      <!-- Full-screen scrollable canvas -->
-      <div id="viewer-canvas">
-        <div id="viewer-world"></div>
+      <div id="shared-presentation-body">
+        <div id="shared-presentation-main">
+          <div id="viewer-canvas">
+            <div id="viewer-world"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Shown when token is missing / presentation is private / deleted -->
@@ -103,10 +108,18 @@
       <div id="viewer-card-depth" class="viewer-card-depth" aria-hidden="true">
         <div class="viewer-card-depth-backdrop" id="viewer-card-depth-backdrop"></div>
         <div class="viewer-card-depth-shell">
-          <header class="viewer-card-depth-head">
-            <button type="button" class="viewer-card-depth-back" id="viewer-card-depth-close" aria-label="Back to presentation">← Presentation</button>
-            <h2 id="viewer-card-depth-title" class="viewer-card-depth-title"></h2>
+          <header class="viewer-card-depth-app-header">
+            <button type="button" class="viewer-card-depth-back-btn" id="viewer-card-depth-close" aria-label="Back to presentation" title="Back to presentation">←</button>
+            <div class="viewer-card-depth-project-title" id="viewer-card-depth-title"></div>
+            <div class="viewer-card-depth-header-spacer" aria-hidden="true"></div>
           </header>
+          <div class="viewer-card-depth-pathbar">
+            <div class="path-left">
+              <span id="viewer-card-depth-path-root">Presentation</span>
+              <span class="path-sep">/</span>
+              <span class="path-current" id="viewer-card-depth-path-current">Card</span>
+            </div>
+          </div>
           <div id="viewer-card-depth-viewport" class="viewer-card-depth-viewport">
             <div id="viewer-card-depth-world" class="viewer-card-depth-world"></div>
           </div>

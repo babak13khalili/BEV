@@ -13,7 +13,15 @@ const {
   createSharedTextObjectState,
   createSimpleLineItem,
   createQuickNoteFallbackItem,
+  NAVIGATION_TUNING,
+  isMobileViewport: bevIsMobileViewport,
+  normalizeWheelDelta: bevNormalizeWheelDelta,
+  stepSmoothZoom,
+  createSpatialViewport,
+  DEFAULT_SPATIAL_SCALE_RANGE,
 } = BEVCore;
+const normalizeWheelDelta = bevNormalizeWheelDelta;
+const isMobileViewport = bevIsMobileViewport;
 
 // ===================== FIREBASE STATE =====================
 let fbApp = null,
@@ -79,15 +87,43 @@ let presentationSaveTimer = null,
   presentationResizeStart = null;
 let presentationViewOffset = { x: 180, y: 110 },
   presentationScale = 0.55,
-  presentationTargetScale = 0.55,
-  presentationIsZooming = false,
-  presentationZoomRAF = null,
-  presentationZoomOrigin = { x: 0, y: 0 },
-  presentationPanActive = false,
-  presentationPanStart = { x: 0, y: 0 };
-/** Match canvas zoom limits (see zoomBy / canvas wheel). */
-const PRESENTATION_SCALE_MIN = 0.05;
-const PRESENTATION_SCALE_MAX = 5;
+  presentationTargetScale = 0.55;
+/** Same limits as shared spatial viewport default (see BEVCore.DEFAULT_SPATIAL_SCALE_RANGE). */
+const PRESENTATION_SCALE_MIN = DEFAULT_SPATIAL_SCALE_RANGE.min;
+const PRESENTATION_SCALE_MAX = DEFAULT_SPATIAL_SCALE_RANGE.max;
+let presentationSpatialNav = null;
+function syncPresentationGlobalsFromNav() {
+  const nav = presentationSpatialNav;
+  if (!nav) return;
+  const o = nav.getOffset();
+  presentationViewOffset.x = o.x;
+  presentationViewOffset.y = o.y;
+  presentationScale = nav.getScale();
+  presentationTargetScale = nav.getTargetScale();
+}
+function getPresentationSpatialNav() {
+  if (!presentationSpatialNav) {
+    presentationSpatialNav = createSpatialViewport({
+      getContainer: () => document.getElementById("presentation-canvas"),
+      getWorld: () => document.getElementById("presentation-world"),
+      cssVarPrefix: "presentation",
+      scaleMin: PRESENTATION_SCALE_MIN,
+      scaleMax: PRESENTATION_SCALE_MAX,
+      getZoomLevelEl: () => document.getElementById("presentation-zoom-level"),
+      onApply() {
+        syncPresentationGlobalsFromNav();
+      },
+    });
+    presentationSpatialNav.setState(
+      presentationViewOffset.x,
+      presentationViewOffset.y,
+      presentationScale,
+      presentationTargetScale,
+    );
+    presentationSpatialNav.apply();
+  }
+  return presentationSpatialNav;
+}
 let presentationTool = "select",
   presentationPendingConnSourceId = null,
   presentationSelectedConnId = null,
@@ -126,14 +162,6 @@ const DEFAULT_PROJECT_CARD_WIDTH = 280;
 const DEFAULT_PROJECT_CARD_HEIGHT = 220;
 const LINE_NODE_HEIGHT = 18;
 const LINE_MIN_LENGTH = 40;
-const NAVIGATION_TUNING = Object.freeze({
-  zoomLerpDesktop: 0.24,
-  zoomLerpMobile: 0.16,
-  wheelZoomSensitivity: 0.0032,
-  wheelPanMultiplier: 1.35,
-  pinchZoomExponentDesktop: 1.08,
-  pinchZoomExponentMobile: 0.24,
-});
 const DEFAULT_WORKSPACE_CATEGORIES = [
   {
     id: "cat-general",
@@ -292,6 +320,10 @@ function show(name) {
   }
   if (name === "presentation") {
     queueMicrotask(() => setPresentationTool(presentationTool));
+  }
+  if (name !== "presentation" && presentationSpatialNav) {
+    presentationSpatialNav.destroy();
+    presentationSpatialNav = null;
   }
 }
 
@@ -709,6 +741,36 @@ function formatPresentationTimestamp(ts) {
 
 function buildPublicProjectSnapshot(project) {
   const safe = sanitizeProjectForSave(project);
+  const liveById = new Map(
+    (project.nodes || []).map((n) => [String(n.id), n]),
+  );
+  const publicNodes = (safe.nodes || []).map((node) => {
+    const live = liveById.get(String(node.id));
+    const liveSrc =
+      live && typeof live.src === "string" && live.src.length ? live.src : "";
+    const liveIsImage =
+      !!live &&
+      !!liveSrc &&
+      (live.fileKind === "image" ||
+        live.type === "image" ||
+        (live.type === "file" &&
+          (live.fileKind === "image" ||
+            String(liveSrc).startsWith("data:image/"))));
+    if (liveIsImage) {
+      const out = {
+        ...node,
+        type: "file",
+        fileKind: "image",
+        src: liveSrc,
+        mime: live.mime || node.mime || "",
+        size: live.size || node.size || "",
+      };
+      delete out.uploading;
+      delete out.assetId;
+      return out;
+    }
+    return node;
+  });
   return {
     id: project.id,
     name: project.name || "Untitled",
@@ -721,7 +783,7 @@ function buildPublicProjectSnapshot(project) {
     connectionCount: Array.isArray(project.connections)
       ? project.connections.length
       : 0,
-    nodes: JSON.parse(JSON.stringify(safe.nodes || [])),
+    nodes: JSON.parse(JSON.stringify(publicNodes)),
     connections: JSON.parse(JSON.stringify(project.connections || [])),
   };
 }
@@ -1331,10 +1393,6 @@ function syncWorkspaceMenuVisibility() {
   document
     .getElementById("screen-dashboard")
     ?.classList.toggle("workspace-menu-open", workspaceMenuOpen);
-}
-
-function isMobileViewport() {
-  return window.innerWidth <= 820;
 }
 
 function saveWorkspacePrefs() {
@@ -3619,7 +3677,7 @@ function createPresentationProjectCardEl(
         ${statusMarkup}
         <div class="card-stats"><div class="card-stat"><span>${nodeCount}</span> nodes</div><div class="card-stat"><span>${connectionCount}</span> links</div></div>
       </div>
-      ${viewer ? "" : `<button class="card-open" type="button" aria-label="Open card to read everything inside">Open</button>`}
+      ${viewer ? "" : `<button class="card-open" type="button" aria-label="Open card">→</button>`}
     </div>`;
   if (viewer) return el;
   el.querySelector(".card-del")?.addEventListener("click", (e) => {
@@ -4969,24 +5027,7 @@ function applyDashboardTransform() {
 }
 
 function applyPresentationTransform() {
-  const world = document.getElementById("presentation-world");
-  const canvas = document.getElementById("presentation-canvas");
-  if (world) {
-    world.style.transform = `translate3d(${presentationViewOffset.x}px, ${presentationViewOffset.y}px, 0) scale(${presentationScale})`;
-  }
-  if (canvas) {
-    canvas.style.setProperty("--presentation-scale", presentationScale);
-    canvas.style.setProperty(
-      "--presentation-grid-x",
-      `${presentationViewOffset.x}px`,
-    );
-    canvas.style.setProperty(
-      "--presentation-grid-y",
-      `${presentationViewOffset.y}px`,
-    );
-  }
-  const level = document.getElementById("presentation-zoom-level");
-  if (level) level.textContent = Math.round(presentationScale * 100) + "%";
+  getPresentationSpatialNav().apply();
 }
 
 function presentationResetView() {
@@ -4999,11 +5040,13 @@ function presentationResetView() {
     ...world.querySelectorAll(".presentation-card, .presentation-object"),
   ];
   if (!els.length) {
-    presentationViewOffset = isMobile ? { x: 40, y: 40 } : { x: 56, y: 56 };
-    presentationScale = presentationTargetScale = Math.max(
+    const nav = getPresentationSpatialNav();
+    const g = isMobile ? 40 : 56;
+    const sc = Math.max(
       PRESENTATION_SCALE_MIN,
       Math.min(PRESENTATION_SCALE_MAX, isMobile ? 0.28 : 0.48),
     );
+    nav.setState(g, g, sc, sc);
     applyPresentationTransform();
     return;
   }
@@ -5024,7 +5067,7 @@ function presentationResetView() {
   const pad = isMobile ? 340 : 220;
   const cw = maxX - minX + pad * 2;
   const ch = maxY - minY + pad * 2;
-  presentationScale = presentationTargetScale = Math.max(
+  const sc = Math.max(
     PRESENTATION_SCALE_MIN,
     Math.min(
       PRESENTATION_SCALE_MAX,
@@ -5034,11 +5077,11 @@ function presentationResetView() {
       ),
     ),
   );
-  presentationViewOffset.x =
-    (rect.width - cw * presentationScale) / 2 - (minX - pad) * presentationScale;
-  presentationViewOffset.y =
-    (rect.height - ch * presentationScale) / 2 -
-    (minY - pad) * presentationScale;
+  const ox =
+    (rect.width - cw * sc) / 2 - (minX - pad) * sc;
+  const oy =
+    (rect.height - ch * sc) / 2 - (minY - pad) * sc;
+  getPresentationSpatialNav().setState(ox, oy, sc, sc);
   applyPresentationTransform();
 }
 
@@ -5046,12 +5089,11 @@ function presentationZoomBy(delta) {
   const canvas = document.getElementById("presentation-canvas");
   if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
-  presentationZoomOrigin = { x: rect.width / 2, y: rect.height / 2 };
-  presentationTargetScale = Math.max(
-    PRESENTATION_SCALE_MIN,
-    Math.min(PRESENTATION_SCALE_MAX, presentationTargetScale + delta),
+  getPresentationSpatialNav().zoomByAdditive(
+    delta,
+    rect.width / 2,
+    rect.height / 2,
   );
-  startPresentationZoom();
 }
 
 function updateDashboardInfo() {
@@ -7409,12 +7451,6 @@ function getCenter(nd, pos = null) {
   return { x: nd.x + el.offsetWidth / 2, y: nd.y + el.offsetHeight / 2 };
 }
 
-function normalizeWheelDelta(delta, deltaMode, pageSize) {
-  if (deltaMode === 1) return delta * 16;
-  if (deltaMode === 2) return delta * pageSize;
-  return delta;
-}
-
 function startCanvasZoom() {
   isZooming = true;
   if (zoomRAF) cancelAnimationFrame(zoomRAF);
@@ -7429,86 +7465,51 @@ function startDashboardZoom() {
 
 // ===================== SMOOTH ZOOM =====================
 function smoothZoomLoop() {
-  const diff = targetScale - viewScale;
-  if (Math.abs(diff) < 0.0005) {
-    viewScale = targetScale;
+  const step = stepSmoothZoom({
+    scale: viewScale,
+    targetScale,
+    offset: viewOffset,
+    zoomOrigin,
+    scaleMin: 0.05,
+    scaleMax: 5,
+  });
+  if (step.done) {
+    viewScale = step.scale;
+    targetScale = step.targetScale;
     isZooming = false;
     zoomRAF = null;
     applyTransform();
     return;
   }
-  const prev = viewScale;
-  viewScale +=
-    diff *
-    (isMobileViewport()
-      ? NAVIGATION_TUNING.zoomLerpMobile
-      : NAVIGATION_TUNING.zoomLerpDesktop);
-  const ratio = viewScale / prev;
-  viewOffset.x = zoomOrigin.x - ratio * (zoomOrigin.x - viewOffset.x);
-  viewOffset.y = zoomOrigin.y - ratio * (zoomOrigin.y - viewOffset.y);
+  viewScale = step.scale;
+  viewOffset.x = step.offset.x;
+  viewOffset.y = step.offset.y;
   applyTransform();
   zoomRAF = requestAnimationFrame(smoothZoomLoop);
 }
 
 function smoothDashboardZoomLoop() {
-  const diff = dashboardTargetScale - dashboardScale;
-  if (Math.abs(diff) < 0.0005) {
-    dashboardScale = dashboardTargetScale;
+  const step = stepSmoothZoom({
+    scale: dashboardScale,
+    targetScale: dashboardTargetScale,
+    offset: dashboardViewOffset,
+    zoomOrigin: dashboardZoomOrigin,
+    scaleMin: 0.12,
+    scaleMax: 2.5,
+  });
+  if (step.done) {
+    dashboardScale = step.scale;
+    dashboardTargetScale = step.targetScale;
     dashboardIsZooming = false;
     dashboardZoomRAF = null;
     applyDashboardTransform();
     return;
   }
-  const prev = dashboardScale;
-  dashboardScale +=
-    diff *
-    (isMobileViewport()
-      ? NAVIGATION_TUNING.zoomLerpMobile
-      : NAVIGATION_TUNING.zoomLerpDesktop);
-  const ratio = dashboardScale / prev;
-  dashboardViewOffset.x =
-    dashboardZoomOrigin.x -
-    ratio * (dashboardZoomOrigin.x - dashboardViewOffset.x);
-  dashboardViewOffset.y =
-    dashboardZoomOrigin.y -
-    ratio * (dashboardZoomOrigin.y - dashboardViewOffset.y);
+  dashboardScale = step.scale;
+  dashboardViewOffset.x = step.offset.x;
+  dashboardViewOffset.y = step.offset.y;
   applyDashboardTransform();
   dashboardZoomRAF = requestAnimationFrame(smoothDashboardZoomLoop);
-}
-
-function startPresentationZoom() {
-  presentationIsZooming = true;
-  if (presentationZoomRAF) cancelAnimationFrame(presentationZoomRAF);
-  presentationZoomRAF = requestAnimationFrame(smoothPresentationZoomLoop);
-}
-
-function smoothPresentationZoomLoop() {
-  const diff = presentationTargetScale - presentationScale;
-  if (Math.abs(diff) < 0.0005) {
-    presentationScale = presentationTargetScale = Math.max(
-      PRESENTATION_SCALE_MIN,
-      Math.min(PRESENTATION_SCALE_MAX, presentationTargetScale),
-    );
-    presentationIsZooming = false;
-    presentationZoomRAF = null;
-    applyPresentationTransform();
-    return;
-  }
-  const prev = presentationScale;
-  presentationScale +=
-    diff *
-    (isMobileViewport()
-      ? NAVIGATION_TUNING.zoomLerpMobile
-      : NAVIGATION_TUNING.zoomLerpDesktop);
-  const ratio = presentationScale / prev;
-  presentationViewOffset.x =
-    presentationZoomOrigin.x -
-    ratio * (presentationZoomOrigin.x - presentationViewOffset.x);
-  presentationViewOffset.y =
-    presentationZoomOrigin.y -
-    ratio * (presentationZoomOrigin.y - presentationViewOffset.y);
-  applyPresentationTransform();
-  presentationZoomRAF = requestAnimationFrame(smoothPresentationZoomLoop);
 }
 
 function setupPresentationEvents() {
@@ -7547,11 +7548,7 @@ function setupPresentationEvents() {
           e.button === 1 ||
           (e.button === 0 && presentationTool === "pan");
         if (pan) {
-          presentationPanActive = true;
-          presentationPanStart = {
-            x: e.clientX - presentationViewOffset.x,
-            y: e.clientY - presentationViewOffset.y,
-          };
+          getPresentationSpatialNav().beginPan(e.clientX, e.clientY);
           presCanvas.classList.add("panning");
           e.preventDefault();
           return;
@@ -7633,40 +7630,7 @@ function setupPresentationEvents() {
             return;
           const canvas = document.getElementById("presentation-canvas");
           if (!canvas) return;
-          e.preventDefault();
-          const rect = canvas.getBoundingClientRect();
-          const px = e.clientX - rect.left;
-          const py = e.clientY - rect.top;
-          const wheelDeltaX = normalizeWheelDelta(
-            e.deltaX,
-            e.deltaMode,
-            rect.width,
-          );
-          const wheelDeltaY = normalizeWheelDelta(
-            e.deltaY,
-            e.deltaMode,
-            rect.height,
-          );
-          if (e.ctrlKey || e.metaKey) {
-            presentationZoomOrigin = { x: px, y: py };
-            const baseScale = presentationIsZooming
-              ? presentationTargetScale
-              : presentationScale;
-            const zoomFactor = Math.exp(
-              -wheelDeltaY * NAVIGATION_TUNING.wheelZoomSensitivity,
-            );
-            presentationTargetScale = Math.max(
-              PRESENTATION_SCALE_MIN,
-              Math.min(PRESENTATION_SCALE_MAX, baseScale * zoomFactor),
-            );
-            startPresentationZoom();
-          } else {
-            presentationViewOffset.x -=
-              wheelDeltaX * NAVIGATION_TUNING.wheelPanMultiplier;
-            presentationViewOffset.y -=
-              wheelDeltaY * NAVIGATION_TUNING.wheelPanMultiplier;
-            applyPresentationTransform();
-          }
+          getPresentationSpatialNav().wheel(e);
         },
         { passive: false },
       );
@@ -7703,10 +7667,9 @@ function setupPresentationEvents() {
       const sc = presentationScale || 1;
       const ox = presentationViewOffset.x;
       const oy = presentationViewOffset.y;
-      if (presentationPanActive) {
-        presentationViewOffset.x = e.clientX - presentationPanStart.x;
-        presentationViewOffset.y = e.clientY - presentationPanStart.y;
-        applyPresentationTransform();
+      const presNav = presentationSpatialNav;
+      if (presNav && presNav.isPanningActive()) {
+        presNav.movePan(e.clientX, e.clientY);
         return;
       }
       if (presentationCardOpenIntent && presentationTool === "select") {
@@ -7824,8 +7787,8 @@ function setupPresentationEvents() {
       }
     });
     window.addEventListener("mouseup", (e) => {
-      if (presentationPanActive) {
-        presentationPanActive = false;
+      if (presentationSpatialNav?.isPanningActive()) {
+        presentationSpatialNav.endPan();
         document
           .getElementById("presentation-canvas")
           ?.classList.remove("panning");

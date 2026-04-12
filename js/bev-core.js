@@ -102,6 +102,241 @@
     return { id, type, x, y, text: "Quick note" };
   }
 
+  // ---------- Shared viewport navigation (canvas / dashboard / presentation / viewer) ----------
+  const NAVIGATION_TUNING = Object.freeze({
+    zoomLerpDesktop: 0.24,
+    zoomLerpMobile: 0.16,
+    wheelZoomSensitivity: 0.0032,
+    wheelPanMultiplier: 1.35,
+    pinchZoomExponentDesktop: 1.08,
+    pinchZoomExponentMobile: 0.24,
+  });
+
+  /** Default min/max scale for presentation, shared viewer, and other full deck surfaces. */
+  const DEFAULT_SPATIAL_SCALE_RANGE = Object.freeze({ min: 0.05, max: 5 });
+
+  function isMobileViewport() {
+    return (
+      typeof global.innerWidth === "number" && global.innerWidth <= 820
+    );
+  }
+
+  function normalizeWheelDelta(delta, deltaMode, pageSize) {
+    if (deltaMode === 1) return delta * 16;
+    if (deltaMode === 2) return delta * pageSize;
+    return delta;
+  }
+
+  /**
+   * One frame of smooth zoom toward targetScale; mutates offset toward zoomOrigin.
+   * @returns {boolean} true when converged
+   */
+  function stepSmoothZoom({
+    scale,
+    targetScale,
+    offset,
+    zoomOrigin,
+    scaleMin,
+    scaleMax,
+    lerpMobile = NAVIGATION_TUNING.zoomLerpMobile,
+    lerpDesktop = NAVIGATION_TUNING.zoomLerpDesktop,
+    isMobile = isMobileViewport(),
+  }) {
+    const diff = targetScale - scale;
+    if (Math.abs(diff) < 0.0005) {
+      const clamped = Math.max(
+        scaleMin,
+        Math.min(scaleMax, targetScale),
+      );
+      return {
+        done: true,
+        scale: clamped,
+        targetScale: clamped,
+        offset,
+      };
+    }
+    const prev = scale;
+    const nextScale =
+      scale + diff * (isMobile ? lerpMobile : lerpDesktop);
+    const ratio = nextScale / prev;
+    return {
+      done: false,
+      scale: nextScale,
+      targetScale,
+      offset: {
+        x: zoomOrigin.x - ratio * (zoomOrigin.x - offset.x),
+        y: zoomOrigin.y - ratio * (zoomOrigin.y - offset.y),
+      },
+    };
+  }
+
+  /**
+   * Transform-based pan + wheel zoom (ctrl/meta) + smooth zoom, with optional CSS grid vars on container.
+   * @param {object} opts
+   * @param {() => HTMLElement|null} opts.getContainer
+   * @param {() => HTMLElement|null} opts.getWorld
+   * @param {string|null} [opts.cssVarPrefix] e.g. "canvas" -> --canvas-scale
+   * @param {number} [opts.scaleMin]
+   * @param {number} [opts.scaleMax]
+   * @param {() => HTMLElement|null} [opts.getZoomLevelEl]
+   */
+  function createSpatialViewport(opts) {
+    const getContainer = opts.getContainer;
+    const getWorld = opts.getWorld;
+    const cssVarPrefix = opts.cssVarPrefix || null;
+    const scaleMin = opts.scaleMin ?? 0.05;
+    const scaleMax = opts.scaleMax ?? 5;
+    const getZoomLevelEl = opts.getZoomLevelEl || null;
+
+    const offset = {
+      x: opts.initialOffset?.x ?? 0,
+      y: opts.initialOffset?.y ?? 0,
+    };
+    let scale = opts.initialScale ?? 1;
+    let targetScale =
+      opts.initialTargetScale != null ? opts.initialTargetScale : scale;
+    let isZooming = false;
+    let raf = null;
+    let zoomOrigin = { x: 0, y: 0 };
+    let isPanning = false;
+    let panStart = { x: 0, y: 0 };
+
+    function apply() {
+      const world = getWorld && getWorld();
+      const container = getContainer && getContainer();
+      if (world) {
+        world.style.transform = `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})`;
+      }
+      if (container && cssVarPrefix) {
+        container.style.setProperty(`--${cssVarPrefix}-scale`, String(scale));
+        container.style.setProperty(
+          `--${cssVarPrefix}-grid-x`,
+          `${offset.x}px`,
+        );
+        container.style.setProperty(
+          `--${cssVarPrefix}-grid-y`,
+          `${offset.y}px`,
+        );
+      }
+      const zel = getZoomLevelEl && getZoomLevelEl();
+      if (zel) zel.textContent = Math.round(scale * 100) + "%";
+      if (typeof opts.onApply === "function") {
+        opts.onApply({ offset, scale, targetScale, isZooming });
+      }
+    }
+
+    function tickZoom() {
+      const step = stepSmoothZoom({
+        scale,
+        targetScale,
+        offset,
+        zoomOrigin,
+        scaleMin,
+        scaleMax,
+      });
+      if (step.done) {
+        scale = step.scale;
+        targetScale = step.targetScale;
+        isZooming = false;
+        raf = null;
+        apply();
+        return;
+      }
+      scale = step.scale;
+      offset.x = step.offset.x;
+      offset.y = step.offset.y;
+      apply();
+      raf = global.requestAnimationFrame(tickZoom);
+    }
+
+    function startZoomLoop() {
+      isZooming = true;
+      if (raf) global.cancelAnimationFrame(raf);
+      raf = global.requestAnimationFrame(tickZoom);
+    }
+
+    function wheel(e) {
+      const container = getContainer && getContainer();
+      if (!container) return;
+      e.preventDefault();
+      const rect = container.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      const wheelDeltaX = normalizeWheelDelta(
+        e.deltaX,
+        e.deltaMode,
+        rect.width,
+      );
+      const wheelDeltaY = normalizeWheelDelta(
+        e.deltaY,
+        e.deltaMode,
+        rect.height,
+      );
+      if (e.ctrlKey || e.metaKey) {
+        zoomOrigin = { x: px, y: py };
+        const baseScale = isZooming ? targetScale : scale;
+        const zoomFactor = Math.exp(
+          -wheelDeltaY * NAVIGATION_TUNING.wheelZoomSensitivity,
+        );
+        targetScale = Math.max(
+          scaleMin,
+          Math.min(scaleMax, baseScale * zoomFactor),
+        );
+        startZoomLoop();
+        return;
+      }
+      offset.x -= wheelDeltaX * NAVIGATION_TUNING.wheelPanMultiplier;
+      offset.y -= wheelDeltaY * NAVIGATION_TUNING.wheelPanMultiplier;
+      apply();
+    }
+
+    return {
+      getOffset: () => offset,
+      getScale: () => scale,
+      getTargetScale: () => targetScale,
+      getIsZooming: () => isZooming,
+      setState(ox, oy, sc, tsc) {
+        offset.x = ox;
+        offset.y = oy;
+        scale = Math.max(scaleMin, Math.min(scaleMax, sc));
+        targetScale = Math.max(scaleMin, Math.min(scaleMax, tsc));
+      },
+      setZoomOrigin(px, py) {
+        zoomOrigin = { x: px, y: py };
+      },
+      apply,
+      wheel,
+      zoomByAdditive(delta, centerPx, centerPy) {
+        zoomOrigin = { x: centerPx, y: centerPy };
+        targetScale = Math.max(
+          scaleMin,
+          Math.min(scaleMax, targetScale + delta),
+        );
+        startZoomLoop();
+      },
+      beginPan(clientX, clientY) {
+        isPanning = true;
+        panStart = { x: clientX - offset.x, y: clientY - offset.y };
+      },
+      movePan(clientX, clientY) {
+        if (!isPanning) return;
+        offset.x = clientX - panStart.x;
+        offset.y = clientY - panStart.y;
+        apply();
+      },
+      endPan() {
+        isPanning = false;
+      },
+      isPanningActive: () => isPanning,
+      destroy() {
+        if (raf) global.cancelAnimationFrame(raf);
+        raf = null;
+        isPanning = false;
+        isZooming = false;
+      },
+    };
+  }
+
   global.BEVCore = {
     SURFACES,
     SHARED_TEXT_TYPES,
@@ -115,5 +350,11 @@
     createSharedTextObjectState,
     createSimpleLineItem,
     createQuickNoteFallbackItem,
+    NAVIGATION_TUNING,
+    isMobileViewport,
+    normalizeWheelDelta,
+    stepSmoothZoom,
+    createSpatialViewport,
+    DEFAULT_SPATIAL_SCALE_RANGE,
   };
 })(typeof window !== "undefined" ? window : globalThis);

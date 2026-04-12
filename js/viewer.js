@@ -18,6 +18,21 @@ let _fbApp  = null;
 let _fbDb   = null;
 let _data   = null;   // raw Firestore payload
 let _idleTimer = null;
+let _viewerNav = null;
+let __bevViewerGlobalPointer = false;
+
+function viewerSpatialScaleRange() {
+  const B = typeof BEVCore !== 'undefined' ? BEVCore : null;
+  return B?.DEFAULT_SPATIAL_SCALE_RANGE || { min: 0.05, max: 5 };
+}
+
+function viewerIsTypingTarget(el) {
+  if (!el || !el.tagName) return false;
+  const t = el.tagName;
+  if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return true;
+  if (el.isContentEditable) return true;
+  return !!(el.closest && el.closest('input, textarea, select, [contenteditable="true"]'));
+}
 
 /* ── URL helpers ─────────────────────────────────────────── */
 
@@ -95,7 +110,9 @@ function statusSlug(s) {
 /* ── Type helpers (mirrors BEVCore) ──────────────────────── */
 
 function canonicalType(t) {
-  return t === 'text' ? 'note' : t;
+  if (t === 'text') return 'note';
+  if (t === 'image') return 'file';
+  return t;
 }
 
 function isTextNote(t) {
@@ -158,10 +175,15 @@ function renderPublicNodeInspect(node) {
     const isImg = node.fileKind === 'image';
     const name = esc(node.name || 'File');
     const ext = esc(node.ext || '');
-    const extra = isImg
-      ? '<p class="viewer-inspect-muted">Image preview is not included in the shared view.</p>'
-      : '';
     const extBit = ext ? ` <span class="viewer-inspect-muted">.${ext}</span>` : '';
+    const src = String(node.src || '').trim();
+    if (isImg && src) {
+      const srcEsc = esc(src);
+      return `<section class="viewer-inspect-block viewer-inspect-block-image"><div class="viewer-inspect-kind">Image</div><div class="img-wrap"><img src="${srcEsc}" alt="" draggable="false"></div><div class="viewer-inspect-text">${name}${extBit}</div></section>`;
+    }
+    const extra = isImg
+      ? '<p class="viewer-inspect-muted">No image data in this published snapshot. The owner can re-share from BEV after saving.</p>'
+      : '';
     return `<section class="viewer-inspect-block"><div class="viewer-inspect-kind">File</div><div class="viewer-inspect-text">${name}${extBit}</div>${extra}</section>`;
   }
   if (t === 'bullet') {
@@ -427,9 +449,23 @@ function renderViewerDepthNode(nd, accent) {
     const name = esc(nd.name || 'File');
     const ext = esc(nd.ext || '');
     const extBit = ext ? ` <span class="viewer-inspect-muted">.${ext}</span>` : '';
+    const src = String(nd.src || '').trim();
+    const isImgFile =
+      nd.fileKind === 'image' ||
+      nd.type === 'image' ||
+      (src.startsWith('data:image/') && nd.type === 'file');
+    if (isImgFile && src) {
+      el.classList.add('is-image-file');
+      const srcEsc = esc(src);
+      const label = esc(nd.customTitle || 'Image');
+      el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
+      <div class="node-header"><span class="node-type-label">${label}</span></div>
+      <div class="node-body"><div class="img-wrap"><img src="${srcEsc}" alt="" draggable="false"></div></div>`;
+      return el;
+    }
     const note =
-      nd.fileKind === 'image'
-        ? '<p class="viewer-inspect-muted" style="margin:8px 0 0;font-size:11px">Image preview is not included in the shared view.</p>'
+      isImgFile
+        ? '<p class="viewer-inspect-muted" style="margin:8px 0 0;font-size:11px">Image not included in this snapshot. Ask the owner to share again from BEV.</p>'
         : '';
     el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
       <div class="node-header"><span class="node-type-label">File</span></div>
@@ -473,7 +509,15 @@ function openViewerCardDepth(item) {
   const viewport = document.getElementById('viewer-card-depth-viewport');
   if (!root || !titleEl || !world || !viewport) return;
   const snap = item.snapshot || {};
-  titleEl.textContent = snap.name || 'Card';
+  const cardTitle = snap.name || 'Card';
+  titleEl.textContent = cardTitle;
+  const pathCur = document.getElementById('viewer-card-depth-path-current');
+  if (pathCur) pathCur.textContent = cardTitle;
+  const pathRoot = document.getElementById('viewer-card-depth-path-root');
+  if (pathRoot) {
+    pathRoot.textContent =
+      (_data && _data.name && String(_data.name).trim()) || 'Presentation';
+  }
   world.innerHTML = '';
 
   const rawNodes = Array.isArray(snap.nodes) ? snap.nodes : [];
@@ -592,6 +636,177 @@ function renderOverlayObject(obj) {
   return null;
 }
 
+/* ── Viewport (same transform + wheel + grid as BEV canvas / presentation) ─ */
+
+function destroyViewerSpatialNav() {
+  if (_viewerNav) {
+    _viewerNav.destroy();
+    _viewerNav = null;
+  }
+}
+
+function ensureViewerSpatialNav() {
+  if (_viewerNav) return _viewerNav;
+  const B = typeof BEVCore !== 'undefined' ? BEVCore : null;
+  if (!B || !B.createSpatialViewport) return null;
+  const sc = viewerSpatialScaleRange();
+  _viewerNav = B.createSpatialViewport({
+    getContainer: () => document.getElementById('viewer-canvas'),
+    getWorld: () => document.getElementById('viewer-world'),
+    cssVarPrefix: 'viewer',
+    scaleMin: sc.min,
+    scaleMax: sc.max,
+  });
+  return _viewerNav;
+}
+
+function fitViewerViewportToData(data) {
+  const nav = ensureViewerSpatialNav();
+  const canvas = document.getElementById('viewer-canvas');
+  if (!nav || !canvas) return;
+  const { min: smin, max: smax } = viewerSpatialScaleRange();
+  const all = [
+    ...(data.items || []).map((i) => ({
+      x: i.x || 0,
+      y: i.y || 0,
+      w: 320,
+      h: 220,
+    })),
+    ...(data.objects || []).map((o) => ({
+      x: o.x || 0,
+      y: o.y || 0,
+      w: o.w || 220,
+      h: o.h || 40,
+    })),
+  ];
+  const rect = canvas.getBoundingClientRect();
+  const isMobile = BEVCore.isMobileViewport();
+  if (!all.length) {
+    const g = isMobile ? 40 : 56;
+    const sc = Math.max(smin, Math.min(smax, isMobile ? 0.28 : 0.48));
+    nav.setState(g, g, sc, sc);
+    nav.apply();
+    return;
+  }
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  all.forEach((b) => {
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.w);
+    maxY = Math.max(maxY, b.y + b.h);
+  });
+  const pad = isMobile ? 340 : 220;
+  const cw = maxX - minX + pad * 2;
+  const ch = maxY - minY + pad * 2;
+  const sc = Math.max(
+    smin,
+    Math.min(
+      smax,
+      Math.min(
+        isMobile ? 0.3 : 0.5,
+        Math.min(rect.width / cw, rect.height / ch),
+      ),
+    ),
+  );
+  const ox = (rect.width - cw * sc) / 2 - (minX - pad) * sc;
+  const oy = (rect.height - ch * sc) / 2 - (minY - pad) * sc;
+  nav.setState(ox, oy, sc, sc);
+  nav.apply();
+}
+
+function wireViewerSpatialNavigation() {
+  const screen = document.getElementById('screen-shared-presentation');
+  const canvas = document.getElementById('viewer-canvas');
+  if (!screen || !canvas) return;
+  if (!screen.dataset.bevViewerWheel) {
+    screen.dataset.bevViewerWheel = '1';
+    screen.addEventListener(
+      'wheel',
+      (e) => {
+        if (!getShareToken() || !_viewerNav) return;
+        const depth = document.getElementById('viewer-card-depth');
+        if (depth && depth.classList.contains('is-open')) return;
+        _viewerNav.wheel(e);
+      },
+      { passive: false },
+    );
+  }
+  if (!canvas.dataset.bevViewerPan) {
+    canvas.dataset.bevViewerPan = '1';
+    canvas.addEventListener('mousedown', (e) => {
+      if (!_viewerNav) return;
+      const depth = document.getElementById('viewer-card-depth');
+      if (depth && depth.classList.contains('is-open')) return;
+      const spacePan = !!window.__bevViewerSpacePan;
+      const panMiddle = e.button === 1;
+      const panSpaceLeft = e.button === 0 && spacePan;
+      if (!panMiddle && !panSpaceLeft) return;
+      const world = document.getElementById('viewer-world');
+      const onDeck =
+        e.target === canvas ||
+        e.target === world ||
+        (world && world.contains(e.target));
+      if (!onDeck) return;
+      if (
+        panSpaceLeft &&
+        e.target.closest('.viewer-shared-card, .node')
+      ) {
+        return;
+      }
+      _viewerNav.beginPan(e.clientX, e.clientY);
+      canvas.classList.add('panning');
+      e.preventDefault();
+    });
+  }
+  if (!window.__bevViewerSpacePanKeys) {
+    window.__bevViewerSpacePanKeys = true;
+    window.addEventListener(
+      'keydown',
+      (e) => {
+        if (e.code !== 'Space' || e.repeat) return;
+        if (!getShareToken()) return;
+        const screen = document.getElementById('screen-shared-presentation');
+        if (!screen || screen.style.display === 'none') return;
+        if (viewerIsTypingTarget(e.target)) return;
+        const depth = document.getElementById('viewer-card-depth');
+        if (depth && depth.classList.contains('is-open')) return;
+        const inspect = document.getElementById('viewer-card-inspect');
+        if (inspect && inspect.classList.contains('visible')) return;
+        window.__bevViewerSpacePan = true;
+        document.getElementById('viewer-canvas')?.classList.add('viewer-space-pan-armed');
+        e.preventDefault();
+      },
+      true,
+    );
+    window.addEventListener('keyup', (e) => {
+      if (e.code !== 'Space') return;
+      window.__bevViewerSpacePan = false;
+      document.getElementById('viewer-canvas')?.classList.remove('viewer-space-pan-armed');
+    });
+    window.addEventListener('blur', () => {
+      window.__bevViewerSpacePan = false;
+      document.getElementById('viewer-canvas')?.classList.remove('viewer-space-pan-armed');
+    });
+  }
+  if (!__bevViewerGlobalPointer) {
+    __bevViewerGlobalPointer = true;
+    window.addEventListener('mousemove', (e) => {
+      if (_viewerNav && _viewerNav.isPanningActive()) {
+        _viewerNav.movePan(e.clientX, e.clientY);
+      }
+    });
+    window.addEventListener('mouseup', () => {
+      if (_viewerNav && _viewerNav.isPanningActive()) {
+        _viewerNav.endPan();
+        document.getElementById('viewer-canvas')?.classList.remove('panning');
+      }
+    });
+  }
+}
+
 /* ── Main render ─────────────────────────────────────────── */
 
 function renderViewer(data) {
@@ -614,19 +829,25 @@ function renderViewer(data) {
     if (el) world.appendChild(el);
   });
 
-  // Update bar title
-  const titleEl = document.getElementById('viewer-title');
-  if (titleEl) titleEl.textContent = data.name || 'Presentation';
+  const statusEl = document.getElementById('viewer-path-status');
+  if (statusEl) {
+    const n = (data.name && String(data.name).trim()) || '';
+    statusEl.textContent = n || 'Shared presentation';
+  }
+
+  ensureViewerSpatialNav();
+  fitViewerViewportToData(data);
+  wireViewerSpatialNavigation();
 }
 
 /* ── Idle-bar logic ──────────────────────────────────────── */
 
 function resetIdleTimer() {
-  const bar = document.getElementById('viewer-bar');
-  if (!bar) return;
-  bar.classList.remove('idle');
+  const chrome = document.getElementById('viewer-top-chrome');
+  if (!chrome) return;
+  chrome.classList.remove('idle');
   clearTimeout(_idleTimer);
-  _idleTimer = setTimeout(() => bar.classList.add('idle'), BAR_IDLE_MS);
+  _idleTimer = setTimeout(() => chrome.classList.add('idle'), BAR_IDLE_MS);
 }
 
 /* ── Loading / error UI ──────────────────────────────────── */
@@ -648,25 +869,6 @@ function showUnavailable(show) {
   if (el) el.classList.toggle('visible', show);
 }
 
-/* ── Scroll-to-fit ───────────────────────────────────────── */
-
-function scrollToContent(data) {
-  const canvas = document.getElementById('viewer-canvas');
-  if (!canvas) return;
-
-  const all = [
-    ...(data.items || []).map(i => ({ x: i.x || 0, y: i.y || 0, w: 320, h: 220 })),
-    ...(data.objects || []).map(o => ({ x: o.x || 0, y: o.y || 0, w: o.w || 220, h: o.h || 40 })),
-  ];
-  if (!all.length) return;
-
-  const minX = Math.min(...all.map(i => i.x));
-  const minY = Math.min(...all.map(i => i.y));
-  const PAD = 60;
-  canvas.scrollLeft = Math.max(0, minX - PAD);
-  canvas.scrollTop  = Math.max(0, minY - PAD);
-}
-
 /* ── Entry point ─────────────────────────────────────────── */
 
 async function startViewer() {
@@ -685,12 +887,18 @@ async function startViewer() {
 
   // Wire "Open BEV" links to the base URL
   const baseUrl = getBaseAppUrl();
-  document.querySelectorAll('.viewer-open-btn, .viewer-unavailable-cta').forEach(el => {
+  document.querySelectorAll('.viewer-unavailable-cta').forEach(el => {
     if (el.tagName === 'A') el.href = baseUrl;
-    else el.addEventListener('click', () => window.location.href = baseUrl);
+    else el.addEventListener('click', () => { window.location.href = baseUrl; });
   });
 
-  wireViewerShareControls();
+  const homeBtn = document.getElementById('viewer-home-btn');
+  if (homeBtn && !homeBtn.dataset.bevViewerHomeBound) {
+    homeBtn.dataset.bevViewerHomeBound = '1';
+    homeBtn.addEventListener('click', () => {
+      window.location.href = baseUrl;
+    });
+  }
 
   // Firebase
   if (!initFirebase()) {
@@ -708,13 +916,14 @@ async function startViewer() {
   showLoading(false);
 
   if (!_data) {
+    destroyViewerSpatialNav();
     showUnavailable(true);
     return true;
   }
 
+  destroyViewerSpatialNav();
   // Render
   renderViewer(_data);
-  scrollToContent(_data);
 
   // Idle bar
   document.addEventListener('mousemove', resetIdleTimer, { passive: true });
@@ -750,42 +959,6 @@ async function copyToClipboard(text) {
     document.body.removeChild(ta);
     return ok;
   } catch { return false; }
-}
-
-function showViewerToast(msg) {
-  const t = document.getElementById('toast');
-  if (!t) return;
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2200);
-}
-
-/** Share sheet (if supported) or copy the current viewer URL — works without main app scripts. */
-function wireViewerShareControls() {
-  const shareBtn = document.getElementById('viewer-share-btn');
-  if (!shareBtn) return;
-  shareBtn.onclick = async () => {
-    const token = getShareToken();
-    if (!token) return;
-    const url = buildShareUrl(token);
-    const title = (_data && _data.name) ? String(_data.name) : 'Presentation';
-    if (navigator.share && window.isSecureContext) {
-      try {
-        await navigator.share({
-          title,
-          text: 'View this Bird Eye View presentation',
-          url,
-        });
-        showViewerToast('Link shared');
-        return;
-      } catch (e) {
-        if (e && e.name === 'AbortError') return;
-      }
-    }
-    const ok = await copyToClipboard(url);
-    if (ok) showViewerToast('Link copied to clipboard');
-    else window.prompt('Copy this viewer link:', url);
-  };
 }
 
 /* ── Exports ─────────────────────────────────────────────── */
