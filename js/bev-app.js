@@ -15,12 +15,9 @@ const {
   createQuickNoteFallbackItem,
   NAVIGATION_TUNING,
   isMobileViewport: bevIsMobileViewport,
-  normalizeWheelDelta: bevNormalizeWheelDelta,
-  stepSmoothZoom,
   createSpatialViewport,
   DEFAULT_SPATIAL_SCALE_RANGE,
 } = BEVCore;
-const normalizeWheelDelta = bevNormalizeWheelDelta;
 const isMobileViewport = bevIsMobileViewport;
 
 // ===================== FIREBASE STATE =====================
@@ -41,14 +38,11 @@ let selectedNode = null,
   currentTool = "select";
 let isDragging = false,
   dragOffset = { x: 0, y: 0 };
-let isPanning = false,
-  panStart = { x: 0, y: 0 };
+let isPanning = false;
 let viewOffset = { x: 0, y: 0 },
   viewScale = 1,
   targetScale = 1;
-let zoomOrigin = { x: 0, y: 0 },
-  zoomRAF = null,
-  isZooming = false;
+let isZooming = false;
 let pendingConn = null,
   pendingConnCursor = null,
   pendingConnTarget = null,
@@ -66,12 +60,9 @@ let dashboardReady = false,
   dashboardPanActive = false,
   dashboardScale = 1,
   dashboardTargetScale = 1;
-let dashboardPanStart = { x: 0, y: 0 },
-  dashboardDragProjectId = null,
+let dashboardDragProjectId = null,
   dashboardDragMoved = false;
-let dashboardZoomOrigin = { x: 0, y: 0 },
-  dashboardZoomRAF = null,
-  dashboardIsZooming = false;
+let dashboardIsZooming = false;
 let dashboardDragOffset = { x: 0, y: 0 },
   newProjectPosition = null,
   projectSaveTimer = null;
@@ -88,10 +79,83 @@ let presentationSaveTimer = null,
 let presentationViewOffset = { x: 180, y: 110 },
   presentationScale = 0.55,
   presentationTargetScale = 0.55;
-/** Same limits as shared spatial viewport default (see BEVCore.DEFAULT_SPATIAL_SCALE_RANGE). */
+/** Shared spatial defaults (single source in BEVCore). */
+const CANVAS_SCALE_MIN = DEFAULT_SPATIAL_SCALE_RANGE.min;
+const CANVAS_SCALE_MAX = DEFAULT_SPATIAL_SCALE_RANGE.max;
+const DASHBOARD_SCALE_MIN = 0.12;
+const DASHBOARD_SCALE_MAX = 2.5;
 const PRESENTATION_SCALE_MIN = DEFAULT_SPATIAL_SCALE_RANGE.min;
 const PRESENTATION_SCALE_MAX = DEFAULT_SPATIAL_SCALE_RANGE.max;
+let canvasSpatialNav = null;
+let dashboardSpatialNav = null;
 let presentationSpatialNav = null;
+function syncCanvasGlobalsFromNav() {
+  const nav = canvasSpatialNav;
+  if (!nav) return;
+  const o = nav.getOffset();
+  viewOffset.x = o.x;
+  viewOffset.y = o.y;
+  viewScale = nav.getScale();
+  targetScale = nav.getTargetScale();
+  isZooming = nav.getIsZooming();
+}
+function getCanvasSpatialNav() {
+  if (!canvasSpatialNav) {
+    canvasSpatialNav = createSpatialViewport({
+      getContainer: () => document.getElementById("canvas-container"),
+      getWorld: () => document.getElementById("canvas-world"),
+      cssVarPrefix: "canvas",
+      scaleMin: CANVAS_SCALE_MIN,
+      scaleMax: CANVAS_SCALE_MAX,
+      getZoomLevelEl: () => document.getElementById("zoom-level"),
+      onApply() {
+        syncCanvasGlobalsFromNav();
+      },
+    });
+    canvasSpatialNav.setState(
+      viewOffset.x,
+      viewOffset.y,
+      viewScale,
+      targetScale,
+    );
+    canvasSpatialNav.apply();
+  }
+  return canvasSpatialNav;
+}
+function syncDashboardGlobalsFromNav() {
+  const nav = dashboardSpatialNav;
+  if (!nav) return;
+  const o = nav.getOffset();
+  dashboardViewOffset.x = o.x;
+  dashboardViewOffset.y = o.y;
+  dashboardScale = nav.getScale();
+  dashboardTargetScale = nav.getTargetScale();
+  dashboardIsZooming = nav.getIsZooming();
+}
+function getDashboardSpatialNav() {
+  if (!dashboardSpatialNav) {
+    dashboardSpatialNav = createSpatialViewport({
+      getContainer: () => document.getElementById("dashboard-canvas"),
+      getWorld: () => document.getElementById("projects-world"),
+      cssVarPrefix: "dashboard",
+      scaleMin: DASHBOARD_SCALE_MIN,
+      scaleMax: DASHBOARD_SCALE_MAX,
+      getZoomLevelEl: () => document.getElementById("dashboard-zoom-level"),
+      onApply() {
+        syncDashboardGlobalsFromNav();
+        drawDashboardMinimap();
+      },
+    });
+    dashboardSpatialNav.setState(
+      dashboardViewOffset.x,
+      dashboardViewOffset.y,
+      dashboardScale,
+      dashboardTargetScale,
+    );
+    dashboardSpatialNav.apply();
+  }
+  return dashboardSpatialNav;
+}
 function syncPresentationGlobalsFromNav() {
   const nav = presentationSpatialNav;
   if (!nav) return;
@@ -324,6 +388,14 @@ function show(name) {
   if (name !== "presentation" && presentationSpatialNav) {
     presentationSpatialNav.destroy();
     presentationSpatialNav = null;
+  }
+  if (name !== "canvas" && canvasSpatialNav) {
+    canvasSpatialNav.destroy();
+    canvasSpatialNav = null;
+  }
+  if (name !== "dashboard" && dashboardSpatialNav) {
+    dashboardSpatialNav.destroy();
+    dashboardSpatialNav = null;
   }
 }
 
@@ -5006,24 +5078,7 @@ function createOverviewItemEl(item) {
 }
 
 function applyDashboardTransform() {
-  const world = document.getElementById("projects-world");
-  const canvas = document.getElementById("dashboard-canvas");
-  if (world)
-    world.style.transform = `translate3d(${dashboardViewOffset.x}px, ${dashboardViewOffset.y}px, 0) scale(${dashboardScale})`;
-  if (canvas) {
-    canvas.style.setProperty("--dashboard-scale", dashboardScale);
-    canvas.style.setProperty(
-      "--dashboard-grid-x",
-      `${dashboardViewOffset.x}px`,
-    );
-    canvas.style.setProperty(
-      "--dashboard-grid-y",
-      `${dashboardViewOffset.y}px`,
-    );
-  }
-  const level = document.getElementById("dashboard-zoom-level");
-  if (level) level.textContent = Math.round(dashboardScale * 100) + "%";
-  drawDashboardMinimap();
+  getDashboardSpatialNav().apply();
 }
 
 function applyPresentationTransform() {
@@ -5111,8 +5166,10 @@ function updateDashboardInfo() {
 
 function dashboardResetView() {
   const canvas = document.getElementById("dashboard-canvas");
+  if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
   const isMobile = isMobileViewport();
+  const nav = getDashboardSpatialNav();
   const items = [
     ...projects.map((p) => ({
       x: p.x || 0,
@@ -5128,8 +5185,9 @@ function dashboardResetView() {
     })),
   ];
   if (!items.length) {
-    dashboardViewOffset = isMobile ? { x: 120, y: 84 } : { x: 180, y: 110 };
-    dashboardScale = dashboardTargetScale = isMobile ? 0.34 : 0.52;
+    const o = isMobile ? { x: 120, y: 84 } : { x: 180, y: 110 };
+    const sc = isMobile ? 0.34 : 0.52;
+    nav.setState(o.x, o.y, sc, sc);
     applyDashboardTransform();
     return;
   }
@@ -5146,34 +5204,28 @@ function dashboardResetView() {
   const pad = isMobile ? 360 : 260;
   const worldW = maxX - minX + pad * 2;
   const worldH = maxY - minY + pad * 2;
-  dashboardScale = dashboardTargetScale = Math.min(
+  const sc = Math.min(
     isMobile ? 0.34 : 0.52,
-    Math.max(0.18, Math.min(rect.width / worldW, rect.height / worldH)),
+    Math.max(
+      DASHBOARD_SCALE_MIN,
+      Math.min(rect.width / worldW, rect.height / worldH),
+    ),
   );
-  dashboardViewOffset.x =
-    (rect.width - worldW * dashboardScale) / 2 -
-    (minX - pad) * dashboardScale;
-  dashboardViewOffset.y =
-    (rect.height - worldH * dashboardScale) / 2 -
-    (minY - pad) * dashboardScale;
+  const ox = (rect.width - worldW * sc) / 2 - (minX - pad) * sc;
+  const oy = (rect.height - worldH * sc) / 2 - (minY - pad) * sc;
+  nav.setState(ox, oy, sc, sc);
   applyDashboardTransform();
 }
 
 function dashboardZoomBy(delta) {
-  const rect = document
-    .getElementById("dashboard-canvas")
-    .getBoundingClientRect();
-  const px = rect.width / 2;
-  const py = rect.height / 2;
-  dashboardZoomOrigin = { x: px, y: py };
-  const baseScale = dashboardIsZooming
-    ? dashboardTargetScale
-    : dashboardScale;
-  dashboardTargetScale = Math.max(
-    0.12,
-    Math.min(2.5, baseScale + delta),
+  const canvas = document.getElementById("dashboard-canvas");
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  getDashboardSpatialNav().zoomByAdditive(
+    delta,
+    rect.width / 2,
+    rect.height / 2,
   );
-  startDashboardZoom();
 }
 
 function getNewProjectPosition() {
@@ -5355,11 +5407,8 @@ function setupDashboardEvents() {
       e.button === 1 || (e.button === 0 && dashboardTool === "pan");
     if (shouldPan) {
       setOverviewSelection(null);
+      getDashboardSpatialNav().beginPan(e.clientX - rect.left, e.clientY - rect.top);
       dashboardPanActive = true;
-      dashboardPanStart = {
-        x: e.clientX - rect.left - dashboardViewOffset.x,
-        y: e.clientY - rect.top - dashboardViewOffset.y,
-      };
       canvas.classList.add("panning");
       return;
     }
@@ -5432,36 +5481,7 @@ function setupDashboardEvents() {
   canvas.addEventListener(
     "wheel",
     (e) => {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const px = e.clientX - rect.left;
-      const py = e.clientY - rect.top;
-      const wheelDeltaX = normalizeWheelDelta(e.deltaX, e.deltaMode, rect.width);
-      const wheelDeltaY = normalizeWheelDelta(
-        e.deltaY,
-        e.deltaMode,
-        rect.height,
-      );
-      if (e.ctrlKey || e.metaKey) {
-        dashboardZoomOrigin = { x: px, y: py };
-        const baseScale = dashboardIsZooming
-          ? dashboardTargetScale
-          : dashboardScale;
-        const zoomFactor = Math.exp(
-          -wheelDeltaY * NAVIGATION_TUNING.wheelZoomSensitivity,
-        );
-        dashboardTargetScale = Math.max(
-          0.12,
-          Math.min(2.5, baseScale * zoomFactor),
-        );
-        startDashboardZoom();
-      } else {
-        dashboardViewOffset.x -=
-          wheelDeltaX * NAVIGATION_TUNING.wheelPanMultiplier;
-        dashboardViewOffset.y -=
-          wheelDeltaY * NAVIGATION_TUNING.wheelPanMultiplier;
-        applyDashboardTransform();
-      }
+      getDashboardSpatialNav().wheel(e);
     },
     { passive: false },
   );
@@ -5508,10 +5528,9 @@ function setupDashboardEvents() {
       applyOverviewSelectionClasses();
       return;
     }
-    if (dashboardPanActive) {
-      dashboardViewOffset.x = e.clientX - rect.left - dashboardPanStart.x;
-      dashboardViewOffset.y = e.clientY - rect.top - dashboardPanStart.y;
-      applyDashboardTransform();
+    const dashNav = dashboardSpatialNav;
+    if (dashNav?.isPanningActive()) {
+      dashNav.movePan(e.clientX - rect.left, e.clientY - rect.top);
       return;
     }
     if (dashboardGroupDragProjects) {
@@ -5727,7 +5746,8 @@ function setupDashboardEvents() {
             ? { type: "item", id: [...selectedOverviewItemIds][0] }
             : null;
     }
-    if (dashboardPanActive) {
+    if (dashboardSpatialNav?.isPanningActive()) {
+      dashboardSpatialNav.endPan();
       dashboardPanActive = false;
       canvas.classList.remove("panning");
     }
@@ -6136,16 +6156,7 @@ function setLineFromEndpoints(nd, start, end) {
 }
 
 function applyTransform() {
-  document.getElementById("canvas-world").style.transform =
-    `translate3d(${viewOffset.x}px, ${viewOffset.y}px, 0) scale(${viewScale})`;
-  const canvas = document.getElementById("canvas-container");
-  if (canvas) {
-    canvas.style.setProperty("--canvas-scale", viewScale);
-    canvas.style.setProperty("--canvas-grid-x", `${viewOffset.x}px`);
-    canvas.style.setProperty("--canvas-grid-y", `${viewOffset.y}px`);
-  }
-  document.getElementById("zoom-level").textContent =
-    Math.round(viewScale * 100) + "%";
+  getCanvasSpatialNav().apply();
 }
 
 // ===================== NODE RENDERING =====================
@@ -7451,67 +7462,6 @@ function getCenter(nd, pos = null) {
   return { x: nd.x + el.offsetWidth / 2, y: nd.y + el.offsetHeight / 2 };
 }
 
-function startCanvasZoom() {
-  isZooming = true;
-  if (zoomRAF) cancelAnimationFrame(zoomRAF);
-  zoomRAF = requestAnimationFrame(smoothZoomLoop);
-}
-
-function startDashboardZoom() {
-  dashboardIsZooming = true;
-  if (dashboardZoomRAF) cancelAnimationFrame(dashboardZoomRAF);
-  dashboardZoomRAF = requestAnimationFrame(smoothDashboardZoomLoop);
-}
-
-// ===================== SMOOTH ZOOM =====================
-function smoothZoomLoop() {
-  const step = stepSmoothZoom({
-    scale: viewScale,
-    targetScale,
-    offset: viewOffset,
-    zoomOrigin,
-    scaleMin: 0.05,
-    scaleMax: 5,
-  });
-  if (step.done) {
-    viewScale = step.scale;
-    targetScale = step.targetScale;
-    isZooming = false;
-    zoomRAF = null;
-    applyTransform();
-    return;
-  }
-  viewScale = step.scale;
-  viewOffset.x = step.offset.x;
-  viewOffset.y = step.offset.y;
-  applyTransform();
-  zoomRAF = requestAnimationFrame(smoothZoomLoop);
-}
-
-function smoothDashboardZoomLoop() {
-  const step = stepSmoothZoom({
-    scale: dashboardScale,
-    targetScale: dashboardTargetScale,
-    offset: dashboardViewOffset,
-    zoomOrigin: dashboardZoomOrigin,
-    scaleMin: 0.12,
-    scaleMax: 2.5,
-  });
-  if (step.done) {
-    dashboardScale = step.scale;
-    dashboardTargetScale = step.targetScale;
-    dashboardIsZooming = false;
-    dashboardZoomRAF = null;
-    applyDashboardTransform();
-    return;
-  }
-  dashboardScale = step.scale;
-  dashboardViewOffset.x = step.offset.x;
-  dashboardViewOffset.y = step.offset.y;
-  applyDashboardTransform();
-  dashboardZoomRAF = requestAnimationFrame(smoothDashboardZoomLoop);
-}
-
 function setupPresentationEvents() {
   const titleInput = document.getElementById("presentation-title-input");
   const pickerOverlay = document.getElementById("presentation-picker-overlay");
@@ -7871,11 +7821,8 @@ function setupCanvasEvents() {
     const pan =
       e.button === 1 || (e.button === 0 && currentTool === "pan");
     if (pan) {
+      getCanvasSpatialNav().beginPan(e.clientX, e.clientY);
       isPanning = true;
-      panStart = {
-        x: e.clientX - viewOffset.x,
-        y: e.clientY - viewOffset.y,
-      };
       con.style.cursor = "grabbing";
       e.preventDefault();
       return;
@@ -7962,10 +7909,9 @@ function setupCanvasEvents() {
       applyNodeSelectionClasses();
       return;
     }
-    if (isPanning) {
-      viewOffset.x = e.clientX - panStart.x;
-      viewOffset.y = e.clientY - panStart.y;
-      applyTransform();
+    const canvasNav = canvasSpatialNav;
+    if (canvasNav?.isPanningActive()) {
+      canvasNav.movePan(e.clientX, e.clientY);
       return;
     }
     if (nodeGroupDragIds) {
@@ -8046,7 +7992,8 @@ function setupCanvasEvents() {
   });
 
   window.addEventListener("mouseup", (e) => {
-    if (isPanning) {
+    if (canvasSpatialNav?.isPanningActive()) {
+      canvasSpatialNav.endPan();
       isPanning = false;
       con.style.cursor = currentTool === "pan" ? "grab" : "default";
     }
@@ -8113,28 +8060,7 @@ function setupCanvasEvents() {
   con.addEventListener(
     "wheel",
     (e) => {
-      e.preventDefault();
-      const r = con.getBoundingClientRect();
-      const px = e.clientX - r.left;
-      const py = e.clientY - r.top;
-      const wheelDeltaX = normalizeWheelDelta(e.deltaX, e.deltaMode, r.width);
-      const wheelDeltaY = normalizeWheelDelta(e.deltaY, e.deltaMode, r.height);
-      if (e.ctrlKey || e.metaKey) {
-        zoomOrigin = { x: px, y: py };
-        const baseScale = isZooming ? targetScale : viewScale;
-        const zoomFactor = Math.exp(
-          -wheelDeltaY * NAVIGATION_TUNING.wheelZoomSensitivity,
-        );
-        targetScale = Math.max(
-          0.05,
-          Math.min(5, baseScale * zoomFactor),
-        );
-        startCanvasZoom();
-        return;
-      }
-      viewOffset.x -= wheelDeltaX * NAVIGATION_TUNING.wheelPanMultiplier;
-      viewOffset.y -= wheelDeltaY * NAVIGATION_TUNING.wheelPanMultiplier;
-      applyTransform();
+      getCanvasSpatialNav().wheel(e);
     },
     { passive: false },
   );
@@ -8470,9 +8396,11 @@ function resetView() {
   const con = document.getElementById("canvas-container"),
     r = con.getBoundingClientRect();
   const isMobile = isMobileViewport();
+  const nav = getCanvasSpatialNav();
   if (!nodes.length) {
-    viewOffset = isMobile ? { x: 40, y: 40 } : { x: 56, y: 56 };
-    viewScale = targetScale = isMobile ? 0.28 : 0.48;
+    const o = isMobile ? { x: 40, y: 40 } : { x: 56, y: 56 };
+    const sc = isMobile ? 0.28 : 0.48;
+    nav.setState(o.x, o.y, sc, sc);
     applyTransform();
     return;
   }
@@ -8492,23 +8420,24 @@ function resetView() {
   const pad = isMobile ? 340 : 220,
     cw = maxX - minX + pad * 2,
     ch = maxY - minY + pad * 2;
-  viewScale = targetScale = Math.min(
+  const sc = Math.min(
     isMobile ? 0.3 : 0.5,
-    Math.min(r.width / cw, r.height / ch),
+    Math.max(CANVAS_SCALE_MIN, Math.min(r.width / cw, r.height / ch)),
   );
-  viewOffset.x =
-    (r.width - cw * viewScale) / 2 - (minX - pad) * viewScale;
-  viewOffset.y =
-    (r.height - ch * viewScale) / 2 - (minY - pad) * viewScale;
+  const ox = (r.width - cw * sc) / 2 - (minX - pad) * sc;
+  const oy = (r.height - ch * sc) / 2 - (minY - pad) * sc;
+  nav.setState(ox, oy, sc, sc);
   applyTransform();
 }
 function zoomBy(d) {
   const r = document
     .getElementById("canvas-container")
     .getBoundingClientRect();
-  zoomOrigin = { x: r.width / 2, y: r.height / 2 };
-  targetScale = Math.max(0.05, Math.min(5, targetScale + d));
-  startCanvasZoom();
+  getCanvasSpatialNav().zoomByAdditive(
+    d,
+    r.width / 2,
+    r.height / 2,
+  );
 }
 
 // ===================== MINIMAP =====================
@@ -8726,18 +8655,24 @@ function installTouchSurface(el, kind) {
     const dx = point.clientX - touchPanStart.startX;
     const dy = point.clientY - touchPanStart.startY;
     if (kind === "dashboard") {
-      dashboardViewOffset = {
-        x: touchPanStart.offsetX + dx,
-        y: touchPanStart.offsetY + dy,
-      };
-      applyDashboardTransform();
+      const nav = getDashboardSpatialNav();
+      nav.setState(
+        touchPanStart.offsetX + dx,
+        touchPanStart.offsetY + dy,
+        dashboardScale,
+        dashboardTargetScale,
+      );
+      nav.apply();
       return;
     }
-    viewOffset = {
-      x: touchPanStart.offsetX + dx,
-      y: touchPanStart.offsetY + dy,
-    };
-    applyTransform();
+    const nav = getCanvasSpatialNav();
+    nav.setState(
+      touchPanStart.offsetX + dx,
+      touchPanStart.offsetY + dy,
+      viewScale,
+      targetScale,
+    );
+    nav.apply();
   };
 
   const applyPinch = (points) => {
@@ -8765,28 +8700,32 @@ function installTouchSurface(el, kind) {
     const currentOffset =
       kind === "dashboard" ? dashboardViewOffset : viewOffset;
     const nextScale = Math.max(
-      kind === "dashboard" ? 0.12 : 0.05,
+      kind === "dashboard" ? DASHBOARD_SCALE_MIN : CANVAS_SCALE_MIN,
       Math.min(
-        kind === "dashboard" ? 2.5 : 5,
+        kind === "dashboard" ? DASHBOARD_SCALE_MAX : CANVAS_SCALE_MAX,
         currentScale * scaleRatio,
       ),
     );
     const worldX = (centerX - currentOffset.x) / currentScale;
     const worldY = (centerY - currentOffset.y) / currentScale;
     if (kind === "dashboard") {
-      dashboardScale = dashboardTargetScale = nextScale;
-      dashboardViewOffset = {
-        x: centerX - worldX * nextScale,
-        y: centerY - worldY * nextScale,
-      };
-      applyDashboardTransform();
+      const nav = getDashboardSpatialNav();
+      nav.setState(
+        centerX - worldX * nextScale,
+        centerY - worldY * nextScale,
+        nextScale,
+        nextScale,
+      );
+      nav.apply();
     } else {
-      viewScale = targetScale = nextScale;
-      viewOffset = {
-        x: centerX - worldX * nextScale,
-        y: centerY - worldY * nextScale,
-      };
-      applyTransform();
+      const nav = getCanvasSpatialNav();
+      nav.setState(
+        centerX - worldX * nextScale,
+        centerY - worldY * nextScale,
+        nextScale,
+        nextScale,
+      );
+      nav.apply();
     }
     pinchState = {
       distance,
