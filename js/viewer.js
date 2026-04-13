@@ -375,6 +375,42 @@ function viewerDepthNodeCenter(nd) {
   return { x: (nd.x || 0) + w / 2, y: (nd.y || 0) + h / 2 };
 }
 
+function viewerNormalizeEmbedUrl(raw) {
+  const url = String(raw || '').trim();
+  if (!url) return { type: 'empty', src: '' };
+  if (/\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(url))
+    return { type: 'image', src: url };
+  if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(url))
+    return { type: 'video', src: url };
+  const yt =
+    url.match(/youtube\.com\/watch\?v=([^&]+)/i) ||
+    url.match(/youtu\.be\/([^?&]+)/i);
+  if (yt) return { type: 'iframe', src: `https://www.youtube.com/embed/${yt[1]}` };
+  const vimeo = url.match(/vimeo\.com\/(\d+)/i);
+  if (vimeo) return { type: 'iframe', src: `https://player.vimeo.com/video/${vimeo[1]}` };
+  if (/^https?:\/\//i.test(url)) {
+    return {
+      type: 'website',
+      src: url,
+      preview: `https://image.thum.io/get/width/1600/noanimate/${url}`,
+    };
+  }
+  return { type: 'empty', src: '' };
+}
+
+function viewerEmbedPreviewHTML(url) {
+  const embed = viewerNormalizeEmbedUrl(url);
+  if (embed.type === 'image') return `<img src="${esc(embed.src)}" alt="">`;
+  if (embed.type === 'video')
+    return `<video src="${esc(embed.src)}" controls playsinline></video>`;
+  if (embed.type === 'iframe') {
+    return `<iframe src="${esc(embed.src)}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  }
+  if (embed.type === 'website')
+    return `<img src="${esc(embed.preview)}" alt="" draggable="false">`;
+  return '<div class="embed-placeholder">No URL</div>';
+}
+
 function renderViewerDepthConnections(svg, nodes, connections) {
   svg.innerHTML = '';
   const byId = Object.fromEntries(nodes.map((n) => [String(n.id), n]));
@@ -445,16 +481,19 @@ function renderViewerDepthNode(nd, accent) {
     const { w, h } = viewerDepthDefaultSize(nd);
     el.style.width = `${w}px`;
     el.style.height = `${h}px`;
-    const items = (nd.items || [])
-      .map((it) => {
-        const text = typeof it === 'string' ? it : (it.text || '');
-        const done = typeof it === 'object' && it.done ? ' class="is-done"' : '';
-        return `<li${done}>${renderTextHTML(text)}</li>`;
-      })
-      .join('');
+    const items = (nd.items || []).map((it) => {
+      const text = typeof it === 'string' ? it : (it.text || '');
+      const done = typeof it === 'object' && it.done;
+      return `<li>
+        <button class="bullet-item-check${done ? ' done' : ''}" type="button" disabled aria-hidden="true">${done ? '✓' : ''}</button>
+        <span class="node-content bullet-item-text">${renderTextHTML(text)}</span>
+      </li>`;
+    }).join('');
     el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
       <div class="node-header"><span class="node-type-label">List</span></div>
-      <div class="node-body"><ul class="node-content" style="margin:0;padding-left:18px">${items || '<li class="viewer-inspect-muted">Empty</li>'}</ul></div>`;
+      <div class="node-body">
+        <ul class="bullet-list">${items || '<li><span class="node-content bullet-item-text viewer-inspect-muted">Empty</span></li>'}</ul>
+      </div>`;
     return el;
   }
   if (t === 'progress') {
@@ -462,22 +501,18 @@ function renderViewerDepthNode(nd, accent) {
     el.style.width = `${w}px`;
     el.style.height = `${h}px`;
     const val = Math.round(Math.min(100, Math.max(0, Number(nd.value) || 0)));
-    let stepsHtml = '';
-    if (Array.isArray(nd.steps) && nd.steps.length) {
-      stepsHtml =
-        '<ul style="margin:8px 0 0;padding-left:18px;font-size:12px">' +
-        nd.steps
-          .map((s, i) => {
-            const lab = esc(String(s.label || `Step ${i + 1}`));
-            const done = s.done ? ' style="text-decoration:line-through;opacity:0.65"' : '';
-            return `<li${done}>${lab}</li>`;
-          })
-          .join('') +
-        '</ul>';
-    }
+    const stepsHtml = (nd.steps || []).map((s, i) => {
+      const lab = esc(String(s.label || `Step ${i + 1}`));
+      return `<div class="step-item"><div class="step-check${s.done ? ' done' : ''}">${s.done ? '✓' : ''}</div><span class="node-content">${lab}</span></div>`;
+    }).join('');
     el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
       <div class="node-header"><span class="node-type-label">Progress</span></div>
-      <div class="node-body"><div class="content"><strong>${val}%</strong>${stepsHtml}</div></div>`;
+      <div class="node-body">
+        <div class="progress-title">${esc(nd.title || '')}</div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${val}%"></div></div>
+        <div class="progress-val">${val}%</div>
+        <div class="progress-steps">${stepsHtml}</div>
+      </div>`;
     return el;
   }
   if (t === 'embed') {
@@ -485,13 +520,10 @@ function renderViewerDepthNode(nd, accent) {
     el.style.width = `${w}px`;
     el.style.height = `${h}px`;
     const u = String(nd.url || '').trim();
-    const safe = esc(u);
-    const body = u
-      ? `<a class="node-embed-link" href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a>`
-      : '<span class="viewer-inspect-muted">No URL</span>';
+    const body = `<div class="embed-preview">${viewerEmbedPreviewHTML(u)}</div>`;
     el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
       <div class="node-header"><span class="node-type-label">Embed</span></div>
-      <div class="node-body"><div class="content">${body}</div></div>`;
+      <div class="node-body">${body}</div>`;
     return el;
   }
   if (t === 'file') {
@@ -499,8 +531,7 @@ function renderViewerDepthNode(nd, accent) {
     el.style.width = `${w}px`;
     el.style.height = `${h}px`;
     const name = esc(nd.name || 'File');
-    const ext = esc(nd.ext || '');
-    const extBit = ext ? ` <span class="viewer-inspect-muted">.${ext}</span>` : '';
+    const ext = esc(nd.ext || 'FILE');
     const src = String(nd.src || '').trim();
     const isImgFile =
       nd.fileKind === 'image' ||
@@ -521,7 +552,7 @@ function renderViewerDepthNode(nd, accent) {
         : '';
     el.innerHTML = `<div class="node-accent-line" style="background:${ac}"></div>
       <div class="node-header"><span class="node-type-label">File</span></div>
-      <div class="node-body"><div class="content">${name}${extBit}${note}</div></div>`;
+      <div class="node-body"><div class="doc-wrap"><div class="doc-icon">${ext}</div><div><div class="doc-name">${name}</div><div class="doc-meta">${esc(nd.size || 'File')}</div>${note}</div></div></div>`;
     return el;
   }
   el.style.width = `${nd.w || 200}px`;
