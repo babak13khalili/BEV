@@ -78,6 +78,15 @@ let presentationSaveTimer = null,
   presentationObjectDragOffset = { x: 0, y: 0 },
   presentationResizeObjectId = null,
   presentationResizeStart = null;
+let presentationSelectionRect = null,
+  presentationSelectionStart = null,
+  presentationSelectionMode = null;
+let selectedPresentationItemIds = new Set(),
+  selectedPresentationObjectIds = new Set();
+let presentationGroupDragEntries = null,
+  presentationGroupDragStart = null;
+let presentationResizeItemId = null,
+  presentationItemResizeStart = null;
 let presentationViewOffset = { x: 180, y: 110 },
   presentationScale = 0.55,
   presentationTargetScale = 0.55;
@@ -3741,7 +3750,20 @@ function createPresentationProjectCardEl(
         <div class="card-stats"><div class="card-stat"><span>${nodeCount}</span> nodes</div><div class="card-stat"><span>${connectionCount}</span> links</div></div>
       </div>
       ${viewer ? "" : `<button class="card-open" type="button" aria-label="Open card">→</button>`}
-    </div>`;
+    </div>
+    ${
+      viewer
+        ? ""
+        : `<div class="card-resize-handle resize-tl" data-dir="tl"></div>
+    <div class="card-resize-handle resize-tr" data-dir="tr"></div>
+    <div class="card-resize-handle resize-bl" data-dir="bl"></div>
+    <div class="card-resize-handle resize-br" data-dir="br"></div>`
+    }`;
+  const presSelN = presentationDeckSelectionCount();
+  if (!viewer && selectedPresentationItemIds.has(String(item.id))) {
+    el.classList.toggle("selected", presSelN === 1);
+    el.classList.toggle("multi-selected", presSelN > 1);
+  }
   if (viewer) return el;
   el.querySelector(".card-del")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -3774,6 +3796,13 @@ function createPresentationProjectCardEl(
       renderDashboard();
     },
   });
+  el.querySelectorAll(".card-resize-handle").forEach((h) =>
+    h.addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      startPresentationItemResize(e, item, project, el, h.dataset.dir);
+    }),
+  );
   el.addEventListener("mousedown", (e) => {
     if (
       e.target.closest(".card-del") ||
@@ -3782,13 +3811,39 @@ function createPresentationProjectCardEl(
       e.target.closest(".card-title") ||
       e.target.closest(".card-desc") ||
       e.target.closest(".card-status") ||
-      e.target.closest(".card-status-menu")
+      e.target.closest(".card-status-menu") ||
+      e.target.closest(".card-resize-handle")
     ) {
       return;
     }
     if (beginOrCompletePresentationSpatialConnection(e, item.id)) return;
     if (e.button !== 0) return;
+    if (e.shiftKey && presentationTool === "select") {
+      togglePresentationItemSelection(item.id);
+      presentationCardOpenIntent = null;
+      e.preventDefault();
+      return;
+    }
+    const presN = presentationDeckSelectionCount();
+    if (
+      presentationTool === "select" &&
+      selectedPresentationItemIds.has(String(item.id)) &&
+      presN > 1
+    ) {
+      beginPresentationGroupDrag(e);
+      e.preventDefault();
+      return;
+    }
     if (presentationTool === "select") {
+      if (
+        !selectedPresentationItemIds.has(String(item.id)) ||
+        presN > 1
+      ) {
+        selectedPresentationItemIds.clear();
+        selectedPresentationObjectIds.clear();
+        selectedPresentationItemIds.add(String(item.id));
+        applyPresentationDeckSelectionClasses();
+      }
       presentationCardOpenIntent = {
         projectId: project.id,
         clientX: e.clientX,
@@ -3932,10 +3987,40 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
           obj.customTitle = label || "Note";
           queuePresentationSave(currentPresentation);
         },
-        onPointerDown: (e) => startPresentationObjectDrag(e, obj, el),
+        onPointerDown: (e) => {
+          if (e.shiftKey && presentationTool === "select") {
+            togglePresentationObjectSelection(obj.id);
+            return;
+          }
+          const presN = presentationDeckSelectionCount();
+          if (
+            presentationTool === "select" &&
+            selectedPresentationObjectIds.has(String(obj.id)) &&
+            presN > 1
+          ) {
+            beginPresentationGroupDrag(e);
+            return;
+          }
+          if (
+            presentationTool === "select" &&
+            (!selectedPresentationObjectIds.has(String(obj.id)) ||
+              presN > 1)
+          ) {
+            selectedPresentationItemIds.clear();
+            selectedPresentationObjectIds.clear();
+            selectedPresentationObjectIds.add(String(obj.id));
+            applyPresentationDeckSelectionClasses();
+          }
+          startPresentationObjectDrag(e, obj, el);
+        },
         onResizeStart: (e, dir) =>
           startPresentationObjectResize(e, obj, dir, el),
       });
+      const presUnifiedSelN = presentationDeckSelectionCount();
+      if (selectedPresentationObjectIds.has(String(obj.id))) {
+        el.classList.toggle("selected", presUnifiedSelN === 1);
+        el.classList.toggle("multi-selected", presUnifiedSelN > 1);
+      }
     }
   } else {
     el.innerHTML = renderSharedTextObjectHTML(
@@ -3963,19 +4048,51 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
       });
       el.appendChild(delBtn);
     }
-    el.addEventListener("mousedown", (e) => {
-      if (
-        e.target.closest(".node-resize-handle") ||
-        e.target.closest(".overview-resize-handle") ||
-        e.target.closest(".node-act-btn") ||
-        e.target.closest(".presentation-object-delete")
-      ) {
-        return;
+    if (!isUnifiedTextNoteType(obj.type)) {
+      const presObjSelN = presentationDeckSelectionCount();
+      if (selectedPresentationObjectIds.has(String(obj.id))) {
+        el.classList.toggle("selected", presObjSelN === 1);
+        el.classList.toggle("multi-selected", presObjSelN > 1);
       }
-      if (beginOrCompletePresentationSpatialConnection(e, obj.id)) return;
-      if (e.target.isContentEditable && !e.altKey) return;
-      startPresentationObjectDrag(e, obj, el);
-    });
+      el.addEventListener("mousedown", (e) => {
+        if (
+          e.target.closest(".node-resize-handle") ||
+          e.target.closest(".overview-resize-handle") ||
+          e.target.closest(".node-act-btn") ||
+          e.target.closest(".presentation-object-delete")
+        ) {
+          return;
+        }
+        if (beginOrCompletePresentationSpatialConnection(e, obj.id)) return;
+        if (e.button !== 0) return;
+        if (e.shiftKey && presentationTool === "select") {
+          togglePresentationObjectSelection(obj.id);
+          e.preventDefault();
+          return;
+        }
+        const presN = presentationDeckSelectionCount();
+        if (
+          presentationTool === "select" &&
+          selectedPresentationObjectIds.has(String(obj.id)) &&
+          presN > 1
+        ) {
+          beginPresentationGroupDrag(e);
+          e.preventDefault();
+          return;
+        }
+        if (
+          presentationTool === "select" &&
+          (!selectedPresentationObjectIds.has(String(obj.id)) || presN > 1)
+        ) {
+          selectedPresentationItemIds.clear();
+          selectedPresentationObjectIds.clear();
+          selectedPresentationObjectIds.add(String(obj.id));
+          applyPresentationDeckSelectionClasses();
+        }
+        if (e.target.isContentEditable && !e.altKey) return;
+        startPresentationObjectDrag(e, obj, el);
+      });
+    }
   }
   if (viewer) {
     el.querySelectorAll("[contenteditable]").forEach((node) => {
@@ -3988,6 +4105,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
 function renderPresentationWorld() {
   const world = document.getElementById("presentation-world");
   if (!world) return;
+  prunePresentationDeckSelection();
   world
     .querySelectorAll(".presentation-card, .presentation-object")
     .forEach((el) => el.remove());
@@ -7228,6 +7346,149 @@ function clearPresentationSpatialSelection() {
     .forEach((el) => el.classList.remove("selected"));
 }
 
+function prunePresentationDeckSelection() {
+  if (!currentPresentation) {
+    selectedPresentationItemIds.clear();
+    selectedPresentationObjectIds.clear();
+    return;
+  }
+  const itemIds = new Set(
+    (currentPresentation.items || []).map((it) => String(it.id)),
+  );
+  const objectIds = new Set(
+    (currentPresentation.objects || []).map((o) => String(o.id)),
+  );
+  [...selectedPresentationItemIds].forEach((id) => {
+    if (!itemIds.has(String(id))) selectedPresentationItemIds.delete(id);
+  });
+  [...selectedPresentationObjectIds].forEach((id) => {
+    if (!objectIds.has(String(id))) selectedPresentationObjectIds.delete(id);
+  });
+}
+
+function presentationDeckSelectionCount() {
+  return (
+    selectedPresentationItemIds.size + selectedPresentationObjectIds.size
+  );
+}
+
+function applyPresentationDeckSelectionClasses() {
+  const world = document.getElementById("presentation-world");
+  if (!world) return;
+  const count = presentationDeckSelectionCount();
+  const indicator = document.getElementById(
+    "presentation-selection-indicator",
+  );
+  world.querySelectorAll(".presentation-card").forEach((el) => {
+    const id = el.dataset.presentationItemId;
+    const on = id && selectedPresentationItemIds.has(id);
+    el.classList.toggle("selected", on && count === 1);
+    el.classList.toggle("multi-selected", on && count > 1);
+  });
+  world.querySelectorAll(".presentation-object").forEach((el) => {
+    const id = el.dataset.objectId;
+    const on = id && selectedPresentationObjectIds.has(id);
+    el.classList.toggle("selected", on && count === 1);
+    el.classList.toggle("multi-selected", on && count > 1);
+  });
+  if (indicator) {
+    indicator.textContent = count ? `${count} selected` : "No selection";
+    indicator.classList.toggle("visible", count > 1);
+  }
+}
+
+function clearPresentationDeckSelection() {
+  selectedPresentationItemIds.clear();
+  selectedPresentationObjectIds.clear();
+  applyPresentationDeckSelectionClasses();
+}
+
+function togglePresentationItemSelection(itemId) {
+  const id = String(itemId);
+  if (selectedPresentationItemIds.has(id))
+    selectedPresentationItemIds.delete(id);
+  else selectedPresentationItemIds.add(id);
+  applyPresentationDeckSelectionClasses();
+}
+
+function togglePresentationObjectSelection(objectId) {
+  const id = String(objectId);
+  if (selectedPresentationObjectIds.has(id))
+    selectedPresentationObjectIds.delete(id);
+  else selectedPresentationObjectIds.add(id);
+  applyPresentationDeckSelectionClasses();
+}
+
+function beginPresentationGroupDrag(e) {
+  const canvas = document.getElementById("presentation-canvas");
+  if (!canvas || !currentPresentation) return;
+  const rect = canvas.getBoundingClientRect();
+  const sc = presentationScale || 1;
+  const ox = presentationViewOffset.x;
+  const oy = presentationViewOffset.y;
+  presentationGroupDragEntries = [];
+  selectedPresentationItemIds.forEach((id) => {
+    const item = (currentPresentation.items || []).find(
+      (it) => String(it.id) === String(id),
+    );
+    if (item)
+      presentationGroupDragEntries.push({
+        kind: "item",
+        id: String(id),
+        startX: item.x || 0,
+        startY: item.y || 0,
+      });
+  });
+  selectedPresentationObjectIds.forEach((id) => {
+    const obj = (currentPresentation.objects || []).find(
+      (o) => String(o.id) === String(id),
+    );
+    if (obj)
+      presentationGroupDragEntries.push({
+        kind: "object",
+        id: String(id),
+        startX: obj.x || 0,
+        startY: obj.y || 0,
+      });
+  });
+  if (!presentationGroupDragEntries.length) {
+    presentationGroupDragEntries = null;
+    presentationGroupDragStart = null;
+    return;
+  }
+  presentationGroupDragStart = {
+    x: (e.clientX - rect.left - ox) / sc,
+    y: (e.clientY - rect.top - oy) / sc,
+  };
+  presentationCardOpenIntent = null;
+  presentationDragItemId = null;
+  presentationDragObjectId = null;
+  presentationGroupDragEntries.forEach((entry) => {
+    const sel =
+      entry.kind === "item"
+        ? `.presentation-card[data-presentation-item-id="${entry.id}"]`
+        : `.presentation-object[data-object-id="${entry.id}"]`;
+    document.querySelector(`#presentation-world ${sel}`)?.classList.add("dragging");
+  });
+}
+
+function startPresentationItemResize(e, item, project, el, dir) {
+  if (!currentPresentation || !item || !project) return;
+  e.stopPropagation();
+  e.preventDefault();
+  presentationResizeItemId = item.id;
+  presentationItemResizeStart = {
+    x: e.clientX,
+    y: e.clientY,
+    w: project.w || el.offsetWidth,
+    h: project.h || el.offsetHeight,
+    dir,
+    itemX: item.x || 0,
+    itemY: item.y || 0,
+    projectId: project.id,
+  };
+}
+
 function beginOrCompletePresentationSpatialConnection(e, endpointId) {
   if (presentationTool !== "connect" || e.button !== 0) return false;
   if (!currentPresentation) return false;
@@ -7267,6 +7528,10 @@ function setPresentationTool(t) {
   presentationTool = t;
   if (t !== "connect") presentationPendingConnSourceId = null;
   if (t !== "select") presentationCardOpenIntent = null;
+  presentationSelectionMode = null;
+  if (presentationSelectionRect) {
+    presentationSelectionRect.style.display = "none";
+  }
   updatePresentationToolbar();
   const pc = document.getElementById("presentation-canvas");
   if (pc && currentScreenName === "presentation") {
@@ -7413,6 +7678,18 @@ function setupPresentationEvents() {
     window.__bevPresentationCanvasNavBound = true;
     const presCanvas = document.getElementById("presentation-canvas");
     if (presCanvas) {
+      if (!presCanvas.dataset.presSelectionUi) {
+        presCanvas.dataset.presSelectionUi = "1";
+        const ind = document.createElement("div");
+        ind.id = "presentation-selection-indicator";
+        ind.className = "selection-indicator";
+        ind.textContent = "No selection";
+        presCanvas.appendChild(ind);
+        presentationSelectionRect = document.createElement("div");
+        presentationSelectionRect.className = "selection-box";
+        presentationSelectionRect.style.display = "none";
+        presCanvas.appendChild(presentationSelectionRect);
+      }
       presCanvas.addEventListener("mousedown", (e) => {
         if (currentScreenName !== "presentation" || !currentPresentation)
           return;
@@ -7441,6 +7718,24 @@ function setupPresentationEvents() {
           clearPresentationSpatialSelection();
           presentationPendingConnSourceId = null;
           renderPresentationSpatialConnections();
+          clearPresentationDeckSelection();
+          const crect = presCanvas.getBoundingClientRect();
+          presentationSelectionMode = "marquee";
+          presentationSelectionStart = {
+            x: e.clientX - crect.left,
+            y: e.clientY - crect.top,
+          };
+          if (presentationSelectionRect) {
+            presentationSelectionRect.style.display = "block";
+            presentationSelectionRect.style.left =
+              presentationSelectionStart.x + "px";
+            presentationSelectionRect.style.top =
+              presentationSelectionStart.y + "px";
+            presentationSelectionRect.style.width = "0px";
+            presentationSelectionRect.style.height = "0px";
+          }
+          e.preventDefault();
+          return;
         }
         if (e.target.closest(".presentation-card, .presentation-object"))
           return;
@@ -7493,15 +7788,13 @@ function setupPresentationEvents() {
   }
   if (!window.__bevPresentationMainWheelBound) {
     window.__bevPresentationMainWheelBound = true;
-    const presMain = document.getElementById("presentation-main");
-    if (presMain) {
-      presMain.addEventListener(
+    const presWheelCanvas = document.getElementById("presentation-canvas");
+    if (presWheelCanvas) {
+      presWheelCanvas.addEventListener(
         "wheel",
         (e) => {
           if (currentScreenName !== "presentation" || !currentPresentation)
             return;
-          const canvas = document.getElementById("presentation-canvas");
-          if (!canvas) return;
           getPresentationSpatialNav().wheel(e);
         },
         { passive: false },
@@ -7525,6 +7818,7 @@ function setupPresentationEvents() {
         presentationCardOpenIntent = null;
         presentationPendingConnSourceId = null;
         clearPresentationSpatialSelection();
+        clearPresentationDeckSelection();
         renderPresentationSpatialConnections();
         setPresentationTool("select");
       }
@@ -7542,6 +7836,94 @@ function setupPresentationEvents() {
       const presNav = presentationSpatialNav;
       if (presNav && presNav.isPanningActive()) {
         presNav.movePan(e.clientX, e.clientY);
+        return;
+      }
+      if (
+        presentationSelectionMode === "marquee" &&
+        presentationSelectionRect &&
+        presentationSelectionStart
+      ) {
+        const x = Math.min(
+          presentationSelectionStart.x,
+          e.clientX - rect.left,
+        );
+        const y = Math.min(
+          presentationSelectionStart.y,
+          e.clientY - rect.top,
+        );
+        const w = Math.abs(
+          e.clientX - rect.left - presentationSelectionStart.x,
+        );
+        const h = Math.abs(
+          e.clientY - rect.top - presentationSelectionStart.y,
+        );
+        presentationSelectionRect.style.left = x + "px";
+        presentationSelectionRect.style.top = y + "px";
+        presentationSelectionRect.style.width = w + "px";
+        presentationSelectionRect.style.height = h + "px";
+        selectedPresentationItemIds.clear();
+        selectedPresentationObjectIds.clear();
+        const pworld = document.getElementById("presentation-world");
+        pworld?.querySelectorAll(".presentation-card").forEach((el) => {
+          const r = el.getBoundingClientRect();
+          if (
+            r.left < rect.left + x + w &&
+            r.right > rect.left + x &&
+            r.top < rect.top + y + h &&
+            r.bottom > rect.top + y
+          ) {
+            const id = el.dataset.presentationItemId;
+            if (id) selectedPresentationItemIds.add(id);
+          }
+        });
+        pworld?.querySelectorAll(".presentation-object").forEach((el) => {
+          const r = el.getBoundingClientRect();
+          if (
+            r.left < rect.left + x + w &&
+            r.right > rect.left + x &&
+            r.top < rect.top + y + h &&
+            r.bottom > rect.top + y
+          ) {
+            const id = el.dataset.objectId;
+            if (id) selectedPresentationObjectIds.add(id);
+          }
+        });
+        applyPresentationDeckSelectionClasses();
+        return;
+      }
+      if (presentationGroupDragEntries && presentationGroupDragStart) {
+        const worldX = (e.clientX - rect.left - ox) / sc;
+        const worldY = (e.clientY - rect.top - oy) / sc;
+        const dx = worldX - presentationGroupDragStart.x;
+        const dy = worldY - presentationGroupDragStart.y;
+        presentationGroupDragEntries.forEach((entry) => {
+          if (entry.kind === "item") {
+            const item = (currentPresentation.items || []).find(
+              (it) => String(it.id) === entry.id,
+            );
+            const nodeEl = document.querySelector(
+              `#presentation-world .presentation-card[data-presentation-item-id="${entry.id}"]`,
+            );
+            if (!item || !nodeEl) return;
+            item.x = Math.max(20, Math.round(entry.startX + dx));
+            item.y = Math.max(20, Math.round(entry.startY + dy));
+            nodeEl.style.left = `${item.x}px`;
+            nodeEl.style.top = `${item.y}px`;
+          } else {
+            const obj = (currentPresentation.objects || []).find(
+              (o) => String(o.id) === entry.id,
+            );
+            const nodeEl = document.querySelector(
+              `#presentation-world .presentation-object[data-object-id="${entry.id}"]`,
+            );
+            if (!obj || !nodeEl) return;
+            obj.x = Math.max(20, Math.round(entry.startX + dx));
+            obj.y = Math.max(20, Math.round(entry.startY + dy));
+            nodeEl.style.left = `${obj.x}px`;
+            nodeEl.style.top = `${obj.y}px`;
+          }
+        });
+        renderPresentationSpatialConnections();
         return;
       }
       if (presentationCardOpenIntent && presentationTool === "select") {
@@ -7656,14 +8038,117 @@ function setupPresentationEvents() {
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
         renderPresentationSpatialConnections();
+        return;
+      }
+      if (presentationResizeItemId && presentationItemResizeStart) {
+        const item = (currentPresentation.items || []).find(
+          (it) => String(it.id) === String(presentationResizeItemId),
+        );
+        const project = projects.find(
+          (p) => p.id === presentationItemResizeStart.projectId,
+        );
+        const el = document.querySelector(
+          `.presentation-card[data-presentation-item-id="${presentationResizeItemId}"]`,
+        );
+        if (!item || !project || !el) return;
+        const dx = (e.clientX - presentationItemResizeStart.x) / sc;
+        const dy = (e.clientY - presentationItemResizeStart.y) / sc;
+        const dir = presentationItemResizeStart.dir;
+        let w = presentationItemResizeStart.w;
+        let h = presentationItemResizeStart.h;
+        let ix = presentationItemResizeStart.itemX;
+        let iy = presentationItemResizeStart.itemY;
+        if (dir.includes("r"))
+          w = Math.max(
+            DEFAULT_PROJECT_CARD_WIDTH,
+            Math.round(presentationItemResizeStart.w + dx),
+          );
+        if (dir.includes("l")) {
+          w = Math.max(
+            DEFAULT_PROJECT_CARD_WIDTH,
+            Math.round(presentationItemResizeStart.w - dx),
+          );
+          ix = Math.round(
+            presentationItemResizeStart.itemX +
+              (presentationItemResizeStart.w - w),
+          );
+        }
+        if (dir.includes("b"))
+          h = Math.max(
+            DEFAULT_PROJECT_CARD_HEIGHT,
+            Math.round(presentationItemResizeStart.h + dy),
+          );
+        if (dir.includes("t")) {
+          h = Math.max(
+            DEFAULT_PROJECT_CARD_HEIGHT,
+            Math.round(presentationItemResizeStart.h - dy),
+          );
+          iy = Math.round(
+            presentationItemResizeStart.itemY +
+              (presentationItemResizeStart.h - h),
+          );
+        }
+        const min = getProjectMinSize(project);
+        w = Math.max(w, min.w);
+        h = Math.max(h, min.h);
+        if (dir.includes("l"))
+          ix = Math.round(
+            presentationItemResizeStart.itemX +
+              (presentationItemResizeStart.w - w),
+          );
+        if (dir.includes("t"))
+          iy = Math.round(
+            presentationItemResizeStart.itemY +
+              (presentationItemResizeStart.h - h),
+          );
+        project.w = w;
+        project.h = h;
+        item.x = ix;
+        item.y = iy;
+        const autoSize = getProjectAutoSize(
+          project,
+          false,
+          (project.desc || "").trim().length > 72,
+        );
+        const cardWidth = Math.max(w, autoSize.w);
+        const cardHeight = Math.max(h, autoSize.h);
+        el.style.left = `${ix}px`;
+        el.style.top = `${iy}px`;
+        el.style.width = `${cardWidth}px`;
+        el.style.height = `${cardHeight}px`;
+        renderPresentationSpatialConnections();
       }
     });
     window.addEventListener("mouseup", (e) => {
+      if (presentationSelectionMode === "marquee" && presentationSelectionRect) {
+        presentationSelectionMode = null;
+        presentationSelectionRect.style.display = "none";
+      }
       if (presentationSpatialNav?.isPanningActive()) {
         presentationSpatialNav.endPan();
         document
           .getElementById("presentation-canvas")
           ?.classList.remove("panning");
+      }
+      if (presentationGroupDragEntries && currentPresentation) {
+        presentationGroupDragEntries = null;
+        presentationGroupDragStart = null;
+        document
+          .querySelectorAll(
+            "#presentation-world .presentation-card.dragging, #presentation-world .presentation-object.dragging",
+          )
+          .forEach((node) => node.classList.remove("dragging"));
+        queuePresentationSave(currentPresentation);
+        renderPresentationSpatialConnections();
+      }
+      if (presentationResizeItemId && currentPresentation) {
+        const pid = presentationItemResizeStart?.projectId;
+        presentationResizeItemId = null;
+        presentationItemResizeStart = null;
+        const p = pid ? projects.find((x) => x.id === pid) : null;
+        if (p) queueProjectSave(p);
+        queuePresentationSave(currentPresentation);
+        renderPresentationSpatialConnections();
       }
       if (presentationCardOpenIntent && currentPresentation) {
         const intent = presentationCardOpenIntent;

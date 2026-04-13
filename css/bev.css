@@ -675,7 +675,7 @@ body {
     calc(40px * var(--dashboard-scale, 1));
   background-position: var(--dashboard-grid-x, 0px)
     var(--dashboard-grid-y, 0px);
-  opacity: 0.26;
+  opacity: 0.3;
   pointer-events: none;
 }
 #projects-world {
@@ -1067,6 +1067,10 @@ body {
   opacity: 1;
   transform: translateY(0);
 }
+#presentation-canvas .selection-indicator {
+  top: 52px;
+  right: 14px;
+}
 .dashboard-tool-row {
   display: flex;
   gap: 8px;
@@ -1355,9 +1359,11 @@ textarea,
   animation: pulse 0.8s infinite;
 }
 
-/* toolbar */
+/* toolbar — shared chrome across dashboard, canvas, presentation */
 #dashboard-toolbar,
-#toolbar {
+#toolbar,
+#presentation-toolbar,
+#shared-presentation-toolbar {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
@@ -1374,6 +1380,10 @@ textarea,
 }
 #toolbar {
   top: 106px;
+}
+#presentation-toolbar,
+#shared-presentation-toolbar {
+  top: 18px;
 }
 .tool-btn {
   width: 34px;
@@ -1519,7 +1529,9 @@ textarea,
     padding: 0 12px;
   }
   #dashboard-toolbar,
-  #toolbar {
+  #toolbar,
+  #presentation-toolbar,
+  #shared-presentation-toolbar {
     gap: 1px;
     padding: 3px;
   }
@@ -1528,6 +1540,10 @@ textarea,
   }
   #toolbar {
     top: 98px;
+  }
+  #presentation-toolbar,
+  #shared-presentation-toolbar {
+    top: 12px;
   }
   .tool-btn {
     width: 30px;
@@ -1571,10 +1587,6 @@ textarea,
     max-height: 220px;
     border-right: none;
     border-bottom: 1px solid var(--border);
-  }
-  #presentation-toolbar,
-  #shared-presentation-toolbar {
-    top: 12px;
   }
   #dashboard-info,
   #canvas-info {
@@ -2734,20 +2746,6 @@ textarea,
   cursor: default;
   touch-action: none;
   background: var(--bg);
-}
-#presentation-toolbar,
-#shared-presentation-toolbar {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  top: 18px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  z-index: 100;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  padding: 4px;
 }
 .presentation-toolbar-meta {
   font-size: 10px;
