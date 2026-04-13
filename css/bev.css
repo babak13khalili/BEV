@@ -2313,6 +2313,17 @@ textarea,
   transform: translate(50%, -50%);
 }
 
+.presentation-card:hover .conn-handle,
+.presentation-object:hover .conn-handle,
+.presentation-canvas.pres-connect-tool .presentation-card .conn-handle,
+.presentation-canvas.pres-connect-tool .presentation-object .conn-handle {
+  opacity: 1;
+}
+.presentation-card.connect-target .conn-handle,
+.presentation-object.connect-target .conn-handle {
+  opacity: 1;
+}
+
 /* ctx menu */
 #ctx-menu {
   position: fixed;
@@ -2759,6 +2770,7 @@ textarea,
   overflow: hidden;
   cursor: default;
   touch-action: none;
+  background: var(--bg);
 }
 #presentation-canvas.panning {
   cursor: grabbing;

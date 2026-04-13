@@ -314,14 +314,15 @@ function renderProjectCard(item) {
 
   const el = document.createElement('div');
   el.className = 'project-card viewer-shared-card';
+  if (item.id != null) el.dataset.viewerDeckId = String(item.id);
   el.style.cssText = `
     left: ${item.x || 0}px;
     top:  ${item.y || 0}px;
     --card-accent: ${esc(snap.color || '#fff')};
     width: ${Math.max(snap.w || 280, 280)}px;
-    cursor: pointer;
+    cursor: default;
   `;
-  el.title = 'Click to open this card — same layout as in BEV (read-only)';
+  el.title = 'Double-click to open this card (same as dashboard / presentation editor)';
 
   const date = snap.created
     ? new Date(snap.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -343,7 +344,10 @@ function renderProjectCard(item) {
       </div>
     </div>`;
 
-  el.addEventListener('click', () => openViewerCardDepth(item));
+  el.addEventListener('dblclick', (e) => {
+    if (e.target.closest('.card-status')) return;
+    openViewerCardDepth(item);
+  });
   return el;
 }
 
@@ -356,6 +360,82 @@ function renderTextHTML(text) {
 function depthCurve(f, t) {
   const dx = t.x - f.x;
   return `M${f.x},${f.y} C${f.x + dx * 0.5},${f.y} ${f.x + dx * 0.5},${t.y} ${t.x},${t.y}`;
+}
+
+function viewerClientToWorld(clientX, clientY) {
+  if (!_viewerNav) return { x: 0, y: 0 };
+  const canvas = document.getElementById('viewer-canvas');
+  if (!canvas) return { x: 0, y: 0 };
+  const r = canvas.getBoundingClientRect();
+  const o = _viewerNav.getOffset();
+  const sc = _viewerNav.getScale() || 1;
+  return {
+    x: (clientX - r.left - o.x) / sc,
+    y: (clientY - r.top - o.y) / sc,
+  };
+}
+
+function viewerDeckEdgeWorldPoint(el, pos) {
+  if (!el) return null;
+  const box = el.getBoundingClientRect();
+  let cx;
+  let cy;
+  if (!pos) {
+    cx = box.left + box.width / 2;
+    cy = box.top + box.height / 2;
+  } else if (pos === 'top') {
+    cx = box.left + box.width / 2;
+    cy = box.top;
+  } else if (pos === 'bottom') {
+    cx = box.left + box.width / 2;
+    cy = box.bottom;
+  } else if (pos === 'left') {
+    cx = box.left;
+    cy = box.top + box.height / 2;
+  } else {
+    cx = box.right;
+    cy = box.top + box.height / 2;
+  }
+  return viewerClientToWorld(cx, cy);
+}
+
+function fillViewerDeckConnectionsSvg(svg, data) {
+  if (!svg || !data) return;
+  svg.innerHTML = '';
+  const world = document.getElementById('viewer-world');
+  if (!world) return;
+  const conns = data.spatialConnections || [];
+  if (!conns.length) return;
+  conns.forEach((c) => {
+    if (!c?.fromId || !c?.toId || c.fromId === c.toId) return;
+    const fid = String(c.fromId);
+    const tid = String(c.toId);
+    const fromEl = world.querySelector(`[data-viewer-deck-id="${fid}"]`);
+    const toEl = world.querySelector(`[data-viewer-deck-id="${tid}"]`);
+    const f = fromEl
+      ? viewerDeckEdgeWorldPoint(fromEl, c.fromPos || null)
+      : null;
+    const t = toEl
+      ? viewerDeckEdgeWorldPoint(toEl, c.toPos || null)
+      : null;
+    if (!f || !t) return;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', depthCurve(f, t));
+    path.setAttribute('class', 'conn-line presentation-conn-line');
+    path.style.pointerEvents = 'none';
+    svg.appendChild(path);
+    const ang = Math.atan2(t.y - f.y, t.x - f.x);
+    const ax = t.x - 10 * Math.cos(ang);
+    const ay = t.y - 10 * Math.sin(ang);
+    const arr = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    arr.setAttribute(
+      'points',
+      `${t.x},${t.y} ${ax + 4 * Math.sin(ang)},${ay - 4 * Math.cos(ang)} ${ax - 4 * Math.sin(ang)},${ay + 4 * Math.cos(ang)}`,
+    );
+    arr.setAttribute('fill', '#333');
+    arr.style.pointerEvents = 'none';
+    svg.appendChild(arr);
+  });
 }
 
 function viewerDepthDefaultSize(nd) {
@@ -561,6 +641,7 @@ function initViewerCardDepth() {
 function renderOverlayObject(obj) {
   const type = canonicalType(obj.type);
   const el = document.createElement('div');
+  if (obj.id != null) el.dataset.viewerDeckId = String(obj.id);
   el.style.cssText = `position:absolute; left:${obj.x || 0}px; top:${obj.y || 0}px;`;
 
   if (type === 'line') {
@@ -892,6 +973,14 @@ function renderViewer(data) {
   if (!world) return;
   world.innerHTML = '';
 
+  const deckSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  deckSvg.id = 'viewer-deck-connections-svg';
+  deckSvg.setAttribute('width', '4200');
+  deckSvg.setAttribute('height', '3000');
+  deckSvg.style.cssText =
+    'position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:0';
+  world.appendChild(deckSvg);
+
   // Overlay objects (notes, headings, lines, frames)
   const objects = (data.objects || []).filter(o =>
     ['note', 'text', 'heading', 'line', 'frame'].includes(canonicalType(o.type))
@@ -916,6 +1005,10 @@ function renderViewer(data) {
   ensureViewerSpatialNav();
   fitViewerViewportToData(data);
   wireViewerSpatialNavigation();
+  requestAnimationFrame(() => {
+    const svg = document.getElementById('viewer-deck-connections-svg');
+    fillViewerDeckConnectionsSvg(svg, data);
+  });
 }
 
 /* ── Idle-bar logic ──────────────────────────────────────── */

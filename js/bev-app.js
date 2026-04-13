@@ -71,7 +71,6 @@ let dashboardDragOffset = { x: 0, y: 0 },
 let dashboardResizeProjectId = null,
   dashboardResizeStart = null;
 let presentationSaveTimer = null,
-  presentationCardOpenIntent = null,
   presentationDragItemId = null,
   presentationDragOffset = { x: 0, y: 0 },
   presentationDragObjectId = null,
@@ -200,12 +199,15 @@ function getPresentationSpatialNav() {
   return presentationSpatialNav;
 }
 let presentationTool = "select",
-  presentationPendingConnSourceId = null,
   presentationSelectedConnId = null,
   presentationCtxWorldPos = null,
   presentationCtxMenuObjectId = null,
   presentationCtxMenuItemId = null,
   presentationCtxMenuConnId = null;
+let pendingPresConn = null,
+  pendingPresConnCursor = null,
+  pendingPresConnTarget = null;
+let pendingPresConnRenderRAF = null;
 let overviewItems = [],
   overviewDragItemId = null,
   overviewDragOffset = { x: 0, y: 0 },
@@ -751,6 +753,8 @@ function normalizePresentationData(presentation = {}) {
               `pc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             fromId: String(c.fromId),
             toId: String(c.toId),
+            fromPos: c.fromPos || null,
+            toPos: c.toPos || null,
           }))
       : [],
   };
@@ -795,6 +799,27 @@ function presentationClientToWorld(clientX, clientY) {
     x: (clientX - r.left - presentationViewOffset.x) / sc,
     y: (clientY - r.top - presentationViewOffset.y) / sc,
   };
+}
+
+function presentationSpatialHandlesInnerHTML(endpointId) {
+  const eid = esc(String(endpointId));
+  return `<div class="conn-handle pres-spatial-handle" data-pres-ep="${eid}" data-pos="top"></div><div class="conn-handle pres-spatial-handle" data-pres-ep="${eid}" data-pos="bottom"></div><div class="conn-handle pres-spatial-handle" data-pres-ep="${eid}" data-pos="left"></div><div class="conn-handle pres-spatial-handle" data-pres-ep="${eid}" data-pos="right"></div>`;
+}
+
+function bindPresentationSpatialConnHandles(el) {
+  if (!el) return;
+  el.querySelectorAll(".pres-spatial-handle").forEach((h) => {
+    h.addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (!currentPresentation || currentScreenName !== "presentation") return;
+      const ep = h.dataset.presEp;
+      const pos = h.dataset.pos || "right";
+      if (!ep) return;
+      startPendingPresentationSpatialConn(ep, pos, e.clientX, e.clientY);
+      setPresentationTool("connect");
+    });
+  });
 }
 
 function makePresentationObjectAt(type, worldX, worldY) {
@@ -3212,18 +3237,6 @@ function bindUnifiedNoteObjectBehavior({
     )
       return;
     if (
-      currentScreenName === "presentation" &&
-      presentationTool === "connect" &&
-      e.button === 0 &&
-      el.classList.contains("presentation-object") &&
-      el.dataset.objectId
-    ) {
-      if (
-        beginOrCompletePresentationSpatialConnection(e, el.dataset.objectId)
-      )
-        return;
-    }
-    if (
       e.target.tagName === "INPUT" ||
       e.target.tagName === "TEXTAREA" ||
       e.target.tagName === "A" ||
@@ -3724,7 +3737,7 @@ function createPresentationProjectCardEl(
   el.dataset.projectId = item.projectId || project.id;
   if (!viewer) {
     el.title =
-      "Click anywhere on the card to open it (or drag to move). Double-click also opens.";
+      "Double-click the card or use → to open it (same as dashboard). Drag to move.";
   }
   const statusMarkup = viewer
     ? `<div class="card-status" data-status="${statusSlug(project.status)}">${esc(project.status || "In Progress")}</div>`
@@ -3754,7 +3767,7 @@ function createPresentationProjectCardEl(
     ${
       viewer
         ? ""
-        : `<div class="card-resize-handle resize-tl" data-dir="tl"></div>
+        : `${presentationSpatialHandlesInnerHTML(item.id)}<div class="card-resize-handle resize-tl" data-dir="tl"></div>
     <div class="card-resize-handle resize-tr" data-dir="tr"></div>
     <div class="card-resize-handle resize-bl" data-dir="bl"></div>
     <div class="card-resize-handle resize-br" data-dir="br"></div>`
@@ -3777,16 +3790,6 @@ function createPresentationProjectCardEl(
     e.stopPropagation();
     openProject(project.id, "presentation");
   });
-  const titleEl = el.querySelector(".card-title");
-  const descEl = el.querySelector(".card-desc");
-  const openFromCard = (e) => {
-    e.stopPropagation();
-    openProject(project.id, "presentation");
-  };
-  titleEl?.addEventListener("mousedown", (e) => e.stopPropagation());
-  descEl?.addEventListener("mousedown", (e) => e.stopPropagation());
-  titleEl?.addEventListener("click", openFromCard);
-  descEl?.addEventListener("click", openFromCard);
   bindEditableProjectStatus({
     project,
     statusBtn: el.querySelector(".card-status"),
@@ -3808,19 +3811,16 @@ function createPresentationProjectCardEl(
       e.target.closest(".card-del") ||
       e.target.closest(".card-edit") ||
       e.target.closest(".card-open") ||
-      e.target.closest(".card-title") ||
-      e.target.closest(".card-desc") ||
       e.target.closest(".card-status") ||
       e.target.closest(".card-status-menu") ||
-      e.target.closest(".card-resize-handle")
+      e.target.closest(".card-resize-handle") ||
+      e.target.closest(".pres-spatial-handle")
     ) {
       return;
     }
-    if (beginOrCompletePresentationSpatialConnection(e, item.id)) return;
     if (e.button !== 0) return;
     if (e.shiftKey && presentationTool === "select") {
       togglePresentationItemSelection(item.id);
-      presentationCardOpenIntent = null;
       e.preventDefault();
       return;
     }
@@ -3844,22 +3844,24 @@ function createPresentationProjectCardEl(
         selectedPresentationItemIds.add(String(item.id));
         applyPresentationDeckSelectionClasses();
       }
-      presentationCardOpenIntent = {
-        projectId: project.id,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        item,
-        el,
-      };
+      startPresentationItemDrag(e, item, el);
       e.preventDefault();
       return;
     }
     startPresentationItemDrag(e, item, el);
   });
   el.addEventListener("dblclick", (e) => {
-    if (e.target.closest(".card-status")) return;
+    if (
+      e.target.closest(".card-del") ||
+      e.target.closest(".card-open") ||
+      e.target.closest(".card-status") ||
+      e.target.closest(".card-resize-handle") ||
+      e.target.closest(".card-edit")
+    )
+      return;
     openProject(project.id, "presentation");
   });
+  bindPresentationSpatialConnHandles(el);
   return el;
 }
 
@@ -3924,7 +3926,9 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
   el.style.left = `${obj.x || 0}px`;
   el.style.top = `${obj.y || 0}px`;
   if (obj.type === "line") {
-    el.innerHTML = `<div class="content overview-item-line"></div>`;
+    el.innerHTML = `<div class="content overview-item-line"></div>${
+      viewer ? "" : presentationSpatialHandlesInnerHTML(obj.id)
+    }`;
     el.style.width = `${obj.w || 220}px`;
   } else if (obj.type === "frame") {
     el.classList.add("overview-item-frame");
@@ -3935,7 +3939,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
           : `<div class="overview-resize-handle resize-tl" data-dir="tl"></div>
       <div class="overview-resize-handle resize-tr" data-dir="tr"></div>
       <div class="overview-resize-handle resize-bl" data-dir="bl"></div>
-      <div class="overview-resize-handle resize-br" data-dir="br"></div>`
+      <div class="overview-resize-handle resize-br" data-dir="br"></div>${presentationSpatialHandlesInnerHTML(obj.id)}`
       }`;
     el.style.width = `${obj.w || 260}px`;
     el.style.height = `${obj.h || 180}px`;
@@ -3972,7 +3976,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
         : `<div class="node-resize-handle resize-tl" data-dir="tl"></div>
       <div class="node-resize-handle resize-tr" data-dir="tr"></div>
       <div class="node-resize-handle resize-bl" data-dir="bl"></div>
-      <div class="node-resize-handle resize-br" data-dir="br"></div>`);
+      <div class="node-resize-handle resize-br" data-dir="br"></div>${presentationSpatialHandlesInnerHTML(obj.id)}`);
     if (obj.w) el.style.width = `${obj.w}px`;
     if (obj.h) el.style.height = `${obj.h}px`;
     if (!viewer) {
@@ -4030,6 +4034,10 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
       { readOnly: viewer },
     );
     if (!viewer) {
+      el.insertAdjacentHTML(
+        "beforeend",
+        presentationSpatialHandlesInnerHTML(obj.id),
+      );
       bindSharedTextObjectEditor(el.querySelector(".content"), obj.type, (text) => {
         obj.text = text;
         queuePresentationSave(currentPresentation);
@@ -4059,11 +4067,11 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
           e.target.closest(".node-resize-handle") ||
           e.target.closest(".overview-resize-handle") ||
           e.target.closest(".node-act-btn") ||
-          e.target.closest(".presentation-object-delete")
+          e.target.closest(".presentation-object-delete") ||
+          e.target.closest(".pres-spatial-handle")
         ) {
           return;
         }
-        if (beginOrCompletePresentationSpatialConnection(e, obj.id)) return;
         if (e.button !== 0) return;
         if (e.shiftKey && presentationTool === "select") {
           togglePresentationObjectSelection(obj.id);
@@ -4093,6 +4101,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
         startPresentationObjectDrag(e, obj, el);
       });
     }
+    bindPresentationSpatialConnHandles(el);
   }
   if (viewer) {
     el.querySelectorAll("[contenteditable]").forEach((node) => {
@@ -7318,6 +7327,123 @@ function getPresentationSpatialEndpointCenter(id) {
   return null;
 }
 
+function requestPresentationSpatialConnRender() {
+  if (pendingPresConnRenderRAF) return;
+  pendingPresConnRenderRAF = requestAnimationFrame(() => {
+    pendingPresConnRenderRAF = null;
+    renderPresentationSpatialConnections();
+  });
+}
+
+function clearPendingPresSpatialTargetVisual() {
+  document
+    .querySelectorAll(
+      "#presentation-world .presentation-card.connect-target, #presentation-world .presentation-object.connect-target",
+    )
+    .forEach((node) => node.classList.remove("connect-target"));
+}
+
+function syncPendingPresSpatialConnTarget(clientX, clientY) {
+  if (!pendingPresConn) return;
+  const target = document.elementFromPoint(clientX, clientY);
+  const handle = target?.closest?.(".pres-spatial-handle");
+  let next = null;
+  if (handle) {
+    const ep = handle.dataset.presEp;
+    const pos = handle.dataset.pos || "right";
+    if (ep && String(ep) !== String(pendingPresConn.endpointId)) {
+      next = { endpointId: String(ep), pos, handle };
+    }
+  }
+  const prevId = pendingPresConnTarget?.endpointId;
+  const nextId = next?.endpointId;
+  if (prevId !== nextId) {
+    clearPendingPresSpatialTargetVisual();
+    pendingPresConnTarget = next;
+    if (next?.handle) {
+      next.handle
+        .closest(".presentation-card, .presentation-object")
+        ?.classList.add("connect-target");
+    }
+  }
+}
+
+function clearPendingPresentationSpatialConn() {
+  clearPendingPresSpatialTargetVisual();
+  pendingPresConnTarget = null;
+  pendingPresConn = null;
+  pendingPresConnCursor = null;
+  requestPresentationSpatialConnRender();
+}
+
+function startPendingPresentationSpatialConn(endpointId, pos, clientX, clientY) {
+  clearPendingPresSpatialTargetVisual();
+  pendingPresConnTarget = null;
+  pendingPresConn = {
+    endpointId: String(endpointId),
+    pos: pos || "right",
+  };
+  pendingPresConnCursor = { x: clientX, y: clientY };
+  requestPresentationSpatialConnRender();
+}
+
+function getPresentationSpatialConnectionPoint(endpointId, pos) {
+  const sid = String(endpointId);
+  if (!pos) return getPresentationSpatialEndpointCenter(sid);
+  const world = document.getElementById("presentation-world");
+  if (!world) return getPresentationSpatialEndpointCenter(sid);
+  const el =
+    world.querySelector(`[data-presentation-item-id="${sid}"]`) ||
+    world.querySelector(`[data-object-id="${sid}"]`);
+  if (!el) return getPresentationSpatialEndpointCenter(sid);
+  const handle = el.querySelector(`.pres-spatial-handle[data-pos="${pos}"]`);
+  if (!handle) return getPresentationSpatialEndpointCenter(sid);
+  const hr = handle.getBoundingClientRect();
+  return presentationClientToWorld(
+    hr.left + hr.width / 2,
+    hr.top + hr.height / 2,
+  );
+}
+
+function tryCompletePendingPresentationSpatialConn(clientX, clientY) {
+  if (!pendingPresConn || !currentPresentation) return;
+  if (clientX != null && clientY != null) {
+    syncPendingPresSpatialConnTarget(clientX, clientY);
+  }
+  const tgt = pendingPresConnTarget;
+  const fromId = pendingPresConn.endpointId;
+  const fromPos = pendingPresConn.pos;
+  if (!tgt || tgt.endpointId === fromId) {
+    clearPendingPresentationSpatialConn();
+    setPresentationTool("select");
+    return;
+  }
+  const toId = tgt.endpointId;
+  const toPos = tgt.pos;
+  currentPresentation.spatialConnections =
+    currentPresentation.spatialConnections || [];
+  const dup = currentPresentation.spatialConnections.some(
+    (c) =>
+      String(c.fromId) === String(fromId) &&
+      String(c.toId) === String(toId) &&
+      (c.fromPos || null) === (fromPos || null) &&
+      (c.toPos || null) === (toPos || null),
+  );
+  if (!dup) {
+    currentPresentation.spatialConnections.push({
+      id: `pc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      fromId: String(fromId),
+      toId: String(toId),
+      fromPos,
+      toPos,
+    });
+    queuePresentationSave(currentPresentation);
+    showToast("Connection created");
+  }
+  clearPendingPresentationSpatialConn();
+  setPresentationTool("select");
+}
+
 function renderPresentationSpatialConnections() {
   const svg = document.getElementById("presentation-connections-svg");
   if (!svg || !currentPresentation) return;
@@ -7325,8 +7451,8 @@ function renderPresentationSpatialConnections() {
   const conns = currentPresentation.spatialConnections || [];
   conns.forEach((c) => {
     if (!c?.fromId || !c.toId) return;
-    const f = getPresentationSpatialEndpointCenter(c.fromId);
-    const t = getPresentationSpatialEndpointCenter(c.toId);
+    const f = getPresentationSpatialConnectionPoint(c.fromId, c.fromPos);
+    const t = getPresentationSpatialConnectionPoint(c.toId, c.toPos);
     if (!f || !t) return;
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", curve(f, t));
@@ -7336,7 +7462,42 @@ function renderPresentationSpatialConnections() {
       path.classList.add("selected");
     }
     svg.appendChild(path);
+    const ang = Math.atan2(t.y - f.y, t.x - f.x);
+    const ax = t.x - 10 * Math.cos(ang);
+    const ay = t.y - 10 * Math.sin(ang);
+    const arr = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    arr.setAttribute(
+      "points",
+      `${t.x},${t.y} ${ax + 4 * Math.sin(ang)},${ay - 4 * Math.cos(ang)} ${ax - 4 * Math.sin(ang)},${ay + 4 * Math.cos(ang)}`,
+    );
+    arr.setAttribute(
+      "fill",
+      presentationSelectedConnId && c.id === presentationSelectedConnId
+        ? "#fff"
+        : "#333",
+    );
+    arr.style.pointerEvents = "none";
+    svg.appendChild(arr);
   });
+  if (pendingPresConn && pendingPresConnCursor) {
+    const from = getPresentationSpatialConnectionPoint(
+      pendingPresConn.endpointId,
+      pendingPresConn.pos,
+    );
+    const to = presentationClientToWorld(
+      pendingPresConnCursor.x,
+      pendingPresConnCursor.y,
+    );
+    if (from && to) {
+      const preview = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path",
+      );
+      preview.setAttribute("d", curve(from, to));
+      preview.setAttribute("class", "conn-preview");
+      svg.appendChild(preview);
+    }
+  }
 }
 
 function clearPresentationSpatialSelection() {
@@ -7460,7 +7621,6 @@ function beginPresentationGroupDrag(e) {
     x: (e.clientX - rect.left - ox) / sc,
     y: (e.clientY - rect.top - oy) / sc,
   };
-  presentationCardOpenIntent = null;
   presentationDragItemId = null;
   presentationDragObjectId = null;
   presentationGroupDragEntries.forEach((entry) => {
@@ -7489,45 +7649,9 @@ function startPresentationItemResize(e, item, project, el, dir) {
   };
 }
 
-function beginOrCompletePresentationSpatialConnection(e, endpointId) {
-  if (presentationTool !== "connect" || e.button !== 0) return false;
-  if (!currentPresentation) return false;
-  e.stopPropagation();
-  e.preventDefault();
-  currentPresentation.spatialConnections =
-    currentPresentation.spatialConnections || [];
-  const eid = String(endpointId);
-  if (!presentationPendingConnSourceId) {
-    presentationPendingConnSourceId = eid;
-    showToast("Click another object or card to finish the connection");
-    return true;
-  }
-  if (String(presentationPendingConnSourceId) === eid) return true;
-  const dup = currentPresentation.spatialConnections.some(
-    (c) =>
-      (String(c.fromId) === String(presentationPendingConnSourceId) &&
-        String(c.toId) === eid) ||
-      (String(c.fromId) === eid &&
-        String(c.toId) === String(presentationPendingConnSourceId)),
-  );
-  if (!dup) {
-    currentPresentation.spatialConnections.push({
-      id: `pc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      fromId: String(presentationPendingConnSourceId),
-      toId: eid,
-    });
-    queuePresentationSave(currentPresentation);
-    renderPresentationSpatialConnections();
-  }
-  presentationPendingConnSourceId = null;
-  setPresentationTool("select");
-  return true;
-}
-
 function setPresentationTool(t) {
   presentationTool = t;
-  if (t !== "connect") presentationPendingConnSourceId = null;
-  if (t !== "select") presentationCardOpenIntent = null;
+  if (t !== "connect") clearPendingPresentationSpatialConn();
   presentationSelectionMode = null;
   if (presentationSelectionRect) {
     presentationSelectionRect.style.display = "none";
@@ -7535,6 +7659,7 @@ function setPresentationTool(t) {
   updatePresentationToolbar();
   const pc = document.getElementById("presentation-canvas");
   if (pc && currentScreenName === "presentation") {
+    pc.classList.toggle("pres-connect-tool", t === "connect");
     pc.style.cursor =
       t === "connect" ? "crosshair" : t === "pan" ? "grab" : "default";
   }
@@ -7716,8 +7841,7 @@ function setupPresentationEvents() {
           !e.target.closest("#presentation-empty-state button")
         ) {
           clearPresentationSpatialSelection();
-          presentationPendingConnSourceId = null;
-          renderPresentationSpatialConnections();
+          clearPendingPresentationSpatialConn();
           clearPresentationDeckSelection();
           const crect = presCanvas.getBoundingClientRect();
           presentationSelectionMode = "marquee";
@@ -7815,8 +7939,7 @@ function setupPresentationEvents() {
         return;
       }
       if (e.key === "Escape") {
-        presentationCardOpenIntent = null;
-        presentationPendingConnSourceId = null;
+        clearPendingPresentationSpatialConn();
         clearPresentationSpatialSelection();
         clearPresentationDeckSelection();
         renderPresentationSpatialConnections();
@@ -7836,6 +7959,12 @@ function setupPresentationEvents() {
       const presNav = presentationSpatialNav;
       if (presNav && presNav.isPanningActive()) {
         presNav.movePan(e.clientX, e.clientY);
+        return;
+      }
+      if (pendingPresConn) {
+        pendingPresConnCursor = { x: e.clientX, y: e.clientY };
+        syncPendingPresSpatialConnTarget(e.clientX, e.clientY);
+        requestPresentationSpatialConnRender();
         return;
       }
       if (
@@ -7924,19 +8053,6 @@ function setupPresentationEvents() {
           }
         });
         renderPresentationSpatialConnections();
-        return;
-      }
-      if (presentationCardOpenIntent && presentationTool === "select") {
-        const ix = presentationCardOpenIntent.clientX;
-        const iy = presentationCardOpenIntent.clientY;
-        if (
-          Math.hypot(e.clientX - ix, e.clientY - iy) >=
-          PRESENTATION_CARD_TAP_PX
-        ) {
-          const intent = presentationCardOpenIntent;
-          presentationCardOpenIntent = null;
-          startPresentationItemDrag(e, intent.item, intent.el);
-        }
         return;
       }
       if (presentationDragItemId) {
@@ -8124,6 +8240,13 @@ function setupPresentationEvents() {
         presentationSelectionMode = null;
         presentationSelectionRect.style.display = "none";
       }
+      if (
+        pendingPresConn &&
+        currentScreenName === "presentation" &&
+        currentPresentation
+      ) {
+        tryCompletePendingPresentationSpatialConn(e.clientX, e.clientY);
+      }
       if (presentationSpatialNav?.isPanningActive()) {
         presentationSpatialNav.endPan();
         document
@@ -8149,20 +8272,6 @@ function setupPresentationEvents() {
         if (p) queueProjectSave(p);
         queuePresentationSave(currentPresentation);
         renderPresentationSpatialConnections();
-      }
-      if (presentationCardOpenIntent && currentPresentation) {
-        const intent = presentationCardOpenIntent;
-        presentationCardOpenIntent = null;
-        if (
-          !presentationDragItemId &&
-          presentationTool === "select" &&
-          Math.hypot(
-            e.clientX - intent.clientX,
-            e.clientY - intent.clientY,
-          ) < PRESENTATION_CARD_TAP_PX
-        ) {
-          openProject(intent.projectId, "presentation");
-        }
       }
       if (
         !presentationDragItemId &&
