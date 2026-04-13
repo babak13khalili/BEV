@@ -38,6 +38,21 @@ function viewerIsMobileViewport() {
   return typeof window.innerWidth === 'number' && window.innerWidth <= 820;
 }
 
+/** One-finger pan + pinch zoom on shared viewer surfaces (BEVCore.installTouchSpatialSurface). */
+function wireViewerTouchSpatialSurface(el, getNav, shouldHandle) {
+  const B = typeof BEVCore !== 'undefined' ? BEVCore : null;
+  if (!B || typeof B.installTouchSpatialSurface !== 'function' || !el) return;
+  const { min, max } = viewerSpatialScaleRange();
+  B.installTouchSpatialSurface(el, {
+    getNav,
+    pointerSpace: 'client',
+    scaleMin: min,
+    scaleMax: max,
+    viewOnly: true,
+    shouldHandle,
+  });
+}
+
 function viewerIsTypingTarget(el) {
   if (!el || !el.tagName) return false;
   const t = el.tagName;
@@ -838,6 +853,15 @@ function wireViewerDepthSpatialNavigation() {
       }
     });
   }
+  wireViewerTouchSpatialSurface(
+    viewport,
+    () => _viewerDepthNav,
+    () => {
+      if (!getShareToken()) return false;
+      const root = document.getElementById('viewer-card-depth');
+      return !!(root && root.classList.contains('is-open') && _viewerDepthNav);
+    },
+  );
 }
 
 function fitViewerViewportToData(data) {
@@ -979,6 +1003,16 @@ function wireViewerSpatialNavigation() {
       }
     });
   }
+  wireViewerTouchSpatialSurface(
+    canvas,
+    () => _viewerNav,
+    () => {
+      if (!getShareToken()) return false;
+      const depth = document.getElementById('viewer-card-depth');
+      if (depth && depth.classList.contains('is-open')) return false;
+      return !!_viewerNav;
+    },
+  );
 }
 
 /* ── Main render ─────────────────────────────────────────── */
@@ -1070,6 +1104,10 @@ async function startViewer() {
   document.querySelectorAll('[id^="screen-"]').forEach(s => s.style.display = 'none');
   const screen = document.getElementById('screen-shared-presentation');
   if (screen) screen.style.display = 'block';
+  const appDeck = document.getElementById('shared-presentation-app-deck');
+  const viewerWrap = document.getElementById('viewer-deck-wrap');
+  if (appDeck) appDeck.style.display = 'none';
+  if (viewerWrap) viewerWrap.style.display = '';
   showLoading(true);
   showUnavailable(false);
 

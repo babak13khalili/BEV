@@ -543,6 +543,293 @@ ${embedTopbar}
     };
   }
 
+  /**
+   * One-finger pan + two-finger pinch zoom for spatial viewports (touch pointers only).
+   * @param {HTMLElement} el
+   * @param {object} opts
+   * @param {() => object|null} opts.getNav Return value of createSpatialViewport().
+   * @param {'client'|'container'} [opts.pointerSpace] Match beginPan coords: dashboard uses container-relative.
+   * @param {number} opts.scaleMin
+   * @param {number} opts.scaleMax
+   * @param {boolean} [opts.viewOnly] Skip long-press → mousedown simulation (shared viewer).
+   * @param {number} [opts.tapMoveThreshold]
+   * @param {number} [opts.holdDelay]
+   * @param {() => boolean} [opts.shouldHandle] When false, gestures are ignored.
+   * @param {() => void} [opts.onAllPointersUp]
+   */
+  function installTouchSpatialSurface(el, opts) {
+    if (!el || el.dataset.bevTouchSpatialReady) return;
+    if (!opts || typeof opts.getNav !== "function") return;
+    el.dataset.bevTouchSpatialReady = "1";
+
+    const {
+      getNav,
+      pointerSpace = "client",
+      scaleMin,
+      scaleMax,
+      viewOnly = false,
+      tapMoveThreshold = 10,
+      holdDelay = 280,
+      shouldHandle = () => true,
+      onAllPointersUp = null,
+    } = opts;
+
+    const smin = scaleMin ?? 0.05;
+    const smax = scaleMax ?? 5;
+
+    const activePointers = new Map();
+    let mousePointerId = null;
+    let pinchState = null;
+    let touchTapCandidate = null;
+    let holdTimer = null;
+    let activeTouchMode = null;
+    let touchPanStart = null;
+
+    function localXY(clientX, clientY) {
+      if (pointerSpace === "client")
+        return { x: clientX, y: clientY };
+      const r = el.getBoundingClientRect();
+      return { x: clientX - r.left, y: clientY - r.top };
+    }
+
+    const dispatchMouse = (target, type, point) => {
+      (target || el).dispatchEvent(
+        new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          clientX: point.clientX,
+          clientY: point.clientY,
+          button: 0,
+          buttons: type === "mouseup" ? 0 : 1,
+        }),
+      );
+    };
+
+    const dispatchClick = (target, point) => {
+      (target || el).dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          clientX: point.clientX,
+          clientY: point.clientY,
+          button: 0,
+          buttons: 0,
+        }),
+      );
+    };
+
+    const clearHoldTimer = () => {
+      if (!holdTimer) return;
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    };
+
+    const applySingleFingerPan = (e) => {
+      if (!touchPanStart) return;
+      const nav = getNav();
+      if (!nav) return;
+      const p = localXY(e.clientX, e.clientY);
+      const dx = p.x - touchPanStart.startX;
+      const dy = p.y - touchPanStart.startY;
+      nav.setState(
+        touchPanStart.offsetX + dx,
+        touchPanStart.offsetY + dy,
+        touchPanStart.scale,
+        touchPanStart.targetScale,
+      );
+      nav.apply();
+    };
+
+    const applyPinch = (points) => {
+      const nav = getNav();
+      if (!nav) return;
+      const [a, b] = points;
+      const la = localXY(a.clientX, a.clientY);
+      const lb = localXY(b.clientX, b.clientY);
+      const centerX = (la.x + lb.x) / 2;
+      const centerY = (la.y + lb.y) / 2;
+      const distance = Math.hypot(lb.x - la.x, lb.y - la.y);
+      if (!pinchState) {
+        pinchState = { distance, centerX, centerY };
+        return;
+      }
+      const pinchSpeed = isMobileViewport()
+        ? NAVIGATION_TUNING.pinchZoomExponentMobile
+        : NAVIGATION_TUNING.pinchZoomExponentDesktop;
+      const rawScaleRatio = distance / Math.max(1, pinchState.distance);
+      const scaleRatio = Math.pow(rawScaleRatio, pinchSpeed);
+      const currentScale = nav.getScale();
+      const o = nav.getOffset();
+      const nextScale = Math.max(
+        smin,
+        Math.min(smax, currentScale * scaleRatio),
+      );
+      const worldX = (centerX - o.x) / currentScale;
+      const worldY = (centerY - o.y) / currentScale;
+      nav.setState(
+        centerX - worldX * nextScale,
+        centerY - worldY * nextScale,
+        nextScale,
+        nextScale,
+      );
+      nav.apply();
+      pinchState = { distance, centerX, centerY };
+    };
+
+    el.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (e.pointerType !== "touch") return;
+        if (!shouldHandle()) return;
+        const nav = getNav();
+        if (!nav) return;
+        activePointers.set(e.pointerId, {
+          clientX: e.clientX,
+          clientY: e.clientY,
+        });
+        if (activePointers.size === 1) {
+          mousePointerId = e.pointerId;
+          activeTouchMode = null;
+          const p0 = localXY(e.clientX, e.clientY);
+          const off = nav.getOffset();
+          touchTapCandidate = {
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            target: document.elementFromPoint(e.clientX, e.clientY) || e.target,
+            moved: false,
+          };
+          touchPanStart = {
+            startX: p0.x,
+            startY: p0.y,
+            offsetX: off.x,
+            offsetY: off.y,
+            scale: nav.getScale(),
+            targetScale: nav.getTargetScale(),
+          };
+          if (!viewOnly) {
+            const holdTarget = touchTapCandidate.target;
+            const canHoldToManipulate =
+              holdTarget === el ||
+              holdTarget?.id === "projects-world" ||
+              holdTarget?.id === "canvas-world" ||
+              holdTarget?.id === "presentation-world" ||
+              holdTarget?.id === "connections-svg" ||
+              holdTarget?.id === "presentation-connections-svg" ||
+              !!holdTarget?.closest?.(
+                ".project-card, .overview-item, .node, .presentation-card, .presentation-object",
+              );
+            if (canHoldToManipulate) {
+              holdTimer = setTimeout(() => {
+                activeTouchMode = "hold";
+                clearHoldTimer();
+                dispatchMouse(holdTarget, "mousedown", {
+                  clientX: touchTapCandidate.startX,
+                  clientY: touchTapCandidate.startY,
+                });
+              }, holdDelay);
+            }
+          }
+        } else {
+          clearHoldTimer();
+          mousePointerId = null;
+          pinchState = null;
+          touchTapCandidate = null;
+          activeTouchMode = "pinch";
+          touchPanStart = null;
+        }
+        e.preventDefault();
+      },
+      { passive: false },
+    );
+
+    global.addEventListener(
+      "pointermove",
+      (e) => {
+        if (!activePointers.has(e.pointerId)) return;
+        if (!shouldHandle()) return;
+        activePointers.set(e.pointerId, {
+          clientX: e.clientX,
+          clientY: e.clientY,
+        });
+        if (activePointers.size >= 2) {
+          clearHoldTimer();
+          applyPinch([...activePointers.values()].slice(0, 2));
+        } else if (mousePointerId === e.pointerId) {
+          if (touchTapCandidate?.pointerId === e.pointerId) {
+            const movedDistance = Math.hypot(
+              e.clientX - touchTapCandidate.startX,
+              e.clientY - touchTapCandidate.startY,
+            );
+            if (movedDistance > tapMoveThreshold)
+              touchTapCandidate.moved = true;
+          }
+          if (activeTouchMode === "hold") {
+            dispatchMouse(global, "mousemove", e);
+          } else {
+            if (touchTapCandidate?.moved) {
+              clearHoldTimer();
+              activeTouchMode = "pan";
+            }
+            if (activeTouchMode === "pan") applySingleFingerPan(e);
+          }
+        }
+        e.preventDefault();
+      },
+      { passive: false },
+    );
+
+    const endPointer = (e) => {
+      if (!activePointers.has(e.pointerId)) return;
+      activePointers.delete(e.pointerId);
+      const ok = shouldHandle();
+      if (mousePointerId === e.pointerId) {
+        clearHoldTimer();
+        if (ok && activeTouchMode === "hold")
+          dispatchMouse(global, "mouseup", e);
+        if (
+          ok &&
+          touchTapCandidate?.pointerId === e.pointerId &&
+          !touchTapCandidate.moved &&
+          activeTouchMode !== "hold"
+        ) {
+          const target =
+            document.elementFromPoint(e.clientX, e.clientY) ||
+            touchTapCandidate.target ||
+            e.target;
+          const isDirectControl = !!target?.closest?.(
+            "button, input, textarea, select, [contenteditable='true'], .card-status-menu, .node-settings",
+          );
+          const selectableTarget = target?.closest?.(
+            ".project-card, .overview-item, .node, .presentation-card, .presentation-object",
+          );
+          if (selectableTarget && !isDirectControl) {
+            dispatchMouse(selectableTarget, "mousedown", {
+              clientX: touchTapCandidate.startX,
+              clientY: touchTapCandidate.startY,
+            });
+            dispatchMouse(global, "mouseup", e);
+          } else {
+            dispatchClick(target, e);
+          }
+        }
+        mousePointerId = null;
+      }
+      if (activePointers.size < 2) pinchState = null;
+      if (touchTapCandidate?.pointerId === e.pointerId)
+        touchTapCandidate = null;
+      if (!activePointers.size) {
+        activeTouchMode = null;
+        touchPanStart = null;
+        if (ok && typeof onAllPointersUp === "function") onAllPointersUp();
+      }
+      if (ok) e.preventDefault();
+    };
+
+    global.addEventListener("pointerup", endPointer, { passive: false });
+    global.addEventListener("pointercancel", endPointer, { passive: false });
+  }
+
   global.BEVCore = {
     SURFACES,
     SHARED_TEXT_TYPES,
@@ -561,6 +848,7 @@ ${embedTopbar}
     normalizeWheelDelta,
     stepSmoothZoom,
     createSpatialViewport,
+    installTouchSpatialSurface,
     DEFAULT_SPATIAL_SCALE_RANGE,
     renderNodeContentHTML,
     buildNodeShell,

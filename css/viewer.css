@@ -460,6 +460,7 @@
   overflow: hidden;
   position: relative;
   background: var(--bg);
+  touch-action: none;
 }
 /* Same grid treatment as #presentation-canvas / #viewer-canvas (not full-opacity on the viewport). */
 .viewer-card-depth-viewport::before {

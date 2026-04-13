@@ -13,9 +13,9 @@ const {
   createSharedTextObjectState,
   createSimpleLineItem,
   createQuickNoteFallbackItem,
-  NAVIGATION_TUNING,
   isMobileViewport: bevIsMobileViewport,
   createSpatialViewport,
+  installTouchSpatialSurface,
   DEFAULT_SPATIAL_SCALE_RANGE,
   renderNodeContentHTML,
   buildNodeShell,
@@ -99,6 +99,7 @@ const PRESENTATION_SCALE_MAX = DEFAULT_SPATIAL_SCALE_RANGE.max;
 let canvasSpatialNav = null;
 let dashboardSpatialNav = null;
 let presentationSpatialNav = null;
+let sharedPresentationSpatialNav = null;
 function syncCanvasGlobalsFromNav() {
   const nav = canvasSpatialNav;
   if (!nav) return;
@@ -197,6 +198,19 @@ function getPresentationSpatialNav() {
     presentationSpatialNav.apply();
   }
   return presentationSpatialNav;
+}
+function getSharedPresentationSpatialNav() {
+  if (!sharedPresentationSpatialNav) {
+    sharedPresentationSpatialNav = createSpatialViewport({
+      getContainer: () =>
+        document.getElementById("shared-presentation-canvas"),
+      getWorld: () => document.getElementById("shared-presentation-world"),
+      cssVarPrefix: "shared-pres",
+      scaleMin: PRESENTATION_SCALE_MIN,
+      scaleMax: PRESENTATION_SCALE_MAX,
+    });
+  }
+  return sharedPresentationSpatialNav;
 }
 let presentationTool = "select",
   presentationSelectedConnId = null,
@@ -306,8 +320,6 @@ const PROJECT_STATUSES = [
   "Postponed",
   "On Hold",
 ];
-const TOUCH_TAP_MOVE_THRESHOLD = 10;
-const TOUCH_HOLD_DELAY = 280;
 let selectedColor = "#44ff88";
 const DAILY_TODO_CLIPBOARD_MIME = "application/x-bev-daily-todos";
 const GENERAL_TODO_CLIPBOARD_MIME = "application/x-bev-general-todos";
@@ -409,6 +421,10 @@ function show(name) {
   if (name !== "dashboard" && dashboardSpatialNav) {
     dashboardSpatialNav.destroy();
     dashboardSpatialNav = null;
+  }
+  if (name !== "shared-presentation" && sharedPresentationSpatialNav) {
+    sharedPresentationSpatialNav.destroy();
+    sharedPresentationSpatialNav = null;
   }
 }
 
@@ -4442,23 +4458,141 @@ function addSelectedProjectsToPresentation() {
   closePresentationPicker();
 }
 
+function fitSharedPresentationViewport() {
+  const canvas = document.getElementById("shared-presentation-canvas");
+  const world = document.getElementById("shared-presentation-world");
+  if (!canvas || !world) return;
+  const nav = getSharedPresentationSpatialNav();
+  const rect = canvas.getBoundingClientRect();
+  const isMobile = isMobileViewport();
+  const els = [
+    ...world.querySelectorAll(".presentation-card, .presentation-object"),
+  ];
+  if (!els.length) {
+    const g = isMobile ? 40 : 56;
+    const sc = Math.max(
+      PRESENTATION_SCALE_MIN,
+      Math.min(PRESENTATION_SCALE_MAX, isMobile ? 0.28 : 0.48),
+    );
+    nav.setState(g, g, sc, sc);
+    nav.apply();
+    return;
+  }
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  els.forEach((el) => {
+    const x = parseFloat(el.style.left) || 0;
+    const y = parseFloat(el.style.top) || 0;
+    const w = el.offsetWidth || 280;
+    const h = el.offsetHeight || 200;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + w);
+    maxY = Math.max(maxY, y + h);
+  });
+  const pad = isMobile ? 340 : 220;
+  const cw = maxX - minX + pad * 2;
+  const ch = maxY - minY + pad * 2;
+  const sc = Math.max(
+    PRESENTATION_SCALE_MIN,
+    Math.min(
+      PRESENTATION_SCALE_MAX,
+      Math.min(
+        isMobile ? 0.3 : 0.5,
+        Math.min(rect.width / cw, rect.height / ch),
+      ),
+    ),
+  );
+  const ox = (rect.width - cw * sc) / 2 - (minX - pad) * sc;
+  const oy = (rect.height - ch * sc) / 2 - (minY - pad) * sc;
+  nav.setState(ox, oy, sc, sc);
+  nav.apply();
+}
+
+function ensureSharedPresentationSpatialNavigation() {
+  const canvas = document.getElementById("shared-presentation-canvas");
+  if (!canvas) return;
+  if (!canvas.dataset.bevSharedPresWheel) {
+    canvas.dataset.bevSharedPresWheel = "1";
+    canvas.addEventListener(
+      "wheel",
+      (e) => {
+        if (currentScreenName !== "shared-presentation") return;
+        getSharedPresentationSpatialNav().wheel(e);
+      },
+      { passive: false },
+    );
+  }
+  if (!canvas.dataset.bevSharedPresPan) {
+    canvas.dataset.bevSharedPresPan = "1";
+    canvas.addEventListener("mousedown", (e) => {
+      if (currentScreenName !== "shared-presentation") return;
+      if (e.button !== 1) return;
+      const world = document.getElementById("shared-presentation-world");
+      const onDeck =
+        e.target === canvas ||
+        e.target === world ||
+        (world && world.contains(e.target));
+      if (!onDeck) return;
+      getSharedPresentationSpatialNav().beginPan(e.clientX, e.clientY);
+      canvas.classList.add("panning");
+      e.preventDefault();
+    });
+  }
+  if (!window.__bevSharedPresGlobalPointer) {
+    window.__bevSharedPresGlobalPointer = true;
+    window.addEventListener("mousemove", (e) => {
+      const nav = sharedPresentationSpatialNav;
+      if (!nav || !nav.isPanningActive()) return;
+      if (currentScreenName !== "shared-presentation") return;
+      nav.movePan(e.clientX, e.clientY);
+    });
+    window.addEventListener("mouseup", () => {
+      const nav = sharedPresentationSpatialNav;
+      if (nav && nav.isPanningActive()) {
+        nav.endPan();
+        document
+          .getElementById("shared-presentation-canvas")
+          ?.classList.remove("panning");
+      }
+    });
+  }
+  installTouchSpatialSurface(canvas, {
+    getNav: getSharedPresentationSpatialNav,
+    pointerSpace: "client",
+    scaleMin: PRESENTATION_SCALE_MIN,
+    scaleMax: PRESENTATION_SCALE_MAX,
+    viewOnly: true,
+    shouldHandle: () =>
+      currentScreenName === "shared-presentation" &&
+      !!sharedPresentationSpatialNav &&
+      !!sharedPresentation,
+  });
+}
+
 function renderSharedPresentation() {
   const emptyEl = document.getElementById("shared-presentation-empty");
   const world = document.getElementById("shared-presentation-world");
-  if (!emptyEl || !world) return;
+  const canvas = document.getElementById("shared-presentation-canvas");
+  if (!world) return;
   world.innerHTML = "";
   if (!sharedPresentation) {
-    emptyEl.style.display = "block";
+    if (emptyEl) emptyEl.style.display = "block";
+    if (canvas) canvas.style.display = "none";
     return;
   }
   if (!Array.isArray(sharedPresentation.items))
     sharedPresentation.items = [];
-  emptyEl.style.display =
+  const hasContent = !!(
     sharedPresentation.items.length ||
     (sharedPresentation.objects || []).length ||
     sharedPresentation.name
-      ? "none"
-      : "block";
+  );
+  if (emptyEl) emptyEl.style.display = hasContent ? "none" : "block";
+  if (canvas) canvas.style.display = hasContent ? "" : "none";
+  if (!hasContent) return;
   (sharedPresentation.objects || []).forEach((obj) => {
     world.appendChild(createPresentationObjectEl(obj, { viewer: true }));
   });
@@ -4469,6 +4603,10 @@ function renderSharedPresentation() {
         viewer: true,
       }),
     );
+  });
+  requestAnimationFrame(() => {
+    fitSharedPresentationViewport();
+    ensureSharedPresentationSpatialNavigation();
   });
 }
 
@@ -4491,8 +4629,12 @@ async function loadSharedPresentation(token) {
   }
   const openAppLink = document.getElementById("shared-presentation-open-app");
   if (openAppLink) openAppLink.href = getBaseAppUrl();
-  renderSharedPresentation();
+  const appDeck = document.getElementById("shared-presentation-app-deck");
+  const viewerWrap = document.getElementById("viewer-deck-wrap");
+  if (appDeck) appDeck.style.display = "flex";
+  if (viewerWrap) viewerWrap.style.display = "none";
   show("shared-presentation");
+  renderSharedPresentation();
 }
 
 function getContentLines(text) {
@@ -7793,6 +7935,7 @@ function setupPresentationEvents() {
         presentationSelectionRect.style.display = "none";
         presCanvas.appendChild(presentationSelectionRect);
       }
+      installTouchSurface(presCanvas, "presentation");
       presCanvas.addEventListener("mousedown", (e) => {
         if (currentScreenName !== "presentation" || !currentPresentation)
           return;
@@ -9102,272 +9245,37 @@ function saAll(el) {
 }
 
 function installTouchSurface(el, kind) {
-  if (!el || el.dataset.touchSurfaceReady) return;
-  el.dataset.touchSurfaceReady = "1";
-  const activePointers = new Map();
-  let mousePointerId = null;
-  let pinchState = null;
-  let touchTapCandidate = null;
-  let holdTimer = null;
-  let activeTouchMode = null;
-  let touchPanStart = null;
-
-  const dispatchMouse = (target, type, point) => {
-    (target || el).dispatchEvent(
-      new MouseEvent(type, {
-        bubbles: true,
-        cancelable: true,
-        clientX: point.clientX,
-        clientY: point.clientY,
-        button: 0,
-        buttons: type === "mouseup" ? 0 : 1,
-      }),
-    );
-  };
-
-  const dispatchClick = (target, point) => {
-    (target || el).dispatchEvent(
-      new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-        clientX: point.clientX,
-        clientY: point.clientY,
-        button: 0,
-        buttons: 0,
-      }),
-    );
-  };
-
-  const clearHoldTimer = () => {
-    if (!holdTimer) return;
-    clearTimeout(holdTimer);
-    holdTimer = null;
-  };
-
-  const applySingleFingerPan = (point) => {
-    if (!touchPanStart) return;
-    const dx = point.clientX - touchPanStart.startX;
-    const dy = point.clientY - touchPanStart.startY;
-    if (kind === "dashboard") {
-      const nav = getDashboardSpatialNav();
-      nav.setState(
-        touchPanStart.offsetX + dx,
-        touchPanStart.offsetY + dy,
-        dashboardScale,
-        dashboardTargetScale,
-      );
-      nav.apply();
-      return;
-    }
-    const nav = getCanvasSpatialNav();
-    nav.setState(
-      touchPanStart.offsetX + dx,
-      touchPanStart.offsetY + dy,
-      viewScale,
-      targetScale,
-    );
-    nav.apply();
-  };
-
-  const applyPinch = (points) => {
-    const [a, b] = points;
-    const centerX = (a.clientX + b.clientX) / 2;
-    const centerY = (a.clientY + b.clientY) / 2;
-    const distance = Math.hypot(
-      b.clientX - a.clientX,
-      b.clientY - a.clientY,
-    );
-    if (!pinchState) {
-      pinchState = {
-        distance,
-        centerX,
-        centerY,
-      };
-      return;
-    }
-    const pinchSpeed = isMobileViewport()
-      ? NAVIGATION_TUNING.pinchZoomExponentMobile
-      : NAVIGATION_TUNING.pinchZoomExponentDesktop;
-    const rawScaleRatio = distance / Math.max(1, pinchState.distance);
-    const scaleRatio = Math.pow(rawScaleRatio, pinchSpeed);
-    const currentScale = kind === "dashboard" ? dashboardScale : viewScale;
-    const currentOffset =
-      kind === "dashboard" ? dashboardViewOffset : viewOffset;
-    const nextScale = Math.max(
-      kind === "dashboard" ? DASHBOARD_SCALE_MIN : CANVAS_SCALE_MIN,
-      Math.min(
-        kind === "dashboard" ? DASHBOARD_SCALE_MAX : CANVAS_SCALE_MAX,
-        currentScale * scaleRatio,
-      ),
-    );
-    const worldX = (centerX - currentOffset.x) / currentScale;
-    const worldY = (centerY - currentOffset.y) / currentScale;
-    if (kind === "dashboard") {
-      const nav = getDashboardSpatialNav();
-      nav.setState(
-        centerX - worldX * nextScale,
-        centerY - worldY * nextScale,
-        nextScale,
-        nextScale,
-      );
-      nav.apply();
-    } else {
-      const nav = getCanvasSpatialNav();
-      nav.setState(
-        centerX - worldX * nextScale,
-        centerY - worldY * nextScale,
-        nextScale,
-        nextScale,
-      );
-      nav.apply();
-    }
-    pinchState = {
-      distance,
-      centerX,
-      centerY,
-    };
-  };
-
-  el.addEventListener(
-    "pointerdown",
-    (e) => {
-      if (e.pointerType !== "touch") return;
-      activePointers.set(e.pointerId, {
-        clientX: e.clientX,
-        clientY: e.clientY,
-      });
-      if (activePointers.size === 1) {
-        mousePointerId = e.pointerId;
-        activeTouchMode = null;
-        touchTapCandidate = {
-          pointerId: e.pointerId,
-          startX: e.clientX,
-          startY: e.clientY,
-          target: document.elementFromPoint(e.clientX, e.clientY) || e.target,
-          moved: false,
-        };
-        touchPanStart = {
-          startX: e.clientX,
-          startY: e.clientY,
-          offsetX:
-            kind === "dashboard" ? dashboardViewOffset.x : viewOffset.x,
-          offsetY:
-            kind === "dashboard" ? dashboardViewOffset.y : viewOffset.y,
-        };
-        const holdTarget = touchTapCandidate.target;
-        const canHoldToManipulate =
-          holdTarget === el ||
-          holdTarget?.id === "projects-world" ||
-          holdTarget?.id === "canvas-world" ||
-          holdTarget?.id === "connections-svg" ||
-          !!holdTarget?.closest?.(".project-card, .overview-item, .node");
-        if (canHoldToManipulate) {
-          holdTimer = setTimeout(() => {
-            activeTouchMode = "hold";
-            clearHoldTimer();
-            dispatchMouse(holdTarget, "mousedown", {
-              clientX: touchTapCandidate.startX,
-              clientY: touchTapCandidate.startY,
-            });
-          }, TOUCH_HOLD_DELAY);
-        }
-      } else {
-        clearHoldTimer();
-        mousePointerId = null;
-        pinchState = null;
-        touchTapCandidate = null;
-        activeTouchMode = "pinch";
-        touchPanStart = null;
-      }
-      e.preventDefault();
+  const configs = {
+    dashboard: {
+      getNav: getDashboardSpatialNav,
+      pointerSpace: "container",
+      scaleMin: DASHBOARD_SCALE_MIN,
+      scaleMax: DASHBOARD_SCALE_MAX,
+      viewOnly: false,
+      onAllPointersUp: null,
     },
-    { passive: false },
-  );
-
-  window.addEventListener(
-    "pointermove",
-    (e) => {
-      if (!activePointers.has(e.pointerId)) return;
-      activePointers.set(e.pointerId, {
-        clientX: e.clientX,
-        clientY: e.clientY,
-      });
-      if (activePointers.size >= 2) {
-        clearHoldTimer();
-        applyPinch([...activePointers.values()].slice(0, 2));
-      } else if (mousePointerId === e.pointerId) {
-        if (touchTapCandidate?.pointerId === e.pointerId) {
-          const movedDistance = Math.hypot(
-            e.clientX - touchTapCandidate.startX,
-            e.clientY - touchTapCandidate.startY,
-          );
-          if (movedDistance > TOUCH_TAP_MOVE_THRESHOLD)
-            touchTapCandidate.moved = true;
-        }
-        if (activeTouchMode === "hold") {
-          dispatchMouse(window, "mousemove", e);
-        } else {
-          if (touchTapCandidate?.moved) {
-            clearHoldTimer();
-            activeTouchMode = "pan";
-          }
-          if (activeTouchMode === "pan") applySingleFingerPan(e);
-        }
-      }
-      e.preventDefault();
+    canvas: {
+      getNav: getCanvasSpatialNav,
+      pointerSpace: "client",
+      scaleMin: CANVAS_SCALE_MIN,
+      scaleMax: CANVAS_SCALE_MAX,
+      viewOnly: false,
+      onAllPointersUp: () => {
+        if (currentProject) autosave();
+      },
     },
-    { passive: false },
-  );
-
-  const endPointer = (e) => {
-    if (!activePointers.has(e.pointerId)) return;
-    activePointers.delete(e.pointerId);
-    if (mousePointerId === e.pointerId) {
-      clearHoldTimer();
-      if (activeTouchMode === "hold") dispatchMouse(window, "mouseup", e);
-      if (
-        touchTapCandidate?.pointerId === e.pointerId &&
-        !touchTapCandidate.moved &&
-        activeTouchMode !== "hold"
-      ) {
-        const target =
-          document.elementFromPoint(e.clientX, e.clientY) ||
-          touchTapCandidate.target ||
-          e.target;
-        const isDirectControl = !!target?.closest?.(
-          "button, input, textarea, select, [contenteditable='true'], .card-status-menu, .node-settings",
-        );
-        const selectableTarget = target?.closest?.(
-          ".project-card, .overview-item, .node",
-        );
-        if (selectableTarget && !isDirectControl) {
-          dispatchMouse(selectableTarget, "mousedown", {
-            clientX: touchTapCandidate.startX,
-            clientY: touchTapCandidate.startY,
-          });
-          dispatchMouse(window, "mouseup", e);
-        } else {
-          dispatchClick(target, e);
-        }
-      }
-      mousePointerId = null;
-    }
-    if (activePointers.size < 2) pinchState = null;
-    if (touchTapCandidate?.pointerId === e.pointerId)
-      touchTapCandidate = null;
-    if (!activePointers.size) {
-      activeTouchMode = null;
-      touchPanStart = null;
-    }
-    if (!activePointers.size && kind === "canvas" && currentProject)
-      autosave();
-    e.preventDefault();
+    presentation: {
+      getNav: getPresentationSpatialNav,
+      pointerSpace: "client",
+      scaleMin: PRESENTATION_SCALE_MIN,
+      scaleMax: PRESENTATION_SCALE_MAX,
+      viewOnly: false,
+      onAllPointersUp: null,
+    },
   };
-
-  window.addEventListener("pointerup", endPointer, { passive: false });
-  window.addEventListener("pointercancel", endPointer, {
-    passive: false,
-  });
+  const cfg = configs[kind];
+  if (!cfg) return;
+  installTouchSpatialSurface(el, cfg);
 }
 
 document

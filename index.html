@@ -78,8 +78,22 @@
 
       <div id="shared-presentation-body">
         <div id="shared-presentation-main">
-          <div id="viewer-canvas">
-            <div id="viewer-world"></div>
+          <!-- Anonymous viewer (?presentation=) — BEVViewer -->
+          <div id="viewer-deck-wrap">
+            <div id="viewer-canvas">
+              <div id="viewer-world"></div>
+            </div>
+          </div>
+          <!-- Logged-in preview when main app loads a share token (viewer unavailable) -->
+          <div id="shared-presentation-app-deck" style="display:none">
+            <div id="shared-presentation-empty" class="shared-presentation-empty" style="display:none">
+              <h3>Nothing to show</h3>
+              <p>This presentation is empty, private, or could not be loaded.</p>
+              <a class="btn-primary" id="shared-presentation-open-app" href="#">Open BEV →</a>
+            </div>
+            <div id="shared-presentation-canvas">
+              <div id="shared-presentation-world"></div>
+            </div>
           </div>
         </div>
       </div>

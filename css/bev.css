@@ -138,6 +138,12 @@ body {
 .btn-primary:hover {
   opacity: 0.85;
 }
+a.btn-primary {
+  display: block;
+  text-decoration: none;
+  text-align: center;
+  box-sizing: border-box;
+}
 .btn-google {
   background: var(--bg3);
   color: var(--text);
@@ -2747,6 +2753,16 @@ textarea,
   position: relative;
 }
 
+#viewer-deck-wrap,
+#shared-presentation-app-deck {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
 /* Anonymous viewer: deck canvas fills presentation main (matches #presentation-canvas). */
 #shared-presentation-main #viewer-canvas {
   position: relative;
@@ -2792,7 +2808,14 @@ textarea,
 #shared-presentation-canvas {
   position: relative;
   flex: 1;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
+  cursor: default;
+  touch-action: none;
+  background: var(--bg);
+}
+#shared-presentation-canvas.panning {
+  cursor: grabbing;
 }
 #shared-presentation-canvas::before {
   content: "";
@@ -2801,7 +2824,10 @@ textarea,
   background-image:
     linear-gradient(var(--border) 1px, transparent 1px),
     linear-gradient(90deg, var(--border) 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-size: calc(40px * var(--shared-pres-scale, 1))
+    calc(40px * var(--shared-pres-scale, 1));
+  background-position: var(--shared-pres-grid-x, 0px)
+    var(--shared-pres-grid-y, 0px);
   opacity: 0.24;
   pointer-events: none;
 }
@@ -2836,10 +2862,15 @@ textarea,
   flex-shrink: 0;
 }
 #shared-presentation-world {
-  position: relative;
-  min-width: 3200px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  width: 3200px;
   min-height: 2200px;
   padding: 84px 80px 80px;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 .presentation-empty-state,
 .shared-presentation-empty {
