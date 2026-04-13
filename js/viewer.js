@@ -22,6 +22,9 @@ let _viewerNav = null;
 let _viewerDepthNav = null;
 let __bevViewerGlobalPointer = false;
 let __bevViewerDepthGlobalPointer = false;
+/** Match in-app presentation: Space toggles pan tool; left-drag pans while active (plus middle mouse). */
+let _viewerDeckPanTool = false;
+let _viewerDepthPanTool = false;
 
 function viewerSpatialScaleRange() {
   const B = typeof BEVCore !== 'undefined' ? BEVCore : null;
@@ -322,7 +325,8 @@ function renderProjectCard(item) {
     width: ${Math.max(snap.w || 280, 280)}px;
     cursor: default;
   `;
-  el.title = 'Double-click to open this card (same as dashboard / presentation editor)';
+  el.title =
+    'Open card: click → or double-click the slide (same as the presentation editor).';
 
   const date = snap.created
     ? new Date(snap.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -332,7 +336,7 @@ function renderProjectCard(item) {
     <div class="card-meta"><span class="card-date">${esc(date)}</span></div>
     <div class="card-title">${esc(snap.name || 'Untitled')}</div>
     ${snap.desc ? `<div class="card-desc">${esc(snap.desc)}</div>` : ''}
-    <div class="card-bottom" style="justify-content:flex-start">
+    <div class="card-bottom">
       <div class="card-bottom-meta">
         <div class="card-status" data-status="${statusSlug(snap.status)}">
           ${esc(snap.status || 'In Progress')}
@@ -342,10 +346,15 @@ function renderProjectCard(item) {
           <div class="card-stat"><span>${snap.connectionCount ?? 0}</span> links</div>
         </div>
       </div>
+      <button class="card-open" type="button" aria-label="Open card">→</button>
     </div>`;
 
+  el.querySelector('.card-open')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openViewerCardDepth(item);
+  });
   el.addEventListener('dblclick', (e) => {
-    if (e.target.closest('.card-status')) return;
+    if (e.target.closest('.card-status') || e.target.closest('.card-open')) return;
     openViewerCardDepth(item);
   });
   return el;
@@ -549,6 +558,8 @@ function computeViewerDepthLayout(nodes) {
 
 function openViewerCardDepth(item) {
   closeViewerCardInspect();
+  _viewerDeckPanTool = false;
+  document.getElementById('viewer-canvas')?.classList.remove('viewer-pan-tool');
   destroyViewerDepthSpatialNav();
   const root = document.getElementById('viewer-card-depth');
   const titleEl = document.getElementById('viewer-card-depth-title');
@@ -578,6 +589,11 @@ function openViewerCardDepth(item) {
     </div>`;
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => {
+      ensureViewerDepthSpatialNav();
+      fitViewerDepthViewport();
+      wireViewerDepthSpatialNavigation();
+    });
     return;
   }
 
@@ -619,10 +635,13 @@ function closeViewerCardDepth() {
   if (!root) return;
   root.classList.remove('is-open');
   root.setAttribute('aria-hidden', 'true');
+  _viewerDepthPanTool = false;
+  document
+    .getElementById('viewer-card-depth-viewport')
+    ?.classList.remove('viewer-depth-pan-tool', 'panning');
   destroyViewerDepthSpatialNav();
   const world = document.getElementById('viewer-card-depth-world');
   if (world) world.innerHTML = '';
-  document.getElementById('viewer-card-depth-viewport')?.classList.remove('panning');
 }
 
 function initViewerCardDepth() {
@@ -758,7 +777,8 @@ function fitViewerDepthViewport() {
     maxX = Math.max(maxX, b.x + b.w);
     maxY = Math.max(maxY, b.y + b.h);
   });
-  const pad = isMobile ? 260 : 180;
+  /* Same padding / scale caps as presentationResetView() in bev-app.js */
+  const pad = isMobile ? 340 : 220;
   const cw = maxX - minX + pad * 2;
   const ch = maxY - minY + pad * 2;
   const sc = Math.max(
@@ -766,7 +786,7 @@ function fitViewerDepthViewport() {
     Math.min(
       smax,
       Math.min(
-        isMobile ? 0.44 : 0.64,
+        isMobile ? 0.3 : 0.5,
         Math.min(rect.width / cw, rect.height / ch),
       ),
     ),
@@ -797,13 +817,10 @@ function wireViewerDepthSpatialNavigation() {
       if (!_viewerDepthNav) return;
       const root = document.getElementById('viewer-card-depth');
       if (!root || !root.classList.contains('is-open')) return;
-      const spacePan = !!window.__bevViewerSpacePan;
       const panMiddle = e.button === 1;
-      const panSpaceLeft = e.button === 0 && spacePan;
-      if (!panMiddle && !panSpaceLeft) return;
-      if (panSpaceLeft && e.target.closest('a, .node, .overview-item-frame')) return;
-      const rect = viewport.getBoundingClientRect();
-      _viewerDepthNav.beginPan(e.clientX - rect.left, e.clientY - rect.top);
+      const panLeftTool = e.button === 0 && _viewerDepthPanTool;
+      if (!panMiddle && !panLeftTool) return;
+      _viewerDepthNav.beginPan(e.clientX, e.clientY);
       viewport.classList.add('panning');
       e.preventDefault();
     });
@@ -812,10 +829,7 @@ function wireViewerDepthSpatialNavigation() {
     __bevViewerDepthGlobalPointer = true;
     window.addEventListener('mousemove', (e) => {
       if (!_viewerDepthNav || !_viewerDepthNav.isPanningActive()) return;
-      const viewport = document.getElementById('viewer-card-depth-viewport');
-      if (!viewport) return;
-      const rect = viewport.getBoundingClientRect();
-      _viewerDepthNav.movePan(e.clientX - rect.left, e.clientY - rect.top);
+      _viewerDepthNav.movePan(e.clientX, e.clientY);
     });
     window.addEventListener('mouseup', () => {
       if (_viewerDepthNav && _viewerDepthNav.isPanningActive()) {
@@ -899,29 +913,22 @@ function wireViewerSpatialNavigation() {
       if (!_viewerNav) return;
       const depth = document.getElementById('viewer-card-depth');
       if (depth && depth.classList.contains('is-open')) return;
-      const spacePan = !!window.__bevViewerSpacePan;
       const panMiddle = e.button === 1;
-      const panSpaceLeft = e.button === 0 && spacePan;
-      if (!panMiddle && !panSpaceLeft) return;
+      const panLeftTool = e.button === 0 && _viewerDeckPanTool;
+      if (!panMiddle && !panLeftTool) return;
       const world = document.getElementById('viewer-world');
       const onDeck =
         e.target === canvas ||
         e.target === world ||
         (world && world.contains(e.target));
       if (!onDeck) return;
-      if (
-        panSpaceLeft &&
-        e.target.closest('.viewer-shared-card, .node')
-      ) {
-        return;
-      }
       _viewerNav.beginPan(e.clientX, e.clientY);
       canvas.classList.add('panning');
       e.preventDefault();
     });
   }
-  if (!window.__bevViewerSpacePanKeys) {
-    window.__bevViewerSpacePanKeys = true;
+  if (!window.__bevViewerPanToolKeys) {
+    window.__bevViewerPanToolKeys = true;
     window.addEventListener(
       'keydown',
       (e) => {
@@ -930,24 +937,32 @@ function wireViewerSpatialNavigation() {
         const screen = document.getElementById('screen-shared-presentation');
         if (!screen || screen.style.display === 'none') return;
         if (viewerIsTypingTarget(e.target)) return;
-        const depth = document.getElementById('viewer-card-depth');
-        if (depth && depth.classList.contains('is-open')) return;
         const inspect = document.getElementById('viewer-card-inspect');
         if (inspect && inspect.classList.contains('visible')) return;
-        window.__bevViewerSpacePan = true;
-        document.getElementById('viewer-canvas')?.classList.add('viewer-space-pan-armed');
+        const depth = document.getElementById('viewer-card-depth');
+        const depthOpen = depth && depth.classList.contains('is-open');
+        if (depthOpen) {
+          _viewerDepthPanTool = !_viewerDepthPanTool;
+          document
+            .getElementById('viewer-card-depth-viewport')
+            ?.classList.toggle('viewer-depth-pan-tool', _viewerDepthPanTool);
+        } else {
+          _viewerDeckPanTool = !_viewerDeckPanTool;
+          document
+            .getElementById('viewer-canvas')
+            ?.classList.toggle('viewer-pan-tool', _viewerDeckPanTool);
+        }
         e.preventDefault();
       },
       true,
     );
-    window.addEventListener('keyup', (e) => {
-      if (e.code !== 'Space') return;
-      window.__bevViewerSpacePan = false;
-      document.getElementById('viewer-canvas')?.classList.remove('viewer-space-pan-armed');
-    });
     window.addEventListener('blur', () => {
-      window.__bevViewerSpacePan = false;
-      document.getElementById('viewer-canvas')?.classList.remove('viewer-space-pan-armed');
+      _viewerDeckPanTool = false;
+      _viewerDepthPanTool = false;
+      document.getElementById('viewer-canvas')?.classList.remove('viewer-pan-tool');
+      document
+        .getElementById('viewer-card-depth-viewport')
+        ?.classList.remove('viewer-depth-pan-tool');
     });
   }
   if (!__bevViewerGlobalPointer) {
@@ -1144,6 +1159,8 @@ initViewerCardDepth();
 
 window.BEVViewer = {
   start: startViewer,
+  /** Used by bev-app read-only presentation cards (same drill-in as anonymous viewer). */
+  openCardDepth: openViewerCardDepth,
   buildShareUrl,
   copyToClipboard,
   getShareToken,

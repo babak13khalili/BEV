@@ -3728,7 +3728,7 @@ function createPresentationProjectCardEl(
         ${statusMarkup}
         <div class="card-stats"><div class="card-stat"><span>${nodeCount}</span> nodes</div><div class="card-stat"><span>${connectionCount}</span> links</div></div>
       </div>
-      ${viewer ? "" : `<button class="card-open" type="button" aria-label="Open card">→</button>`}
+      <button class="card-open" type="button" aria-label="Open card">→</button>
     </div>
     ${
       viewer
@@ -3743,7 +3743,19 @@ function createPresentationProjectCardEl(
     el.classList.toggle("selected", presSelN === 1);
     el.classList.toggle("multi-selected", presSelN > 1);
   }
-  if (viewer) return el;
+  if (viewer) {
+    const openDepth = globalThis.BEVViewer?.openCardDepth;
+    el.querySelector(".card-open")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (typeof openDepth === "function") openDepth(item);
+    });
+    el.addEventListener("dblclick", (e) => {
+      if (e.target.closest(".card-open") || e.target.closest(".card-status"))
+        return;
+      if (typeof openDepth === "function") openDepth(item);
+    });
+    return el;
+  }
   el.querySelector(".card-del")?.addEventListener("click", (e) => {
     e.stopPropagation();
     removePresentationItem(item.id);

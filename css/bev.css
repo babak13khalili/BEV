@@ -2882,7 +2882,6 @@ textarea,
 }
 .presentation-card.viewer-card .card-edit,
 .presentation-card.viewer-card .card-del,
-.presentation-card.viewer-card .card-open,
 .presentation-card.viewer-card .card-status::after {
   display: none;
 }

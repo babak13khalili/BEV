@@ -60,10 +60,11 @@
 }
 
 /* Hold Space + drag to pan (same affordance as in-app presentation). */
-#viewer-canvas.viewer-space-pan-armed {
+/* Space toggles pan tool (same idea as in-app presentation). */
+#viewer-canvas.viewer-pan-tool {
   cursor: grab;
 }
-#viewer-canvas.viewer-space-pan-armed.panning {
+#viewer-canvas.viewer-pan-tool.panning {
   cursor: grabbing;
 }
 
@@ -161,13 +162,11 @@
 
 #viewer-world .card-del,
 #viewer-world .card-edit,
-#viewer-world .card-open,
 #viewer-world .card-resize-handle,
 #viewer-world .card-readmore { display: none !important; }
 
 #viewer-world .card-status { cursor: default; }
 #viewer-world .card-status::after { display: none; }
-#viewer-world .card-bottom { justify-content: flex-start; }
 
 /* Viewer overlay objects */
 #viewer-world .presentation-object { cursor: default; }
@@ -461,14 +460,28 @@
   overflow: hidden;
   position: relative;
   background: var(--bg);
+}
+/* Same grid treatment as #presentation-canvas / #viewer-canvas (not full-opacity on the viewport). */
+.viewer-card-depth-viewport::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   background-image:
     linear-gradient(var(--border) 1px, transparent 1px),
     linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: calc(40px * var(--viewer-depth-scale, 1))
     calc(40px * var(--viewer-depth-scale, 1));
   background-position: var(--viewer-depth-grid-x, 0px) var(--viewer-depth-grid-y, 0px);
+  opacity: 0.3;
+  pointer-events: none;
 }
 .viewer-card-depth-viewport.panning {
+  cursor: grabbing;
+}
+.viewer-card-depth-viewport.viewer-depth-pan-tool {
+  cursor: grab;
+}
+.viewer-card-depth-viewport.viewer-depth-pan-tool.panning {
   cursor: grabbing;
 }
 .viewer-card-depth-world {
