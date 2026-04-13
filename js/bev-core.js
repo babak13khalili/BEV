@@ -102,6 +102,141 @@
     return { id, type, x, y, text: "Quick note" };
   }
 
+  function escapeHTML(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function normalizeEmbedUrl(raw) {
+    const url = String(raw || "").trim();
+    if (!url) return { type: "empty", src: "" };
+    if (/\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(url))
+      return { type: "image", src: url };
+    if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(url))
+      return { type: "video", src: url };
+    const yt =
+      url.match(/youtube\.com\/watch\?v=([^&]+)/i) ||
+      url.match(/youtu\.be\/([^?&]+)/i);
+    if (yt)
+      return {
+        type: "iframe",
+        src: `https://www.youtube.com/embed/${yt[1]}`,
+      };
+    const vimeo = url.match(/vimeo\.com\/(\d+)/i);
+    if (vimeo)
+      return {
+        type: "iframe",
+        src: `https://player.vimeo.com/video/${vimeo[1]}`,
+      };
+    if (/^https?:\/\//i.test(url))
+      return {
+        type: "website",
+        src: url,
+        preview: `https://image.thum.io/get/width/1600/noanimate/${url}`,
+      };
+    return { type: "empty", src: "" };
+  }
+
+  function embedPreviewHTML(url) {
+    const embed = normalizeEmbedUrl(url);
+    if (embed.type === "image")
+      return `<img src="${escapeHTML(embed.src)}" alt="">`;
+    if (embed.type === "video")
+      return `<video src="${escapeHTML(embed.src)}" controls playsinline></video>`;
+    if (embed.type === "iframe")
+      return `<iframe src="${escapeHTML(embed.src)}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+    if (embed.type === "website")
+      return `<img src="${escapeHTML(embed.preview)}" alt="" draggable="false">`;
+    return `<div class="embed-placeholder">No URL</div>`;
+  }
+
+  function renderReadonlyNodeBodyHTML(node) {
+    const t = canonicalObjectType(node?.type);
+    if (isSharedTextObjectType(t)) {
+      return `<div class="${t === "heading" ? "content node-content" : "node-content"}">${escapeHTML(String(node?.text || "")).replace(/\n/g, "<br>")}</div>`;
+    }
+    if (t === "line") {
+      return `<div class="node-content line-content" spellcheck="false"></div>`;
+    }
+    if (t === "bullet") {
+      const lis = (node?.items || [])
+        .map((it) => {
+          const text =
+            typeof it === "string" ? it : String(it?.text || "");
+          const done = typeof it === "object" && it?.done;
+          return `<li>
+            <button class="bullet-item-check${done ? " done" : ""}" type="button" disabled aria-hidden="true">${done ? "✓" : ""}</button>
+            <span class="node-content bullet-item-text">${escapeHTML(text)}</span>
+          </li>`;
+        })
+        .join("");
+      return `<ul class="bullet-list">${lis || `<li><span class="node-content bullet-item-text">Empty</span></li>`}</ul>`;
+    }
+    if (t === "progress") {
+      const val = Math.round(
+        Math.min(100, Math.max(0, Number(node?.value) || 0)),
+      );
+      const steps = (node?.steps || [])
+        .map((s, i) => {
+          const lab = escapeHTML(String(s?.label || `Step ${i + 1}`));
+          const done = !!s?.done;
+          return `<div class="step-item"><div class="step-check${done ? " done" : ""}">${done ? "✓" : ""}</div><span class="node-content">${lab}</span></div>`;
+        })
+        .join("");
+      return `<div class="progress-title">${escapeHTML(node?.title || "")}</div>
+<div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${val}%"></div></div>
+<div class="progress-val">${val}%</div>
+<div class="progress-steps">${steps}</div>`;
+    }
+    if (t === "file") {
+      const src = String(node?.src || "").trim();
+      const isImg =
+        node?.fileKind === "image" ||
+        node?.type === "image" ||
+        (src.startsWith("data:image/") && node?.type === "file");
+      if (isImg && src) {
+        return `<div class="img-wrap"><img src="${escapeHTML(src)}" alt="" draggable="false"></div>`;
+      }
+      return `<div class="doc-wrap"><div class="doc-icon">${escapeHTML(node?.ext || "FILE")}</div><div><div class="doc-name">${escapeHTML(node?.name || "File")}</div><div class="doc-meta">${escapeHTML(node?.size || "File")}</div></div></div>`;
+    }
+    if (t === "embed") {
+      return `<div class="embed-preview">${embedPreviewHTML(node?.url || "")}</div>`;
+    }
+    return "";
+  }
+
+  function buildReadonlyNodeShell(node, opts = {}) {
+    const t = canonicalObjectType(node?.type);
+    const accent = escapeHTML(opts.accent || "#888");
+    const labels = {
+      text: "Note",
+      heading: "Heading",
+      line: "Line",
+      bullet: "Bullets",
+      progress: "Progress",
+      file: "File",
+      embed: "Embed",
+      note: "Note",
+      frame: "Annotate",
+    };
+    const label = escapeHTML(node?.customTitle ?? labels[t] ?? t);
+    const html = t === "line"
+      ? `<div class="content overview-item-line"></div>`
+      : `<div class="node-accent-line" style="background:${accent}"></div>
+<div class="node-header"><span class="node-type-label">${label}</span></div>
+<div class="node-body">${renderReadonlyNodeBodyHTML(node)}</div>`;
+    const src = String(node?.src || "").trim();
+    const isImageFile =
+      t === "file" &&
+      (node?.fileKind === "image" ||
+        node?.type === "image" ||
+        src.startsWith("data:image/"));
+    return { type: t, html, isImageFile };
+  }
+
   // ---------- Shared viewport navigation (canvas / dashboard / presentation / viewer) ----------
   const NAVIGATION_TUNING = Object.freeze({
     zoomLerpDesktop: 0.24,
@@ -356,5 +491,6 @@
     stepSmoothZoom,
     createSpatialViewport,
     DEFAULT_SPATIAL_SCALE_RANGE,
+    buildReadonlyNodeShell,
   };
 })(typeof window !== "undefined" ? window : globalThis);
