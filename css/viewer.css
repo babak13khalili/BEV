@@ -13,6 +13,10 @@
 
 /* Wraps shared-presentation-header + pathbar; fades on idle (replaces old floating bar). */
 #viewer-top-chrome {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   transition: opacity 0.4s;
   z-index: 200;
 }
@@ -450,19 +454,27 @@
 .viewer-card-depth-viewport {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   position: relative;
   background: var(--bg);
   background-image:
     linear-gradient(var(--border) 1px, transparent 1px),
     linear-gradient(90deg, var(--border) 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-size: calc(40px * var(--viewer-depth-scale, 1))
+    calc(40px * var(--viewer-depth-scale, 1));
+  background-position: var(--viewer-depth-grid-x, 0px) var(--viewer-depth-grid-y, 0px);
+}
+.viewer-card-depth-viewport.panning {
+  cursor: grabbing;
 }
 .viewer-card-depth-world {
-  position: relative;
+  position: absolute;
+  left: 0;
+  top: 0;
   transform-origin: 0 0;
   min-width: 400px;
   min-height: 320px;
+  will-change: transform;
 }
 #viewer-card-depth-connections-svg {
   position: absolute;

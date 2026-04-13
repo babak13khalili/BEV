@@ -19,7 +19,9 @@ let _fbDb   = null;
 let _data   = null;   // raw Firestore payload
 let _idleTimer = null;
 let _viewerNav = null;
+let _viewerDepthNav = null;
 let __bevViewerGlobalPointer = false;
+let __bevViewerDepthGlobalPointer = false;
 
 function viewerSpatialScaleRange() {
   const B = typeof BEVCore !== 'undefined' ? BEVCore : null;
@@ -553,6 +555,7 @@ function computeViewerDepthLayout(nodes) {
 
 function openViewerCardDepth(item) {
   closeViewerCardInspect();
+  destroyViewerDepthSpatialNav();
   const root = document.getElementById('viewer-card-depth');
   const titleEl = document.getElementById('viewer-card-depth-title');
   const world = document.getElementById('viewer-card-depth-world');
@@ -611,14 +614,9 @@ function openViewerCardDepth(item) {
   root.classList.add('is-open');
   root.setAttribute('aria-hidden', 'false');
   requestAnimationFrame(() => {
-    viewport.scrollLeft = Math.max(
-      0,
-      (lay.bw - viewport.clientWidth) / 2,
-    );
-    viewport.scrollTop = Math.max(
-      0,
-      (lay.bh - viewport.clientHeight) / 2,
-    );
+    ensureViewerDepthSpatialNav();
+    fitViewerDepthViewport();
+    wireViewerDepthSpatialNavigation();
   });
 }
 
@@ -627,8 +625,10 @@ function closeViewerCardDepth() {
   if (!root) return;
   root.classList.remove('is-open');
   root.setAttribute('aria-hidden', 'true');
+  destroyViewerDepthSpatialNav();
   const world = document.getElementById('viewer-card-depth-world');
   if (world) world.innerHTML = '';
+  document.getElementById('viewer-card-depth-viewport')?.classList.remove('panning');
 }
 
 function initViewerCardDepth() {
@@ -695,6 +695,13 @@ function destroyViewerSpatialNav() {
   }
 }
 
+function destroyViewerDepthSpatialNav() {
+  if (_viewerDepthNav) {
+    _viewerDepthNav.destroy();
+    _viewerDepthNav = null;
+  }
+}
+
 function ensureViewerSpatialNav() {
   if (_viewerNav) return _viewerNav;
   const B = typeof BEVCore !== 'undefined' ? BEVCore : null;
@@ -708,6 +715,120 @@ function ensureViewerSpatialNav() {
     scaleMax: sc.max,
   });
   return _viewerNav;
+}
+
+function ensureViewerDepthSpatialNav() {
+  if (_viewerDepthNav) return _viewerDepthNav;
+  const B = typeof BEVCore !== 'undefined' ? BEVCore : null;
+  if (!B || !B.createSpatialViewport) return null;
+  const sc = viewerSpatialScaleRange();
+  _viewerDepthNav = B.createSpatialViewport({
+    getContainer: () => document.getElementById('viewer-card-depth-viewport'),
+    getWorld: () => document.getElementById('viewer-card-depth-world'),
+    cssVarPrefix: 'viewer-depth',
+    scaleMin: sc.min,
+    scaleMax: sc.max,
+  });
+  return _viewerDepthNav;
+}
+
+function fitViewerDepthViewport() {
+  const nav = ensureViewerDepthSpatialNav();
+  const canvas = document.getElementById('viewer-card-depth-viewport');
+  const world = document.getElementById('viewer-card-depth-world');
+  if (!nav || !canvas || !world) return;
+  const { min: smin, max: smax } = viewerSpatialScaleRange();
+  const isMobile = viewerIsMobileViewport();
+  const bounds = [...world.querySelectorAll('.viewer-depth-node-el, .overview-item-frame')].map((el) => ({
+    x: parseFloat(el.style.left) || 0,
+    y: parseFloat(el.style.top) || 0,
+    w: el.offsetWidth || 220,
+    h: el.offsetHeight || 100,
+  }));
+  if (!bounds.length) {
+    const g = isMobile ? 40 : 56;
+    const sc = Math.max(smin, Math.min(smax, isMobile ? 0.28 : 0.48));
+    nav.setState(g, g, sc, sc);
+    nav.apply();
+    return;
+  }
+  const rect = canvas.getBoundingClientRect();
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  bounds.forEach((b) => {
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.w);
+    maxY = Math.max(maxY, b.y + b.h);
+  });
+  const pad = isMobile ? 260 : 180;
+  const cw = maxX - minX + pad * 2;
+  const ch = maxY - minY + pad * 2;
+  const sc = Math.max(
+    smin,
+    Math.min(
+      smax,
+      Math.min(
+        isMobile ? 0.44 : 0.64,
+        Math.min(rect.width / cw, rect.height / ch),
+      ),
+    ),
+  );
+  const ox = (rect.width - cw * sc) / 2 - (minX - pad) * sc;
+  const oy = (rect.height - ch * sc) / 2 - (minY - pad) * sc;
+  nav.setState(ox, oy, sc, sc);
+  nav.apply();
+}
+
+function wireViewerDepthSpatialNavigation() {
+  const viewport = document.getElementById('viewer-card-depth-viewport');
+  if (!viewport) return;
+  if (!viewport.dataset.bevViewerDepthWheel) {
+    viewport.dataset.bevViewerDepthWheel = '1';
+    viewport.addEventListener(
+      'wheel',
+      (e) => {
+        if (!_viewerDepthNav) return;
+        _viewerDepthNav.wheel(e);
+      },
+      { passive: false },
+    );
+  }
+  if (!viewport.dataset.bevViewerDepthPan) {
+    viewport.dataset.bevViewerDepthPan = '1';
+    viewport.addEventListener('mousedown', (e) => {
+      if (!_viewerDepthNav) return;
+      const root = document.getElementById('viewer-card-depth');
+      if (!root || !root.classList.contains('is-open')) return;
+      const spacePan = !!window.__bevViewerSpacePan;
+      const panMiddle = e.button === 1;
+      const panSpaceLeft = e.button === 0 && spacePan;
+      if (!panMiddle && !panSpaceLeft) return;
+      if (panSpaceLeft && e.target.closest('a, .node, .overview-item-frame')) return;
+      const rect = viewport.getBoundingClientRect();
+      _viewerDepthNav.beginPan(e.clientX - rect.left, e.clientY - rect.top);
+      viewport.classList.add('panning');
+      e.preventDefault();
+    });
+  }
+  if (!__bevViewerDepthGlobalPointer) {
+    __bevViewerDepthGlobalPointer = true;
+    window.addEventListener('mousemove', (e) => {
+      if (!_viewerDepthNav || !_viewerDepthNav.isPanningActive()) return;
+      const viewport = document.getElementById('viewer-card-depth-viewport');
+      if (!viewport) return;
+      const rect = viewport.getBoundingClientRect();
+      _viewerDepthNav.movePan(e.clientX - rect.left, e.clientY - rect.top);
+    });
+    window.addEventListener('mouseup', () => {
+      if (_viewerDepthNav && _viewerDepthNav.isPanningActive()) {
+        _viewerDepthNav.endPan();
+        document.getElementById('viewer-card-depth-viewport')?.classList.remove('panning');
+      }
+    });
+  }
 }
 
 function fitViewerViewportToData(data) {
@@ -889,8 +1010,10 @@ function resetIdleTimer() {
   const chrome = document.getElementById('viewer-top-chrome');
   if (!chrome) return;
   chrome.classList.remove('idle');
-  clearTimeout(_idleTimer);
-  _idleTimer = setTimeout(() => chrome.classList.add('idle'), BAR_IDLE_MS);
+  if (_idleTimer) {
+    clearTimeout(_idleTimer);
+    _idleTimer = null;
+  }
 }
 
 /* ── Loading / error UI ──────────────────────────────────── */
