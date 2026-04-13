@@ -17,6 +17,8 @@ const {
   isMobileViewport: bevIsMobileViewport,
   createSpatialViewport,
   DEFAULT_SPATIAL_SCALE_RANGE,
+  renderNodeContentHTML,
+  buildNodeShell,
 } = BEVCore;
 const isMobileViewport = bevIsMobileViewport;
 
@@ -6231,45 +6233,15 @@ function createNodeEl(nd) {
     <div class="node-resize-handle resize-tr" data-dir="tr"></div>
     <div class="node-resize-handle resize-bl" data-dir="bl"></div>
     <div class="node-resize-handle resize-br" data-dir="br"></div>`;
-  el.innerHTML = isSharedNoteNode
-    ? `${renderSharedTextNoteShellHTML({
-        type: nd.type,
-        text: nd.text || "",
-        label: nodeTitle,
+  el.innerHTML = `${buildNodeShell(nd, {
+        editable: true,
         accent: currentProject?.color || "#333",
-        contentClassName: "content node-content",
+        label: nodeTitle,
+        fileLinkHref,
+        fileLinkLabel,
         actionsHTML: `<button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" onclick="requestDeleteNodeById('${nd.id}')">✕</button>`,
         settingsHTML: `<div class="node-settings">${nodeSettingsHTML(nd)}</div>`,
-      })}
-    ${nodeHandleMarkup}`
-    : `
-    <div class="node-accent-line" style="background:${currentProject?.color || "#333"}"></div>
-${
-  isFileNode
-    ? `<div class="node-file-topbar">
-${
-  fileLinkHref
-    ? `<a class="node-file-link" href="${esc(fileLinkHref)}" target="_blank" rel="noreferrer" title="${esc(fileLinkHref)}">${esc(fileLinkLabel)}</a>`
-    : `<span class="node-file-link" title="${esc(fileLinkLabel)}">${esc(fileLinkLabel)}</span>`
-}
-<div class="node-file-topbar-actions"><button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" onclick="requestDeleteNodeById('${nd.id}')">✕</button></div>
-    </div>`
-    : ""
-}
-${
-  isLiveEmbed
-    ? `<div class="node-embed-topbar">
-<a class="node-embed-link" href="${esc(nd.url)}" target="_blank" rel="noreferrer" title="${esc(nd.url)}">${esc(nd.url)}</a>
-<div class="node-embed-topbar-actions"><button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" onclick="requestDeleteNodeById('${nd.id}')">✕</button></div>
-    </div>`
-    : ""
-}
-<div class="node-header">
-<span class="node-type-label" contenteditable="true" spellcheck="false">${esc(nodeTitle)}</span>
-<div class="node-actions"><button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" onclick="requestDeleteNodeById('${nd.id}')">✕</button></div>
-    </div>
-    <div class="node-body">${nodeBodyHTML(nd)}</div>
-    <div class="node-settings">${nodeSettingsHTML(nd)}</div>
+      }).html}
     ${nodeHandleMarkup}`;
 
   if (isSharedNoteNode) {
@@ -6755,46 +6727,7 @@ function embedPreviewHTML(url) {
 }
 
 function nodeBodyHTML(nd) {
-  if (isSharedTextObjectType(nd.type))
-    return renderSharedTextObjectHTML(
-      nd.type,
-      nd.text || (nd.type === "frame" ? "Group" : ""),
-      nd.type === "heading" ? "content node-content" : "node-content",
-    );
-  if (nd.type === "line")
-    return `<div class="node-content line-content" spellcheck="false"></div>
-    <button class="line-end-handle" data-end="start" type="button" aria-label="Move line start"></button>
-    <button class="line-end-handle" data-end="end" type="button" aria-label="Move line end"></button>`;
-  if (nd.type === "bullet") {
-    const lis = (nd.items || [])
-      .map((_, i) => bulletItemHTML(nd, i))
-      .join("");
-    return `<ul class="bullet-list">${lis}</ul><button class="bullet-add-btn">+ Add item</button>`;
-  }
-  if (nd.type === "progress") {
-    const steps = (nd.steps || [])
-      .map(
-        (s, i) =>
-          `<div class="step-item"><div class="step-check${s.done ? " done" : ""}">${s.done ? "✓" : ""}</div><span contenteditable="true" class="node-content" onblur="updStep(event,'${nd.id}',${i})">${esc(s.label)}</span></div>`,
-      )
-      .join("");
-    return `<div class="progress-title" contenteditable="true" spellcheck="false">${esc(nd.title || "")}</div>
-<div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${nd.value || 0}%"></div></div>
-<div class="progress-val">${nd.value || 0}%</div>
-<div class="progress-steps">${steps}<button class="bullet-add-btn" onclick="addStep('${nd.id}')">+ Add step</button></div>`;
-  }
-  if (nd.type === "file")
-    return nd.fileKind === "image" && nd.src
-      ? `<div class="img-wrap"><img src="${nd.src}" alt="" draggable="false"></div>`
-      : `<div class="doc-wrap"><div class="doc-icon">${nd.ext || "FILE"}</div><div><div class="doc-name" contenteditable="true" spellcheck="false">${esc(nd.name || "File")}</div><div class="doc-meta">${nd.size || "Click to attach file"}</div></div></div>`;
-  if (nd.type === "embed")
-    return nd.url
-      ? `<div class="embed-preview">${embedPreviewHTML(nd.url || "")}</div>`
-      : `<div class="embed-wrap">
-      <input class="embed-input" type="url" placeholder="Paste image, video, YouTube, Vimeo, or embed URL" value="${esc(nd.url || "")}">
-      <div class="embed-preview">${embedPreviewHTML(nd.url || "")}</div>
-    </div>`;
-  return "";
+  return renderNodeContentHTML(nd, { editable: true });
 }
 
 function getBulletItemsFromText(text) {

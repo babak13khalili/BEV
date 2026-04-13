@@ -153,27 +153,41 @@
     return `<div class="embed-placeholder">No URL</div>`;
   }
 
-  function renderReadonlyNodeBodyHTML(node) {
+  function renderNodeContentHTML(node, opts = {}) {
+    const editable = !!opts.editable;
     const t = canonicalObjectType(node?.type);
     if (isSharedTextObjectType(t)) {
-      return `<div class="${t === "heading" ? "content node-content" : "node-content"}">${escapeHTML(String(node?.text || "")).replace(/\n/g, "<br>")}</div>`;
+      return `<div class="${t === "heading" ? "content node-content shared-heading-text" : "node-content"}">${escapeHTML(String(node?.text || "")).replace(/\n/g, "<br>")}</div>`;
     }
     if (t === "line") {
-      return `<div class="node-content line-content" spellcheck="false"></div>`;
+      return editable
+        ? `<div class="node-content line-content" spellcheck="false"></div>
+    <button class="line-end-handle" data-end="start" type="button" aria-label="Move line start"></button>
+    <button class="line-end-handle" data-end="end" type="button" aria-label="Move line end"></button>`
+        : `<div class="node-content line-content" spellcheck="false"></div>`;
     }
     if (t === "bullet") {
       const lis = (node?.items || [])
-        .map((it) => {
+        .map((it, i) => {
           const text =
             typeof it === "string" ? it : String(it?.text || "");
           const done = typeof it === "object" && it?.done;
+          if (editable) {
+            return `<li data-bullet-index="${i}">
+    ${node?.bulletFeatures?.checklist ? `<button class="bullet-item-check${done ? " done" : ""}" type="button">${done ? "✓" : ""}</button>` : ""}
+    <span contenteditable="true" class="node-content bullet-item-text">${escapeHTML(text)}</span>
+    ${node?.bulletFeatures?.connectors ? `<div class="conn-handle bullet-item-handle" data-node="${escapeHTML(node?.id || "")}" data-bullet-index="${i}" data-pos="right"></div>` : ""}
+  </li>`;
+          }
           return `<li>
             <button class="bullet-item-check${done ? " done" : ""}" type="button" disabled aria-hidden="true">${done ? "✓" : ""}</button>
-            <span class="node-content bullet-item-text">${escapeHTML(text)}</span>
+            <span class="node-content bullet-item-text">${escapeHTML(text).replace(/\n/g, "<br>")}</span>
           </li>`;
         })
         .join("");
-      return `<ul class="bullet-list">${lis || `<li><span class="node-content bullet-item-text">Empty</span></li>`}</ul>`;
+      return editable
+        ? `<ul class="bullet-list">${lis}</ul><button class="bullet-add-btn">+ Add item</button>`
+        : `<ul class="bullet-list">${lis || `<li><span class="node-content bullet-item-text">Empty</span></li>`}</ul>`;
     }
     if (t === "progress") {
       const val = Math.round(
@@ -183,13 +197,15 @@
         .map((s, i) => {
           const lab = escapeHTML(String(s?.label || `Step ${i + 1}`));
           const done = !!s?.done;
-          return `<div class="step-item"><div class="step-check${done ? " done" : ""}">${done ? "✓" : ""}</div><span class="node-content">${lab}</span></div>`;
+          return editable
+            ? `<div class="step-item"><div class="step-check${done ? " done" : ""}">${done ? "✓" : ""}</div><span contenteditable="true" class="node-content" onblur="updStep(event,'${escapeHTML(node?.id || "")}',${i})">${lab}</span></div>`
+            : `<div class="step-item"><div class="step-check${done ? " done" : ""}">${done ? "✓" : ""}</div><span class="node-content">${lab}</span></div>`;
         })
         .join("");
-      return `<div class="progress-title">${escapeHTML(node?.title || "")}</div>
+      return `<div class="progress-title"${editable ? ` contenteditable="true" spellcheck="false"` : ""}>${escapeHTML(node?.title || "")}</div>
 <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${val}%"></div></div>
 <div class="progress-val">${val}%</div>
-<div class="progress-steps">${steps}</div>`;
+<div class="progress-steps">${steps}${editable ? `<button class="bullet-add-btn" onclick="addStep('${escapeHTML(node?.id || "")}')">+ Add step</button>` : ""}</div>`;
     }
     if (t === "file") {
       const src = String(node?.src || "").trim();
@@ -200,16 +216,23 @@
       if (isImg && src) {
         return `<div class="img-wrap"><img src="${escapeHTML(src)}" alt="" draggable="false"></div>`;
       }
-      return `<div class="doc-wrap"><div class="doc-icon">${escapeHTML(node?.ext || "FILE")}</div><div><div class="doc-name">${escapeHTML(node?.name || "File")}</div><div class="doc-meta">${escapeHTML(node?.size || "File")}</div></div></div>`;
+      return `<div class="doc-wrap"><div class="doc-icon">${escapeHTML(node?.ext || "FILE")}</div><div><div class="doc-name"${editable ? ` contenteditable="true" spellcheck="false"` : ""}>${escapeHTML(node?.name || "File")}</div><div class="doc-meta">${escapeHTML(node?.size || (editable ? "Click to attach file" : "File"))}</div></div></div>`;
     }
     if (t === "embed") {
+      if (editable && !String(node?.url || "").trim()) {
+        return `<div class="embed-wrap">
+      <input class="embed-input" type="url" placeholder="Paste image, video, YouTube, Vimeo, or embed URL" value="${escapeHTML(node?.url || "")}">
+      <div class="embed-preview">${embedPreviewHTML(node?.url || "")}</div>
+    </div>`;
+      }
       return `<div class="embed-preview">${embedPreviewHTML(node?.url || "")}</div>`;
     }
     return "";
   }
 
-  function buildReadonlyNodeShell(node, opts = {}) {
+  function buildNodeShell(node, opts = {}) {
     const t = canonicalObjectType(node?.type);
+    const editable = !!opts.editable;
     const accent = escapeHTML(opts.accent || "#888");
     const labels = {
       text: "Note",
@@ -222,19 +245,59 @@
       note: "Note",
       frame: "Annotate",
     };
-    const label = escapeHTML(node?.customTitle ?? labels[t] ?? t);
-    const html = t === "line"
-      ? `<div class="content overview-item-line"></div>`
-      : `<div class="node-accent-line" style="background:${accent}"></div>
-<div class="node-header"><span class="node-type-label">${label}</span></div>
-<div class="node-body">${renderReadonlyNodeBodyHTML(node)}</div>`;
+    const label = escapeHTML(opts.label ?? node?.customTitle ?? labels[t] ?? t);
     const src = String(node?.src || "").trim();
+    const fileLinkHref = escapeHTML(String(opts.fileLinkHref || "").trim());
+    const fileLinkLabel = escapeHTML(String(opts.fileLinkLabel || "File"));
+    const embedUrl = escapeHTML(String(node?.url || "").trim());
+    const headerActionsHTML = String(opts.headerActionsHTML ?? opts.actionsHTML ?? "");
+    const fileTopbarActionsHTML = String(
+      opts.fileTopbarActionsHTML ?? opts.actionsHTML ?? "",
+    );
+    const embedTopbarActionsHTML = String(
+      opts.embedTopbarActionsHTML ?? opts.actionsHTML ?? "",
+    );
+    const settingsHTML = String(opts.settingsHTML || "");
+    const fileTopbar =
+      t === "file"
+        ? `<div class="node-file-topbar">
+${fileLinkHref ? `<a class="node-file-link" href="${fileLinkHref}" target="_blank" rel="noreferrer" title="${fileLinkHref}">${fileLinkLabel}</a>` : `<span class="node-file-link" title="${fileLinkLabel}">${fileLinkLabel}</span>`}
+${fileTopbarActionsHTML ? `<div class="node-file-topbar-actions">${fileTopbarActionsHTML}</div>` : ""}
+</div>`
+        : "";
+    const embedTopbar =
+      t === "embed" && embedUrl
+        ? `<div class="node-embed-topbar">
+<a class="node-embed-link" href="${embedUrl}" target="_blank" rel="noreferrer" title="${embedUrl}">${embedUrl}</a>
+${embedTopbarActionsHTML ? `<div class="node-embed-topbar-actions">${embedTopbarActionsHTML}</div>` : ""}
+</div>`
+        : "";
+    const labelEditableAttr = editable
+      ? ` contenteditable="true" spellcheck="false"`
+      : "";
+    const html = `<div class="node-accent-line" style="background:${accent}"></div>
+${fileTopbar}
+${embedTopbar}
+<div class="node-header"><span class="node-type-label"${labelEditableAttr}>${label}</span><div class="node-actions">${headerActionsHTML}</div></div>
+<div class="node-body">${renderNodeContentHTML(node, { editable })}</div>${settingsHTML}`;
     const isImageFile =
       t === "file" &&
       (node?.fileKind === "image" ||
         node?.type === "image" ||
         src.startsWith("data:image/"));
     return { type: t, html, isImageFile };
+  }
+
+  function buildReadonlyNodeShell(node, opts = {}) {
+    return buildNodeShell(node, {
+      ...opts,
+      editable: false,
+      actionsHTML: "",
+      headerActionsHTML: "",
+      fileTopbarActionsHTML: "",
+      embedTopbarActionsHTML: "",
+      settingsHTML: "",
+    });
   }
 
   // ---------- Shared viewport navigation (canvas / dashboard / presentation / viewer) ----------
@@ -491,6 +554,8 @@
     stepSmoothZoom,
     createSpatialViewport,
     DEFAULT_SPATIAL_SCALE_RANGE,
+    renderNodeContentHTML,
+    buildNodeShell,
     buildReadonlyNodeShell,
   };
 })(typeof window !== "undefined" ? window : globalThis);
