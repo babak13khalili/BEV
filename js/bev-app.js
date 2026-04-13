@@ -813,6 +813,24 @@ function formatPresentationTimestamp(ts) {
 
 function buildPublicProjectSnapshot(project) {
   const safe = sanitizeProjectForSave(project);
+  const publicNodes = (safe.nodes || []).map((node) => {
+    if (!node) return node;
+    const out = { ...node };
+    // Never publish inline image payloads inside public presentation docs.
+    const isImageLike =
+      out.type === "image" ||
+      (out.type === "file" && out.fileKind === "image");
+    if (isImageLike) {
+      out.type = "file";
+      out.fileKind = "image";
+      out.src = null;
+      if (!out.assetId && out.id && project?.id) {
+        out.assetId = `${project.id}__${out.id}`;
+      }
+    }
+    delete out.uploading;
+    return out;
+  });
   return {
     id: project.id,
     name: project.name || "Untitled",
@@ -826,7 +844,7 @@ function buildPublicProjectSnapshot(project) {
       ? project.connections.length
       : 0,
     // Keep snapshots lightweight; viewer hydrates image nodes via image_assets.
-    nodes: JSON.parse(JSON.stringify(safe.nodes || [])),
+    nodes: JSON.parse(JSON.stringify(publicNodes)),
     connections: JSON.parse(JSON.stringify(project.connections || [])),
   };
 }
