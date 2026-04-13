@@ -813,36 +813,6 @@ function formatPresentationTimestamp(ts) {
 
 function buildPublicProjectSnapshot(project) {
   const safe = sanitizeProjectForSave(project);
-  const liveById = new Map(
-    (project.nodes || []).map((n) => [String(n.id), n]),
-  );
-  const publicNodes = (safe.nodes || []).map((node) => {
-    const live = liveById.get(String(node.id));
-    const liveSrc =
-      live && typeof live.src === "string" && live.src.length ? live.src : "";
-    const liveIsImage =
-      !!live &&
-      !!liveSrc &&
-      (live.fileKind === "image" ||
-        live.type === "image" ||
-        (live.type === "file" &&
-          (live.fileKind === "image" ||
-            String(liveSrc).startsWith("data:image/"))));
-    if (liveIsImage) {
-      const out = {
-        ...node,
-        type: "file",
-        fileKind: "image",
-        src: liveSrc,
-        mime: live.mime || node.mime || "",
-        size: live.size || node.size || "",
-      };
-      delete out.uploading;
-      delete out.assetId;
-      return out;
-    }
-    return node;
-  });
   return {
     id: project.id,
     name: project.name || "Untitled",
@@ -855,7 +825,8 @@ function buildPublicProjectSnapshot(project) {
     connectionCount: Array.isArray(project.connections)
       ? project.connections.length
       : 0,
-    nodes: JSON.parse(JSON.stringify(publicNodes)),
+    // Keep snapshots lightweight; viewer hydrates image nodes via image_assets.
+    nodes: JSON.parse(JSON.stringify(safe.nodes || [])),
     connections: JSON.parse(JSON.stringify(project.connections || [])),
   };
 }

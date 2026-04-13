@@ -91,6 +91,49 @@ async function fetchPresentation(token) {
   return snap.exists ? snap.data() : null;
 }
 
+async function hydrateViewerSnapshotImages(data) {
+  if (!_fbDb || !data || !Array.isArray(data.items)) return data;
+  const ownerId = String(data.ownerId || '').trim();
+  if (!ownerId) return data;
+  const requests = [];
+  (data.items || []).forEach((item) => {
+    const projectId = String(item?.projectId || '').trim();
+    const nodes = item?.snapshot?.nodes;
+    if (!projectId || !Array.isArray(nodes)) return;
+    nodes.forEach((node) => {
+      const isImageNode =
+        node &&
+        (node.fileKind === 'image' || node.type === 'image') &&
+        !String(node.src || '').trim();
+      if (!isImageNode) return;
+      const nodeId = String(node.id || '').trim();
+      if (!nodeId) return;
+      const assetId = String(node.assetId || `${projectId}__${nodeId}`).trim();
+      if (!assetId) return;
+      requests.push(
+        _fbDb
+          .collection('users')
+          .doc(ownerId)
+          .collection('image_assets')
+          .doc(assetId)
+          .get()
+          .then((snap) => {
+            const src = snap.exists ? String((snap.data() || {}).src || '') : '';
+            if (src) {
+              node.type = 'file';
+              node.fileKind = 'image';
+              node.src = src;
+            }
+          })
+          .catch(() => {}),
+      );
+    });
+  });
+  if (!requests.length) return data;
+  await Promise.all(requests);
+  return data;
+}
+
 /* ── HTML escape ─────────────────────────────────────────── */
 
 function esc(s) {
@@ -670,24 +713,18 @@ function ensureViewerSpatialNav() {
 function fitViewerViewportToData(data) {
   const nav = ensureViewerSpatialNav();
   const canvas = document.getElementById('viewer-canvas');
-  if (!nav || !canvas) return;
+  const world = document.getElementById('viewer-world');
+  if (!nav || !canvas || !world) return;
   const { min: smin, max: smax } = viewerSpatialScaleRange();
-  const all = [
-    ...(data.items || []).map((i) => ({
-      x: i.x || 0,
-      y: i.y || 0,
-      w: 320,
-      h: 220,
-    })),
-    ...(data.objects || []).map((o) => ({
-      x: o.x || 0,
-      y: o.y || 0,
-      w: o.w || 220,
-      h: o.h || 40,
-    })),
-  ];
   const rect = canvas.getBoundingClientRect();
   const isMobile = viewerIsMobileViewport();
+  const els = [...world.querySelectorAll('.project-card, .presentation-object')];
+  const all = els.map((el) => ({
+    x: parseFloat(el.style.left) || 0,
+    y: parseFloat(el.style.top) || 0,
+    w: el.offsetWidth || 280,
+    h: el.offsetHeight || 200,
+  }));
   if (!all.length) {
     const g = isMobile ? 40 : 56;
     const sc = Math.max(smin, Math.min(smax, isMobile ? 0.28 : 0.48));
@@ -725,12 +762,11 @@ function fitViewerViewportToData(data) {
 }
 
 function wireViewerSpatialNavigation() {
-  const screen = document.getElementById('screen-shared-presentation');
   const canvas = document.getElementById('viewer-canvas');
-  if (!screen || !canvas) return;
-  if (!screen.dataset.bevViewerWheel) {
-    screen.dataset.bevViewerWheel = '1';
-    screen.addEventListener(
+  if (!canvas) return;
+  if (!canvas.dataset.bevViewerWheel) {
+    canvas.dataset.bevViewerWheel = '1';
+    canvas.addEventListener(
       'wheel',
       (e) => {
         if (!getShareToken() || !_viewerNav) return;
@@ -916,6 +952,9 @@ async function startViewer() {
 
   try {
     _data = await fetchPresentation(token);
+    if (_data) {
+      await hydrateViewerSnapshotImages(_data);
+    }
   } catch {
     _data = null;
   }

@@ -68,7 +68,8 @@
   backface-visibility: hidden;
   width: 3200px;
   min-height: 2200px;
-  padding: 96px 80px 80px;
+  /* Match presentation-world spacing for identical feel. */
+  padding: 84px 80px 80px;
 }
 
 /* ── Unavailable state ────────────────────────────────────── */
