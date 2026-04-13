@@ -3103,18 +3103,6 @@ function isActiveEditableElement(target) {
   );
 }
 
-function focusEditableAtEnd(target) {
-  if (!target) return;
-  if (!target.isContentEditable) target.setAttribute("contenteditable", "true");
-  target.focus();
-  const range = document.createRange();
-  range.selectNodeContents(target);
-  range.collapse(false);
-  const selection = window.getSelection();
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
-
 function applyTextDirection(target) {
   if (!isEditableTextTarget(target) || shouldSkipDirectionFormatting(target)) {
     return;
@@ -3148,10 +3136,8 @@ function renderSharedTextObjectHTML(
   { readOnly = false } = {},
 ) {
   const editable = readOnly ? "false" : "true";
-  if (type === "heading") {
-    return `<div class="${className} shared-heading-text" contenteditable="false" spellcheck="false">${renderMultilineTextHTML(text || "")}</div>`;
-  }
-  return `<div class="${className}" contenteditable="${editable}" spellcheck="false">${renderMultilineTextHTML(text || "")}</div>`;
+  const extraClass = type === "heading" ? " shared-heading-text" : "";
+  return `<div class="${className}${extraClass}" contenteditable="${editable}" spellcheck="false">${renderMultilineTextHTML(text || "")}</div>`;
 }
 
 function renderSharedTextNoteShellHTML({
@@ -3257,22 +3243,6 @@ function bindSharedTextObjectEditor(target, type, onCommit) {
   target.dataset.sharedObjectEditorBound = "1";
   bindPlainTextPaste(target);
   applyTextDirection(target);
-  if (type === "heading") {
-    target.addEventListener("dblclick", (e) => {
-      e.stopPropagation();
-      focusEditableAtEnd(target);
-    });
-    target.addEventListener("blur", () => {
-      applyTextDirection(target);
-      onCommit(getEditablePlainText(target));
-      target.setAttribute("contenteditable", "false");
-    });
-    target.addEventListener("input", () => {
-      applyTextDirection(target);
-      onCommit(getEditablePlainText(target));
-    });
-    return;
-  }
   target.addEventListener("input", () => {
     applyTextDirection(target);
     onCommit(getEditablePlainText(target));
@@ -3281,10 +3251,6 @@ function bindSharedTextObjectEditor(target, type, onCommit) {
     applyTextDirection(target);
     onCommit(getEditablePlainText(target));
   });
-}
-
-function renderHeadingContentHTML(text = "") {
-  return `<div class="content node-content shared-heading-text">${renderMultilineTextHTML(text || "")}</div>`;
 }
 
 function syncImageFileNodeSize(nd, el) {

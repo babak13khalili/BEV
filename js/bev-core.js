@@ -157,7 +157,15 @@
     const editable = !!opts.editable;
     const t = canonicalObjectType(node?.type);
     if (isSharedTextObjectType(t)) {
-      return `<div class="${t === "heading" ? "content node-content shared-heading-text" : "node-content"}">${escapeHTML(String(node?.text || "")).replace(/\n/g, "<br>")}</div>`;
+      const inner = escapeHTML(String(node?.text || "")).replace(/\n/g, "<br>");
+      const cls =
+        t === "heading"
+          ? "content node-content shared-heading-text"
+          : "node-content";
+      const ce = editable
+        ? 'contenteditable="true" spellcheck="false"'
+        : 'contenteditable="false" spellcheck="false"';
+      return `<div class="${cls}" ${ce}>${inner}</div>`;
     }
     if (t === "line") {
       return editable
