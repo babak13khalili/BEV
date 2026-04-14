@@ -3299,7 +3299,7 @@ function beginHeadingTextDragOrEdit(downEvent, onDragStart) {
     armed = false;
     window.removeEventListener("mousemove", onMove);
     window.removeEventListener("pointermove", onMove);
- };
+  };
   const onMove = (ev) => {
     if (!armed) return;
     if (
@@ -4170,6 +4170,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
       }
     }
   }
+
   if (!viewer) {
     if (!usesUnifiedNoteObjectBehavior(obj.type)) {
       const delBtn = document.createElement("button");
