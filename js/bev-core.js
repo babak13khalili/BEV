@@ -36,6 +36,11 @@
     return type === "text" || type === "note";
   }
 
+  /** Text/note/heading objects that share `bindUnifiedNoteObjectBehavior` + node shell on canvas and deck. */
+  function usesUnifiedNoteObjectBehavior(type) {
+    return isUnifiedTextNoteType(type) || type === "heading";
+  }
+
   function canonicalObjectType(type) {
     return isUnifiedTextNoteType(type) ? "note" : type;
   }
@@ -835,6 +840,7 @@ ${embedTopbar}
     SHARED_TEXT_TYPES,
     PRESENTATION_SPATIAL_SET,
     isUnifiedTextNoteType,
+    usesUnifiedNoteObjectBehavior,
     canonicalObjectType,
     isSharedTextObjectType,
     isPresentationSpatialType,

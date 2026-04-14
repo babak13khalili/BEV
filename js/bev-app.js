@@ -9,6 +9,7 @@ const {
   presentationObjectsFromRaw,
   isSharedTextObjectType,
   isUnifiedTextNoteType,
+  usesUnifiedNoteObjectBehavior,
   canonicalObjectType,
   createSharedTextObjectState,
   createSimpleLineItem,
@@ -3194,6 +3195,11 @@ function toggleSharedNoteSettings(el) {
   el.querySelector(".node-settings")?.classList.toggle("open");
 }
 
+/**
+ * @param {"default"|"deferHeading"} [opts.contentEditableDragMode]
+ *   deferHeading: editable label/body use move-threshold then onPointerDown (heading shells).
+ * @param {(e: MouseEvent) => boolean} [opts.beforeDeferHeadingDrag] return true to stop (no defer)
+ */
 function bindUnifiedNoteObjectBehavior({
   el,
   type,
@@ -3201,6 +3207,8 @@ function bindUnifiedNoteObjectBehavior({
   onLabelCommit,
   onPointerDown,
   onResizeStart,
+  contentEditableDragMode = "default",
+  beforeDeferHeadingDrag = null,
 }) {
   if (!el) return;
   const content = el.querySelector(".content") || el.querySelector(".node-content");
@@ -3235,16 +3243,26 @@ function bindUnifiedNoteObjectBehavior({
       e.target.classList.contains("conn-handle") ||
       e.target.classList.contains("node-act-btn") ||
       e.target.classList.contains("node-resize-handle") ||
-      e.target.closest(".node-settings")
+      e.target.closest(".node-settings") ||
+      e.target.closest(".pres-spatial-handle") ||
+      e.target.closest(".overview-resize-handle")
     )
       return;
     if (
       e.target.tagName === "INPUT" ||
       e.target.tagName === "TEXTAREA" ||
-      e.target.tagName === "A" ||
-      (e.target.isContentEditable && !e.altKey)
+      e.target.tagName === "A"
     )
       return;
+    if (e.target.isContentEditable && !e.altKey) {
+      if (contentEditableDragMode === "deferHeading") {
+        if (typeof beforeDeferHeadingDrag === "function" && beforeDeferHeadingDrag(e))
+          return;
+        beginHeadingTextDragOrEdit(e, (ev) => onPointerDown(ev));
+        return;
+      }
+      return;
+    }
     onPointerDown(e);
   });
   el.addEventListener("dblclick", (e) => {
@@ -3330,6 +3348,7 @@ function dashboardOverviewItemDragFromPointer(item, el, e) {
   }
 }
 
+/** Canvas: shared drag / multi-select for unified notes + heading (same node chrome). */
 function canvasNodeDragFromPointer(nd, el, e) {
   if (currentTool === "connect") return;
   e.stopPropagation();
@@ -4014,6 +4033,41 @@ function updatePresentationPrivacyUI() {
   }
 }
 
+function presentationDeckObjectHeadingDragPrep(e, obj) {
+  // mousemove/pointermove while dragging often use button === -1; only skip real aux clicks.
+  if (e.button > 0) return true;
+  if (e.shiftKey && presentationTool === "select") {
+    togglePresentationObjectSelection(obj.id);
+    e.preventDefault();
+    return true;
+  }
+  const presN = presentationDeckSelectionCount();
+  if (
+    presentationTool === "select" &&
+    selectedPresentationObjectIds.has(String(obj.id)) &&
+    presN > 1
+  ) {
+    beginPresentationGroupDrag(e);
+    e.preventDefault();
+    return true;
+  }
+  if (
+    presentationTool === "select" &&
+    (!selectedPresentationObjectIds.has(String(obj.id)) || presN > 1)
+  ) {
+    selectedPresentationItemIds.clear();
+    selectedPresentationObjectIds.clear();
+    selectedPresentationObjectIds.add(String(obj.id));
+    applyPresentationDeckSelectionClasses();
+  }
+  return false;
+}
+
+function presentationDeckSpatialObjectPointerDown(e, obj, el) {
+  if (presentationDeckObjectHeadingDragPrep(e, obj)) return;
+  startPresentationObjectDrag(e, obj, el);
+}
+
 function createPresentationObjectEl(obj, { viewer = false } = {}) {
   const el = document.createElement("div");
   el.className = `presentation-object presentation-object-${obj.type}`;
@@ -4051,67 +4105,61 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
         }),
       );
     }
-  } else if (isUnifiedTextNoteType(obj.type)) {
+  } else if (usesUnifiedNoteObjectBehavior(obj.type)) {
+    const isHeading = obj.type === "heading";
     el.classList.add("node", `node-${obj.type}`);
-    el.innerHTML =
-      renderSharedTextNoteShellHTML({
-        type: obj.type,
-        text: obj.text || "",
-        label: obj.customTitle || "Note",
-        accent: currentPresentation?.shareToken ? "#44ff88" : "#333",
-        contentClassName: "content node-content",
-        readOnly: viewer,
-        actionsHTML: viewer
+    const presAccent = currentPresentation?.shareToken ? "#44ff88" : "#333";
+    const presDelBtn = viewer
+      ? ""
+      : `<button class="node-act-btn" type="button" onclick="requestDeletePresentationObject('${obj.id}')">✕</button>`;
+    el.innerHTML = isHeading
+      ? buildNodeShell(obj, {
+          editable: !viewer,
+          accent: presAccent,
+          label: obj.customTitle ?? "Heading",
+          actionsHTML: presDelBtn,
+          settingsHTML: "",
+        }).html + (viewer ? "" : presentationSpatialHandlesInnerHTML(obj.id))
+      : renderSharedTextNoteShellHTML({
+          type: obj.type,
+          text: obj.text || "",
+          label: obj.customTitle || "Note",
+          accent: presAccent,
+          contentClassName: "content node-content",
+          readOnly: viewer,
+          actionsHTML: presDelBtn,
+          settingsHTML: "",
+        }) +
+        (viewer
           ? ""
-          : `<button class="node-act-btn" type="button" onclick="requestDeletePresentationObject('${obj.id}')">✕</button>`,
-        settingsHTML: "",
-      }) +
-      (viewer
-        ? ""
-        : `<div class="node-resize-handle resize-tl" data-dir="tl"></div>
+          : `<div class="node-resize-handle resize-tl" data-dir="tl"></div>
       <div class="node-resize-handle resize-tr" data-dir="tr"></div>
       <div class="node-resize-handle resize-bl" data-dir="bl"></div>
       <div class="node-resize-handle resize-br" data-dir="br"></div>${presentationSpatialHandlesInnerHTML(obj.id)}`);
-    if (obj.w) el.style.width = `${obj.w}px`;
-    if (obj.h) el.style.height = `${obj.h}px`;
+    if (!isHeading) {
+      if (obj.w) el.style.width = `${obj.w}px`;
+      if (obj.h) el.style.height = `${obj.h}px`;
+    }
     if (!viewer) {
       bindUnifiedNoteObjectBehavior({
         el,
         type: obj.type,
+        contentEditableDragMode: isHeading ? "deferHeading" : "default",
+        beforeDeferHeadingDrag: isHeading
+          ? (e) =>
+              presentationTool === "connect" ||
+              presentationDeckObjectHeadingDragPrep(e, obj)
+          : null,
         onCommit: (text) => {
           obj.text = text;
           queuePresentationSave(currentPresentation);
         },
         onLabelCommit: (label) => {
-          obj.customTitle = label || "Note";
+          obj.customTitle = isHeading ? label || "Heading" : label;
           queuePresentationSave(currentPresentation);
         },
-        onPointerDown: (e) => {
-          if (e.shiftKey && presentationTool === "select") {
-            togglePresentationObjectSelection(obj.id);
-            return;
-          }
-          const presN = presentationDeckSelectionCount();
-          if (
-            presentationTool === "select" &&
-            selectedPresentationObjectIds.has(String(obj.id)) &&
-            presN > 1
-          ) {
-            beginPresentationGroupDrag(e);
-            return;
-          }
-          if (
-            presentationTool === "select" &&
-            (!selectedPresentationObjectIds.has(String(obj.id)) ||
-              presN > 1)
-          ) {
-            selectedPresentationItemIds.clear();
-            selectedPresentationObjectIds.clear();
-            selectedPresentationObjectIds.add(String(obj.id));
-            applyPresentationDeckSelectionClasses();
-          }
-          startPresentationObjectDrag(e, obj, el);
-        },
+        onPointerDown: (e) =>
+          presentationDeckSpatialObjectPointerDown(e, obj, el),
         onResizeStart: (e, dir) =>
           startPresentationObjectResize(e, obj, dir, el),
       });
@@ -4121,30 +4169,9 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
         el.classList.toggle("multi-selected", presUnifiedSelN > 1);
       }
     }
-  } else {
-    el.innerHTML = `${
-      viewer
-        ? ""
-        : `<div class="presentation-heading-drag" title="Drag to move (Alt-drag on text also moves)" aria-hidden="true"></div>`
-    }${renderSharedTextObjectHTML(
-      obj.type,
-      obj.text || "Heading",
-      "content",
-      { readOnly: viewer },
-    )}`;
-    if (!viewer) {
-      el.insertAdjacentHTML(
-        "beforeend",
-        presentationSpatialHandlesInnerHTML(obj.id),
-      );
-      bindSharedTextObjectEditor(el.querySelector(".content"), obj.type, (text) => {
-        obj.text = text;
-        queuePresentationSave(currentPresentation);
-      });
-    }
   }
   if (!viewer) {
-    if (!isUnifiedTextNoteType(obj.type)) {
+    if (!usesUnifiedNoteObjectBehavior(obj.type)) {
       const delBtn = document.createElement("button");
       delBtn.type = "button";
       delBtn.className = "presentation-object-delete";
@@ -4154,8 +4181,6 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
         requestDeletePresentationObject(obj.id);
       });
       el.appendChild(delBtn);
-    }
-    if (!isUnifiedTextNoteType(obj.type)) {
       const presObjSelN = presentationDeckSelectionCount();
       if (selectedPresentationObjectIds.has(String(obj.id))) {
         el.classList.toggle("selected", presObjSelN === 1);
@@ -4197,15 +4222,6 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
           applyPresentationDeckSelectionClasses();
         }
         if (e.target.isContentEditable && !e.altKey) {
-          if (
-            obj.type === "heading" &&
-            presentationTool !== "connect"
-          ) {
-            beginHeadingTextDragOrEdit(e, (ev) =>
-              startPresentationObjectDrag(ev, obj, el),
-            );
-            return;
-          }
           return;
         }
         startPresentationObjectDrag(e, obj, el);
@@ -6557,7 +6573,7 @@ function createNodeEl(nd) {
   const nodeTitle = nd.customTitle ?? labels[nd.type] ?? nd.type;
   const fileLinkHref = getFileNodeLinkHref(nd);
   const fileLinkLabel = getFileNodeLinkLabel(nd);
-  const isSharedNoteNode = isUnifiedTextNoteType(nd.type);
+  const isSharedNoteNode = usesUnifiedNoteObjectBehavior(nd.type);
   const nodeHandleMarkup =
     nd.type === "heading"
       ? `
@@ -6589,12 +6605,17 @@ function createNodeEl(nd) {
     bindUnifiedNoteObjectBehavior({
       el,
       type: nd.type,
+      contentEditableDragMode:
+        nd.type === "heading" ? "deferHeading" : "default",
+      beforeDeferHeadingDrag:
+        nd.type === "heading" ? (e) => currentTool === "connect" : null,
       onCommit: (text) => {
         nd.text = text;
         autosave();
       },
       onLabelCommit: (label) => {
-        nd.customTitle = label;
+        nd.customTitle =
+          nd.type === "heading" ? label || "Heading" : label;
         autosave();
       },
       onPointerDown: (e) => {
@@ -6670,14 +6691,6 @@ function createNodeEl(nd) {
       )
         return;
       if (e.target.isContentEditable && !e.altKey) {
-        if (nd.type === "heading") {
-          if (currentTool !== "connect") {
-            beginHeadingTextDragOrEdit(e, (ev) =>
-              canvasNodeDragFromPointer(nd, el, ev),
-            );
-          }
-          return;
-        }
         return;
       }
       if (currentTool === "connect") return;
