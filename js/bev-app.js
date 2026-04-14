@@ -4474,7 +4474,12 @@ function startPresentationItemDrag(e, item, el) {
 }
 
 function startPresentationObjectDrag(e, obj, el) {
-  if (!currentPresentation || e.button !== 0) return;
+  if (!currentPresentation) return;
+  if (e.button > 0) return;
+  // Heading defer-drag calls this from mousemove/pointermove; then button is often -1 but primary is still held (buttons & 1).
+  const primaryHeld =
+    e.button === 0 || ((e.buttons & 1) === 1 && e.button <= 0);
+  if (!primaryHeld) return;
   const canvas = document.getElementById("presentation-canvas");
   if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
