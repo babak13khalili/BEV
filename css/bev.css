@@ -2932,6 +2932,9 @@ textarea,
   user-select: none;
   touch-action: none;
 }
+.presentation-object.dragging {
+  cursor: grabbing;
+}
 .presentation-object:hover .overview-resize-handle,
 .presentation-object:hover .node-resize-handle {
   opacity: 1;
