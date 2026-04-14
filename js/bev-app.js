@@ -3269,6 +3269,107 @@ function bindSharedTextObjectEditor(target, type, onCommit) {
   });
 }
 
+/** Heading body is contenteditable: click edits; movement past threshold starts a drag. */
+const HEADING_DRAG_THRESHOLD_PX = 6;
+function beginHeadingTextDragOrEdit(downEvent, onDragStart) {
+  if (downEvent.altKey) return false;
+  const sx = downEvent.clientX;
+  const sy = downEvent.clientY;
+  let armed = true;
+  const disarm = () => {
+    if (!armed) return;
+    armed = false;
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("pointermove", onMove);
+ };
+  const onMove = (ev) => {
+    if (!armed) return;
+    if (
+      Math.hypot(ev.clientX - sx, ev.clientY - sy) < HEADING_DRAG_THRESHOLD_PX
+    )
+      return;
+    disarm();
+    document.activeElement?.blur?.();
+    onDragStart(ev);
+  };
+  const onUp = () => {
+    disarm();
+  };
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("mouseup", onUp, { once: true });
+  window.addEventListener("pointerup", onUp, { once: true });
+  window.addEventListener("pointercancel", onUp, { once: true });
+  return true;
+}
+
+function dashboardOverviewItemDragFromPointer(item, el, e) {
+  e.stopPropagation();
+  setOverviewSelection(
+    { type: "item", id: item.id },
+    e.shiftKey || selectedOverviewItemIds.has(item.id),
+  );
+  if (e.altKey && duplicateDashboardSelectionForDrag(e)) return;
+  overviewDragItemId = item.id;
+  const dcrect = document
+    .getElementById("dashboard-canvas")
+    .getBoundingClientRect();
+  overviewDragOffset = {
+    x:
+      (e.clientX - dcrect.left - dashboardViewOffset.x) / dashboardScale -
+      item.x,
+    y:
+      (e.clientY - dcrect.top - dashboardViewOffset.y) / dashboardScale -
+      item.y,
+  };
+  if (
+    selectedOverviewItemIds.has(item.id) &&
+    selectedProjectIds.size + selectedOverviewItemIds.size > 1
+  ) {
+    beginDashboardGroupDrag(e);
+  }
+}
+
+function canvasNodeDragFromPointer(nd, el, e) {
+  if (currentTool === "connect") return;
+  e.stopPropagation();
+  if (e.altKey) {
+    selectNode(nd.id, e.shiftKey || selectedNodeIds.has(nd.id));
+    if (duplicateCanvasSelectionForDrag()) {
+      isDragging = false;
+      nodeGroupDragIds = [...selectedNodeIds]
+        .map((id) => {
+          const node = nodes.find((n) => n.id === id);
+          return node
+            ? { id: node.id, startX: node.x, startY: node.y }
+            : null;
+        })
+        .filter(Boolean);
+      const wp = s2w(e.clientX, e.clientY);
+      nodeGroupDragStart = { x: wp.x, y: wp.y };
+      return;
+    }
+  }
+  selectNode(nd.id, e.shiftKey || selectedNodeIds.has(nd.id));
+  isDragging = true;
+  if (selectedNodeIds.has(nd.id) && selectedNodeIds.size > 1) {
+    isDragging = false;
+    nodeGroupDragIds = [...selectedNodeIds]
+      .map((id) => {
+        const node = nodes.find((n) => n.id === id);
+        return node
+          ? { id: node.id, startX: node.x, startY: node.y }
+          : null;
+      })
+      .filter(Boolean);
+    const wp = s2w(e.clientX, e.clientY);
+    nodeGroupDragStart = { x: wp.x, y: wp.y };
+    return;
+  }
+  const wp = s2w(e.clientX, e.clientY);
+  dragOffset = { x: wp.x - nd.x, y: wp.y - nd.y };
+}
+
 function syncImageFileNodeSize(nd, el) {
   if (
     !nd ||
@@ -4095,7 +4196,18 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
           selectedPresentationObjectIds.add(String(obj.id));
           applyPresentationDeckSelectionClasses();
         }
-        if (e.target.isContentEditable && !e.altKey) return;
+        if (e.target.isContentEditable && !e.altKey) {
+          if (
+            obj.type === "heading" &&
+            presentationTool !== "connect"
+          ) {
+            beginHeadingTextDragOrEdit(e, (ev) =>
+              startPresentationObjectDrag(ev, obj, el),
+            );
+            return;
+          }
+          return;
+        }
         startPresentationObjectDrag(e, obj, el);
       });
     }
@@ -5243,38 +5355,16 @@ function createOverviewItemEl(item) {
       e.target.closest(".node-settings")
     )
       return;
-    if (e.target.hasAttribute("contenteditable") && !e.altKey) return;
-    e.stopPropagation();
-    setOverviewSelection(
-      { type: "item", id: item.id },
-      e.shiftKey || selectedOverviewItemIds.has(item.id),
-    );
-    if (e.altKey && duplicateDashboardSelectionForDrag(e)) return;
-    overviewDragItemId = item.id;
-    overviewDragOffset = {
-      x:
-        (e.clientX -
-          document
-            .getElementById("dashboard-canvas")
-            .getBoundingClientRect().left -
-          dashboardViewOffset.x) /
-          dashboardScale -
-        item.x,
-      y:
-        (e.clientY -
-          document
-            .getElementById("dashboard-canvas")
-            .getBoundingClientRect().top -
-          dashboardViewOffset.y) /
-          dashboardScale -
-        item.y,
-    };
-    if (
-      selectedOverviewItemIds.has(item.id) &&
-      selectedProjectIds.size + selectedOverviewItemIds.size > 1
-    ) {
-      beginDashboardGroupDrag(e);
+    if (e.target.hasAttribute("contenteditable") && !e.altKey) {
+      if (item.type === "heading") {
+        beginHeadingTextDragOrEdit(e, (ev) =>
+          dashboardOverviewItemDragFromPointer(item, el, ev),
+        );
+        return;
+      }
+      return;
     }
+    dashboardOverviewItemDragFromPointer(item, el, e);
   });
   if (item.type === "category") {
     el.querySelector(".overview-category-picker")?.addEventListener(
@@ -6576,47 +6666,22 @@ function createNodeEl(nd) {
       if (
         e.target.tagName === "INPUT" ||
         e.target.tagName === "TEXTAREA" ||
-        e.target.tagName === "A" ||
-        (e.target.isContentEditable && !e.altKey)
+        e.target.tagName === "A"
       )
         return;
-      if (currentTool === "connect") return;
-      e.stopPropagation();
-      if (e.altKey) {
-        selectNode(nd.id, e.shiftKey || selectedNodeIds.has(nd.id));
-        if (duplicateCanvasSelectionForDrag()) {
-          isDragging = false;
-          nodeGroupDragIds = [...selectedNodeIds]
-            .map((id) => {
-              const node = nodes.find((n) => n.id === id);
-              return node
-                ? { id: node.id, startX: node.x, startY: node.y }
-                : null;
-            })
-            .filter(Boolean);
-          const wp = s2w(e.clientX, e.clientY);
-          nodeGroupDragStart = { x: wp.x, y: wp.y };
+      if (e.target.isContentEditable && !e.altKey) {
+        if (nd.type === "heading") {
+          if (currentTool !== "connect") {
+            beginHeadingTextDragOrEdit(e, (ev) =>
+              canvasNodeDragFromPointer(nd, el, ev),
+            );
+          }
           return;
         }
-      }
-      selectNode(nd.id, e.shiftKey || selectedNodeIds.has(nd.id));
-      isDragging = true;
-      if (selectedNodeIds.has(nd.id) && selectedNodeIds.size > 1) {
-        isDragging = false;
-        nodeGroupDragIds = [...selectedNodeIds]
-          .map((id) => {
-            const node = nodes.find((n) => n.id === id);
-            return node
-              ? { id: node.id, startX: node.x, startY: node.y }
-              : null;
-          })
-          .filter(Boolean);
-        const wp = s2w(e.clientX, e.clientY);
-        nodeGroupDragStart = { x: wp.x, y: wp.y };
         return;
       }
-      const wp = s2w(e.clientX, e.clientY);
-      dragOffset = { x: wp.x - nd.x, y: wp.y - nd.y };
+      if (currentTool === "connect") return;
+      canvasNodeDragFromPointer(nd, el, e);
     });
   }
   if (nd.type === "line") {
