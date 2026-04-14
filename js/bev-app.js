@@ -4021,12 +4021,16 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
       }
     }
   } else {
-    el.innerHTML = renderSharedTextObjectHTML(
+    el.innerHTML = `${
+      viewer
+        ? ""
+        : `<div class="presentation-heading-drag" title="Drag to move (Alt-drag on text also moves)" aria-hidden="true"></div>`
+    }${renderSharedTextObjectHTML(
       obj.type,
       obj.text || "Heading",
       "content",
       { readOnly: viewer },
-    );
+    )}`;
     if (!viewer) {
       el.insertAdjacentHTML(
         "beforeend",
