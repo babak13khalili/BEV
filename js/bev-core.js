@@ -117,14 +117,15 @@
   }
 
   /**
-   * Heading body text scales with the box (reference box ≈ 280×56 at 28px).
-   * @returns {number|null} clamped font-size in px, or null to use CSS default
+   * Heading text scales like a vector shape with the bbox (ref 280×56 → 28px).
+   * No upper cap so titles can grow very large; tiny floor for sub-pixel sizes.
+   * @returns {number|null} font-size in px, or null for CSS default
    */
   function headingContentFontSizePx(w, h) {
     let rw = Number(w);
     let rh = Number(h);
-    const wOk = Number.isFinite(rw) && rw >= 8;
-    const hOk = Number.isFinite(rh) && rh >= 8;
+    const wOk = Number.isFinite(rw) && rw >= 4;
+    const hOk = Number.isFinite(rh) && rh >= 4;
     if (!wOk && !hOk) return null;
     const HEADING_TEXT_BASE_PX = 28;
     const HEADING_TEXT_REF_W = 280;
@@ -134,8 +135,8 @@
     const sw = rw / HEADING_TEXT_REF_W;
     const sh = rh / HEADING_TEXT_REF_H;
     const scale = Math.min(sw, sh);
-    const px = Math.round(HEADING_TEXT_BASE_PX * scale * 10) / 10;
-    return Math.max(10, Math.min(120, px));
+    const px = Math.round(HEADING_TEXT_BASE_PX * scale * 1000) / 1000;
+    return Math.max(0.35, px);
   }
 
   /** Sets --heading-text-size on a `.node-heading` element from pixel width/height. */

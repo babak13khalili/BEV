@@ -24,6 +24,10 @@ const {
 } = BEVCore;
 const isMobileViewport = bevIsMobileViewport;
 
+/** Minimum heading bbox (px); scale is shape-like, not tied to text metrics. */
+const HEADING_BBOX_MIN_W = 12;
+const HEADING_BBOX_MIN_H = 10;
+
 // ===================== FIREBASE STATE =====================
 let fbApp = null,
   fbAuth = null,
@@ -4853,18 +4857,9 @@ function getOverviewItemMinSize(item, el) {
     };
   }
   if (item.type === "heading") {
-    const content = el?.querySelector(".node-content");
-    const text = content?.textContent || item.text || "";
-    const rectW = content?.getBoundingClientRect()?.width;
-    const estimatedWidth = estimateTextMinWidth(text, {
-      min: 24,
-      max: 640,
-      base: 24,
-      charWidth: 10,
-    });
     return {
-      w: Math.max(160, Math.ceil(rectW || estimatedWidth)),
-      h: Math.max(84, Math.ceil((content?.scrollHeight || 0) + 46)),
+      w: HEADING_BBOX_MIN_W,
+      h: HEADING_BBOX_MIN_H,
     };
   }
   if (item.type === "frame") {
@@ -6029,6 +6024,7 @@ function setupDashboardEvents() {
       const dx = (e.clientX - overviewResizeStart.x) / dashboardScale,
         dy = (e.clientY - overviewResizeStart.y) / dashboardScale;
       const dir = overviewResizeStart.dir;
+      const isOvHeading = item.type === "heading";
       let { w, h, x, y } = applyDirectionalRectResize(
         dx,
         dy,
@@ -6037,12 +6033,14 @@ function setupDashboardEvents() {
         overviewResizeStart.h,
         overviewResizeStart.startX,
         overviewResizeStart.startY,
-        160,
-        100,
+        isOvHeading ? HEADING_BBOX_MIN_W : 160,
+        isOvHeading ? HEADING_BBOX_MIN_H : 100,
       );
-      const min = getOverviewItemMinSize(item, el);
-      w = Math.max(w, min.w || 0);
-      h = Math.max(h, min.h || 0);
+      if (!isOvHeading) {
+        const min = getOverviewItemMinSize(item, el);
+        w = Math.max(w, min.w || 0);
+        h = Math.max(h, min.h || 0);
+      }
       ({ x, y } = adjustResizeOriginAfterContentMin(
         dir,
         overviewResizeStart.startX,
@@ -6917,24 +6915,9 @@ function getNodeMinSize(nd, el) {
   const body = el?.querySelector(".node-body");
   const bodyHeight = body?.scrollHeight || 0;
   if (nd.type === "heading") {
-    const contentEl = body?.querySelector(".node-content");
-    const contentRect = contentEl?.getBoundingClientRect();
-    const text = body?.querySelector(".node-content")?.textContent || nd.text || "";
-    const estimatedWidth = estimateTextMinWidth(text, {
-      min: 24,
-      max: 640,
-      base: 24,
-      charWidth: 10,
-    });
     return {
-      w: Math.max(
-        24,
-        Math.ceil(contentRect?.width || estimatedWidth),
-      ),
-      h: Math.max(
-        22,
-        Math.ceil(contentRect?.height || bodyHeight || 22),
-      ),
+      w: HEADING_BBOX_MIN_W,
+      h: HEADING_BBOX_MIN_H,
     };
   }
   if (nd.type === "line") {
@@ -8374,7 +8357,13 @@ function setupPresentationEvents() {
         const dx = (e.clientX - presentationResizeStart.x) / sc;
         const dy = (e.clientY - presentationResizeStart.y) / sc;
         const dir = presentationResizeStart.dir;
-        const minH = obj.type === "frame" ? 140 : 84;
+        const isPresH = obj.type === "heading";
+        const minPresW = isPresH ? HEADING_BBOX_MIN_W : 180;
+        const minPresH = isPresH
+          ? HEADING_BBOX_MIN_H
+          : obj.type === "frame"
+            ? 140
+            : 84;
         let { w, h, x, y } = applyDirectionalRectResize(
           dx,
           dy,
@@ -8383,8 +8372,8 @@ function setupPresentationEvents() {
           presentationResizeStart.h,
           presentationResizeStart.startX,
           presentationResizeStart.startY,
-          180,
-          minH,
+          minPresW,
+          minPresH,
         );
         obj.w = w;
         obj.h = h;
@@ -8672,6 +8661,7 @@ function setupCanvasEvents() {
         const dx = (e.clientX - nodeResizeStart.x) / viewScale,
           dy = (e.clientY - nodeResizeStart.y) / viewScale;
         const dir = nodeResizeStart.dir;
+        const isHeading = nd.type === "heading";
         let { w, h, x, y } = applyDirectionalRectResize(
           dx,
           dy,
@@ -8680,12 +8670,14 @@ function setupCanvasEvents() {
           nodeResizeStart.h,
           nodeResizeStart.startX,
           nodeResizeStart.startY,
-          140,
-          70,
+          isHeading ? HEADING_BBOX_MIN_W : 140,
+          isHeading ? HEADING_BBOX_MIN_H : 70,
         );
-        const min = getNodeMinSize(nd, el);
-        w = Math.max(w, min.w);
-        h = Math.max(h, min.h);
+        if (!isHeading) {
+          const min = getNodeMinSize(nd, el);
+          w = Math.max(w, min.w);
+          h = Math.max(h, min.h);
+        }
         ({ x, y } = adjustResizeOriginAfterContentMin(
           dir,
           nodeResizeStart.startX,

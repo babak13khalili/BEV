@@ -1800,6 +1800,83 @@ textarea,
 .node.node-heading.multi-selected::after {
   display: none;
 }
+/* Resize anchors on exact bbox corners (vector-shape style) */
+.node.node-heading .node-resize-handle {
+  z-index: 8;
+}
+.node.node-heading .node-resize-handle.resize-tl {
+  left: 0;
+  top: 0;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+}
+.node.node-heading .node-resize-handle.resize-tr {
+  right: 0;
+  top: 0;
+  left: auto;
+  bottom: auto;
+  transform: translate(50%, -50%);
+}
+.node.node-heading .node-resize-handle.resize-bl {
+  left: 0;
+  bottom: 0;
+  right: auto;
+  top: auto;
+  transform: translate(-50%, 50%);
+}
+.node.node-heading .node-resize-handle.resize-br {
+  right: 0;
+  bottom: 0;
+  left: auto;
+  top: auto;
+  transform: translate(50%, 50%);
+}
+.node.node-heading .node-resize-handle::before {
+  left: 50%;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  width: 5px;
+  height: 5px;
+  border: none;
+  background: var(--text);
+  opacity: 0.92;
+  border-radius: 0.5px;
+}
+/* Link anchors exactly on edge midpoints (same bbox as resize corners) */
+.node.node-heading .conn-handle[data-pos="top"] {
+  top: 0;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+}
+.node.node-heading .conn-handle[data-pos="bottom"] {
+  bottom: 0;
+  left: 50%;
+  right: auto;
+  top: auto;
+  transform: translate(-50%, 50%);
+}
+.node.node-heading .conn-handle[data-pos="left"] {
+  left: 0;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+}
+.node.node-heading .conn-handle[data-pos="right"] {
+  right: 0;
+  top: 50%;
+  left: auto;
+  bottom: auto;
+  transform: translate(50%, -50%);
+}
+.node.node-heading .conn-handle {
+  z-index: 11;
+}
 .node.node-line {
   min-width: 0;
   min-height: 0;
