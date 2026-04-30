@@ -116,6 +116,39 @@
     return { id, type, x, y, text: "Quick note" };
   }
 
+  /**
+   * Heading body text scales with the box (reference box ≈ 280×56 at 28px).
+   * @returns {number|null} clamped font-size in px, or null to use CSS default
+   */
+  function headingContentFontSizePx(w, h) {
+    let rw = Number(w);
+    let rh = Number(h);
+    const wOk = Number.isFinite(rw) && rw >= 8;
+    const hOk = Number.isFinite(rh) && rh >= 8;
+    if (!wOk && !hOk) return null;
+    const HEADING_TEXT_BASE_PX = 28;
+    const HEADING_TEXT_REF_W = 280;
+    const HEADING_TEXT_REF_H = 56;
+    if (!wOk) rw = HEADING_TEXT_REF_W;
+    if (!hOk) rh = HEADING_TEXT_REF_H;
+    const sw = rw / HEADING_TEXT_REF_W;
+    const sh = rh / HEADING_TEXT_REF_H;
+    const scale = Math.min(sw, sh);
+    const px = Math.round(HEADING_TEXT_BASE_PX * scale * 10) / 10;
+    return Math.max(10, Math.min(120, px));
+  }
+
+  /** Sets --heading-text-size on a `.node-heading` element from pixel width/height. */
+  function applyHeadingTextScaleToEl(el, w, h) {
+    if (!el || !el.classList.contains("node-heading")) return;
+    const px = headingContentFontSizePx(w, h);
+    if (px == null) {
+      el.style.removeProperty("--heading-text-size");
+      return;
+    }
+    el.style.setProperty("--heading-text-size", `${px}px`);
+  }
+
   function escapeHTML(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -868,5 +901,7 @@ ${embedTopbar}
     renderNodeContentHTML,
     buildNodeShell,
     buildReadonlyNodeShell,
+    headingContentFontSizePx,
+    applyHeadingTextScaleToEl,
   };
 })(typeof window !== "undefined" ? window : globalThis);

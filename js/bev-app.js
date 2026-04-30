@@ -20,6 +20,7 @@ const {
   DEFAULT_SPATIAL_SCALE_RANGE,
   renderNodeContentHTML,
   buildNodeShell,
+  applyHeadingTextScaleToEl,
 } = BEVCore;
 const isMobileViewport = bevIsMobileViewport;
 
@@ -3173,6 +3174,61 @@ function renderSharedTextNoteShellHTML({
     <div class="node-body">${renderSharedTextObjectHTML(type, text, contentClassName, { readOnly })}</div>${settingsHTML}`;
 }
 
+/** Corner drag handles shared by canvas nodes, dashboard items, and presentation objects. */
+const NODE_RESIZE_CORNER_HANDLES_HTML = `<div class="node-resize-handle resize-tl" data-dir="tl"></div><div class="node-resize-handle resize-tr" data-dir="tr"></div><div class="node-resize-handle resize-bl" data-dir="bl"></div><div class="node-resize-handle resize-br" data-dir="br"></div>`;
+
+/** Corner handles for frame-style objects (dashboard + presentation). */
+const OVERVIEW_RESIZE_CORNER_HANDLES_HTML = `<div class="overview-resize-handle resize-tl" data-dir="tl"></div><div class="overview-resize-handle resize-tr" data-dir="tr"></div><div class="overview-resize-handle resize-bl" data-dir="bl"></div><div class="overview-resize-handle resize-br" data-dir="br"></div>`;
+
+/**
+ * Apply pointer delta to a box when resizing from corners/edges (world space).
+ * @returns {{ w: number, h: number, x: number, y: number }}
+ */
+function applyDirectionalRectResize(
+  dx,
+  dy,
+  dir,
+  startW,
+  startH,
+  startX,
+  startY,
+  minW,
+  minH,
+) {
+  let w = startW;
+  let h = startH;
+  let x = startX;
+  let y = startY;
+  if (dir.includes("r")) w = Math.max(minW, Math.round(startW + dx));
+  if (dir.includes("l")) {
+    w = Math.max(minW, Math.round(startW - dx));
+    x = Math.round(startX + (startW - w));
+  }
+  if (dir.includes("b")) h = Math.max(minH, Math.round(startH + dy));
+  if (dir.includes("t")) {
+    h = Math.max(minH, Math.round(startH - dy));
+    y = Math.round(startY + (startH - h));
+  }
+  return { w, h, x, y };
+}
+
+/** After w/h grow from content minimums, fix x/y for left/top handles. */
+function adjustResizeOriginAfterContentMin(
+  dir,
+  startX,
+  startY,
+  startW,
+  startH,
+  w,
+  h,
+) {
+  let x = startX;
+  let y = startY;
+  if (dir.includes("l")) x = Math.round(startX + (startW - w));
+  if (dir.includes("t")) y = Math.round(startY + (startH - h));
+  return { x, y };
+}
+
 function focusSharedNoteEditor(el) {
   const content = el?.querySelector(".content") || el?.querySelector(".node-content");
   if (!content) return;
@@ -3543,6 +3599,8 @@ function renderDashboard() {
     const el = createOverviewItemEl(item);
     world.appendChild(el);
     enforceOverviewItemMinSize(item, el);
+    if (item.type === "heading")
+      applyHeadingTextScaleToEl(el, item.w, item.h);
   });
   visibleProjects.forEach((p) => {
     const nc = p.nodes ? p.nodes.length : 0,
@@ -4081,10 +4139,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
       ${
         viewer
           ? ""
-          : `<div class="overview-resize-handle resize-tl" data-dir="tl"></div>
-      <div class="overview-resize-handle resize-tr" data-dir="tr"></div>
-      <div class="overview-resize-handle resize-bl" data-dir="bl"></div>
-      <div class="overview-resize-handle resize-br" data-dir="br"></div>${presentationSpatialHandlesInnerHTML(obj.id)}`
+          : `${OVERVIEW_RESIZE_CORNER_HANDLES_HTML}${presentationSpatialHandlesInnerHTML(obj.id)}`
       }`;
     el.style.width = `${obj.w || 260}px`;
     el.style.height = `${obj.h || 180}px`;
@@ -4108,12 +4163,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
     const presDelBtn = viewer
       ? ""
       : `<button class="node-act-btn" type="button" onclick="requestDeletePresentationObject('${obj.id}')">✕</button>`;
-    const presCornerResize = viewer
-      ? ""
-      : `<div class="node-resize-handle resize-tl" data-dir="tl"></div>
-      <div class="node-resize-handle resize-tr" data-dir="tr"></div>
-      <div class="node-resize-handle resize-bl" data-dir="bl"></div>
-      <div class="node-resize-handle resize-br" data-dir="br"></div>`;
+    const presCornerResize = viewer ? "" : NODE_RESIZE_CORNER_HANDLES_HTML;
     el.innerHTML = isHeading
       ? buildNodeShell(obj, {
           editable: !viewer,
@@ -4136,12 +4186,10 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
         }) +
         (viewer
           ? ""
-          : `<div class="node-resize-handle resize-tl" data-dir="tl"></div>
-      <div class="node-resize-handle resize-tr" data-dir="tr"></div>
-      <div class="node-resize-handle resize-bl" data-dir="bl"></div>
-      <div class="node-resize-handle resize-br" data-dir="br"></div>${presentationSpatialHandlesInnerHTML(obj.id)}`);
+          : `${NODE_RESIZE_CORNER_HANDLES_HTML}${presentationSpatialHandlesInnerHTML(obj.id)}`);
     if (obj.w) el.style.width = `${obj.w}px`;
     if (obj.h) el.style.height = `${obj.h}px`;
+    if (isHeading) applyHeadingTextScaleToEl(el, obj.w, obj.h);
     if (!viewer) {
       bindUnifiedNoteObjectBehavior({
         el,
@@ -4165,11 +4213,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
         onResizeStart: (e, dir) =>
           startPresentationObjectResize(e, obj, dir, el),
       });
-      const presUnifiedSelN = presentationDeckSelectionCount();
-      if (selectedPresentationObjectIds.has(String(obj.id))) {
-        el.classList.toggle("selected", presUnifiedSelN === 1);
-        el.classList.toggle("multi-selected", presUnifiedSelN > 1);
-      }
+      syncPresentationObjectDeckSelectionClasses(el, obj.id);
     }
   }
 
@@ -4184,11 +4228,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
         requestDeletePresentationObject(obj.id);
       });
       el.appendChild(delBtn);
-      const presObjSelN = presentationDeckSelectionCount();
-      if (selectedPresentationObjectIds.has(String(obj.id))) {
-        el.classList.toggle("selected", presObjSelN === 1);
-        el.classList.toggle("multi-selected", presObjSelN > 1);
-      }
+      syncPresentationObjectDeckSelectionClasses(el, obj.id);
       el.addEventListener("mousedown", (e) => {
         if (
           e.target.closest(".node-resize-handle") ||
@@ -5254,7 +5294,7 @@ function createOverviewItemEl(item) {
     el.style.width = (item.w || 220) + "px";
   } else if (item.type === "frame") {
     el.innerHTML = `${renderSharedTextObjectHTML(item.type, item.text || "Group")}
-    <div class="overview-resize-handle resize-tl" data-dir="tl"></div><div class="overview-resize-handle resize-tr" data-dir="tr"></div><div class="overview-resize-handle resize-bl" data-dir="bl"></div><div class="overview-resize-handle resize-br" data-dir="br"></div>`;
+    ${OVERVIEW_RESIZE_CORNER_HANDLES_HTML}`;
     el.style.width = (item.w || 260) + "px";
     el.style.height = (item.h || 180) + "px";
     bindSharedTextObjectEditor(el.querySelector(".content"), item.type, (text) => {
@@ -5319,8 +5359,7 @@ function createOverviewItemEl(item) {
         contentClassName: "content node-content",
         actionsHTML: `<button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" type="button" onclick="requestDeleteOverviewItemById('${item.id}')">✕</button>`,
         settingsHTML: `<div class="node-settings"><div class="node-settings-empty">No extra settings</div></div>`,
-      }) +
-      `<div class="node-resize-handle resize-tl" data-dir="tl"></div><div class="node-resize-handle resize-tr" data-dir="tr"></div><div class="node-resize-handle resize-bl" data-dir="bl"></div><div class="node-resize-handle resize-br" data-dir="br"></div>`;
+      }) + NODE_RESIZE_CORNER_HANDLES_HTML;
     if (usesUnifiedNoteObjectBehavior(item.type)) {
       if (item.w) el.style.width = item.w + "px";
       if (item.h) el.style.height = item.h + "px";
@@ -5990,33 +6029,30 @@ function setupDashboardEvents() {
       if (!item || !el) return;
       const dx = (e.clientX - overviewResizeStart.x) / dashboardScale,
         dy = (e.clientY - overviewResizeStart.y) / dashboardScale;
-      let w = overviewResizeStart.w,
-        h = overviewResizeStart.h,
-        x = overviewResizeStart.startX,
-        y = overviewResizeStart.startY;
-      if (overviewResizeStart.dir.includes("r"))
-        w = Math.max(160, Math.round(overviewResizeStart.w + dx));
-      if (overviewResizeStart.dir.includes("l")) {
-        w = Math.max(160, Math.round(overviewResizeStart.w - dx));
-        x = Math.round(
-          overviewResizeStart.startX + (overviewResizeStart.w - w),
-        );
-      }
-      if (overviewResizeStart.dir.includes("b"))
-        h = Math.max(100, Math.round(overviewResizeStart.h + dy));
-      if (overviewResizeStart.dir.includes("t")) {
-        h = Math.max(100, Math.round(overviewResizeStart.h - dy));
-        y = Math.round(
-          overviewResizeStart.startY + (overviewResizeStart.h - h),
-        );
-      }
+      const dir = overviewResizeStart.dir;
+      let { w, h, x, y } = applyDirectionalRectResize(
+        dx,
+        dy,
+        dir,
+        overviewResizeStart.w,
+        overviewResizeStart.h,
+        overviewResizeStart.startX,
+        overviewResizeStart.startY,
+        160,
+        100,
+      );
       const min = getOverviewItemMinSize(item, el);
       w = Math.max(w, min.w || 0);
       h = Math.max(h, min.h || 0);
-      if (overviewResizeStart.dir.includes("l"))
-        x = Math.round(overviewResizeStart.startX + (overviewResizeStart.w - w));
-      if (overviewResizeStart.dir.includes("t"))
-        y = Math.round(overviewResizeStart.startY + (overviewResizeStart.h - h));
+      ({ x, y } = adjustResizeOriginAfterContentMin(
+        dir,
+        overviewResizeStart.startX,
+        overviewResizeStart.startY,
+        overviewResizeStart.w,
+        overviewResizeStart.h,
+        w,
+        h,
+      ));
       item.w = w;
       item.h = h;
       item.x = x;
@@ -6025,6 +6061,8 @@ function setupDashboardEvents() {
       el.style.top = item.y + "px";
       el.style.width = item.w + "px";
       el.style.height = item.h + "px";
+      if (item.type === "heading")
+        applyHeadingTextScaleToEl(el, item.w, item.h);
       return;
     }
     if (dashboardResizeProjectId) {
@@ -6035,49 +6073,30 @@ function setupDashboardEvents() {
       if (!p || !el) return;
       const dx = (e.clientX - dashboardResizeStart.x) / dashboardScale,
         dy = (e.clientY - dashboardResizeStart.y) / dashboardScale;
-      let w = dashboardResizeStart.w,
-        h = dashboardResizeStart.h,
-        x = dashboardResizeStart.startX,
-        y = dashboardResizeStart.startY;
-      if (dashboardResizeStart.dir.includes("r"))
-        w = Math.max(
-          DEFAULT_PROJECT_CARD_WIDTH,
-          Math.round(dashboardResizeStart.w + dx),
-        );
-      if (dashboardResizeStart.dir.includes("l")) {
-        w = Math.max(
-          DEFAULT_PROJECT_CARD_WIDTH,
-          Math.round(dashboardResizeStart.w - dx),
-        );
-        x = Math.round(
-          dashboardResizeStart.startX + (dashboardResizeStart.w - w),
-        );
-      }
-      if (dashboardResizeStart.dir.includes("b"))
-        h = Math.max(
-          DEFAULT_PROJECT_CARD_HEIGHT,
-          Math.round(dashboardResizeStart.h + dy),
-        );
-      if (dashboardResizeStart.dir.includes("t")) {
-        h = Math.max(
-          DEFAULT_PROJECT_CARD_HEIGHT,
-          Math.round(dashboardResizeStart.h - dy),
-        );
-        y = Math.round(
-          dashboardResizeStart.startY + (dashboardResizeStart.h - h),
-        );
-      }
+      const dir = dashboardResizeStart.dir;
+      let { w, h, x, y } = applyDirectionalRectResize(
+        dx,
+        dy,
+        dir,
+        dashboardResizeStart.w,
+        dashboardResizeStart.h,
+        dashboardResizeStart.startX,
+        dashboardResizeStart.startY,
+        DEFAULT_PROJECT_CARD_WIDTH,
+        DEFAULT_PROJECT_CARD_HEIGHT,
+      );
       const min = getProjectMinSize(p);
       w = Math.max(w, min.w);
       h = Math.max(h, min.h);
-      if (dashboardResizeStart.dir.includes("l"))
-        x = Math.round(
-          dashboardResizeStart.startX + (dashboardResizeStart.w - w),
-        );
-      if (dashboardResizeStart.dir.includes("t"))
-        y = Math.round(
-          dashboardResizeStart.startY + (dashboardResizeStart.h - h),
-        );
+      ({ x, y } = adjustResizeOriginAfterContentMin(
+        dir,
+        dashboardResizeStart.startX,
+        dashboardResizeStart.startY,
+        dashboardResizeStart.w,
+        dashboardResizeStart.h,
+        w,
+        h,
+      ));
       p.w = w;
       p.h = h;
       p.x = x;
@@ -6546,6 +6565,8 @@ function renderNodes() {
     document.getElementById("canvas-world").appendChild(el);
     enforceNodeMinSize(nd, el);
     syncImageFileNodeSize(nd, el);
+    if (nd.type === "heading")
+      applyHeadingTextScaleToEl(el, nd.w, nd.h);
   });
 }
 
@@ -6610,10 +6631,7 @@ function createNodeEl(nd) {
     <div class="conn-handle" data-node="${nd.id}" data-pos="bottom"></div>
     <div class="conn-handle" data-node="${nd.id}" data-pos="left"></div>
     <div class="conn-handle" data-node="${nd.id}" data-pos="right"></div>
-    <div class="node-resize-handle resize-tl" data-dir="tl"></div>
-    <div class="node-resize-handle resize-tr" data-dir="tr"></div>
-    <div class="node-resize-handle resize-bl" data-dir="bl"></div>
-    <div class="node-resize-handle resize-br" data-dir="br"></div>`;
+    ${NODE_RESIZE_CORNER_HANDLES_HTML}`;
   el.innerHTML = `${buildNodeShell(nd, {
         editable: true,
         accent: currentProject?.color || "#333",
@@ -7758,6 +7776,14 @@ function presentationDeckSelectionCount() {
   );
 }
 
+/** Apply single/multi selection chrome to a deck object element when its id is selected. */
+function syncPresentationObjectDeckSelectionClasses(el, objectId) {
+  const n = presentationDeckSelectionCount();
+  if (!selectedPresentationObjectIds.has(String(objectId))) return;
+  el.classList.toggle("selected", n === 1);
+  el.classList.toggle("multi-selected", n > 1);
+}
+
 function applyPresentationDeckSelectionClasses() {
   const world = document.getElementById("presentation-world");
   if (!world) return;
@@ -8343,34 +8369,19 @@ function setupPresentationEvents() {
         if (!el || !obj || !presentationResizeStart) return;
         const dx = (e.clientX - presentationResizeStart.x) / sc;
         const dy = (e.clientY - presentationResizeStart.y) / sc;
-        let w = presentationResizeStart.w;
-        let h = presentationResizeStart.h;
-        let x = presentationResizeStart.startX;
-        let y = presentationResizeStart.startY;
-        if (presentationResizeStart.dir.includes("r"))
-          w = Math.max(180, Math.round(presentationResizeStart.w + dx));
-        if (presentationResizeStart.dir.includes("l")) {
-          w = Math.max(180, Math.round(presentationResizeStart.w - dx));
-          x = Math.round(
-            presentationResizeStart.startX +
-              (presentationResizeStart.w - w),
-          );
-        }
-        if (presentationResizeStart.dir.includes("b"))
-          h = Math.max(
-            obj.type === "frame" ? 140 : 84,
-            Math.round(presentationResizeStart.h + dy),
-          );
-        if (presentationResizeStart.dir.includes("t")) {
-          h = Math.max(
-            obj.type === "frame" ? 140 : 84,
-            Math.round(presentationResizeStart.h - dy),
-          );
-          y = Math.round(
-            presentationResizeStart.startY +
-              (presentationResizeStart.h - h),
-          );
-        }
+        const dir = presentationResizeStart.dir;
+        const minH = obj.type === "frame" ? 140 : 84;
+        let { w, h, x, y } = applyDirectionalRectResize(
+          dx,
+          dy,
+          dir,
+          presentationResizeStart.w,
+          presentationResizeStart.h,
+          presentationResizeStart.startX,
+          presentationResizeStart.startY,
+          180,
+          minH,
+        );
         obj.w = w;
         obj.h = h;
         obj.x = x;
@@ -8379,6 +8390,8 @@ function setupPresentationEvents() {
         el.style.height = `${h}px`;
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
+        if (obj.type === "heading")
+          applyHeadingTextScaleToEl(el, w, h);
         renderPresentationSpatialConnections();
         return;
       }
@@ -8396,53 +8409,29 @@ function setupPresentationEvents() {
         const dx = (e.clientX - presentationItemResizeStart.x) / sc;
         const dy = (e.clientY - presentationItemResizeStart.y) / sc;
         const dir = presentationItemResizeStart.dir;
-        let w = presentationItemResizeStart.w;
-        let h = presentationItemResizeStart.h;
-        let ix = presentationItemResizeStart.itemX;
-        let iy = presentationItemResizeStart.itemY;
-        if (dir.includes("r"))
-          w = Math.max(
-            DEFAULT_PROJECT_CARD_WIDTH,
-            Math.round(presentationItemResizeStart.w + dx),
-          );
-        if (dir.includes("l")) {
-          w = Math.max(
-            DEFAULT_PROJECT_CARD_WIDTH,
-            Math.round(presentationItemResizeStart.w - dx),
-          );
-          ix = Math.round(
-            presentationItemResizeStart.itemX +
-              (presentationItemResizeStart.w - w),
-          );
-        }
-        if (dir.includes("b"))
-          h = Math.max(
-            DEFAULT_PROJECT_CARD_HEIGHT,
-            Math.round(presentationItemResizeStart.h + dy),
-          );
-        if (dir.includes("t")) {
-          h = Math.max(
-            DEFAULT_PROJECT_CARD_HEIGHT,
-            Math.round(presentationItemResizeStart.h - dy),
-          );
-          iy = Math.round(
-            presentationItemResizeStart.itemY +
-              (presentationItemResizeStart.h - h),
-          );
-        }
+        let { w, h, x: ix, y: iy } = applyDirectionalRectResize(
+          dx,
+          dy,
+          dir,
+          presentationItemResizeStart.w,
+          presentationItemResizeStart.h,
+          presentationItemResizeStart.itemX,
+          presentationItemResizeStart.itemY,
+          DEFAULT_PROJECT_CARD_WIDTH,
+          DEFAULT_PROJECT_CARD_HEIGHT,
+        );
         const min = getProjectMinSize(project);
         w = Math.max(w, min.w);
         h = Math.max(h, min.h);
-        if (dir.includes("l"))
-          ix = Math.round(
-            presentationItemResizeStart.itemX +
-              (presentationItemResizeStart.w - w),
-          );
-        if (dir.includes("t"))
-          iy = Math.round(
-            presentationItemResizeStart.itemY +
-              (presentationItemResizeStart.h - h),
-          );
+        ({ x: ix, y: iy } = adjustResizeOriginAfterContentMin(
+          dir,
+          presentationItemResizeStart.itemX,
+          presentationItemResizeStart.itemY,
+          presentationItemResizeStart.w,
+          presentationItemResizeStart.h,
+          w,
+          h,
+        ));
         project.w = w;
         project.h = h;
         item.x = ix;
@@ -8678,33 +8667,30 @@ function setupCanvasEvents() {
       if (nd && el) {
         const dx = (e.clientX - nodeResizeStart.x) / viewScale,
           dy = (e.clientY - nodeResizeStart.y) / viewScale;
-        let w = nodeResizeStart.w,
-          h = nodeResizeStart.h,
-          x = nodeResizeStart.startX,
-          y = nodeResizeStart.startY;
-        if (nodeResizeStart.dir.includes("r"))
-          w = Math.max(140, Math.round(nodeResizeStart.w + dx));
-        if (nodeResizeStart.dir.includes("l")) {
-          w = Math.max(140, Math.round(nodeResizeStart.w - dx));
-          x = Math.round(
-            nodeResizeStart.startX + (nodeResizeStart.w - w),
-          );
-        }
-        if (nodeResizeStart.dir.includes("b"))
-          h = Math.max(70, Math.round(nodeResizeStart.h + dy));
-        if (nodeResizeStart.dir.includes("t")) {
-          h = Math.max(70, Math.round(nodeResizeStart.h - dy));
-          y = Math.round(
-            nodeResizeStart.startY + (nodeResizeStart.h - h),
-          );
-        }
+        const dir = nodeResizeStart.dir;
+        let { w, h, x, y } = applyDirectionalRectResize(
+          dx,
+          dy,
+          dir,
+          nodeResizeStart.w,
+          nodeResizeStart.h,
+          nodeResizeStart.startX,
+          nodeResizeStart.startY,
+          140,
+          70,
+        );
         const min = getNodeMinSize(nd, el);
         w = Math.max(w, min.w);
         h = Math.max(h, min.h);
-        if (nodeResizeStart.dir.includes("l"))
-          x = Math.round(nodeResizeStart.startX + (nodeResizeStart.w - w));
-        if (nodeResizeStart.dir.includes("t"))
-          y = Math.round(nodeResizeStart.startY + (nodeResizeStart.h - h));
+        ({ x, y } = adjustResizeOriginAfterContentMin(
+          dir,
+          nodeResizeStart.startX,
+          nodeResizeStart.startY,
+          nodeResizeStart.w,
+          nodeResizeStart.h,
+          w,
+          h,
+        ));
         if (nd.type === "file" && nd.fileKind === "image") {
           nd.manualImageSize = true;
         }
@@ -8716,6 +8702,8 @@ function setupCanvasEvents() {
         el.style.top = nd.y + "px";
         el.style.width = nd.w + "px";
         el.style.height = nd.h + "px";
+        if (nd.type === "heading")
+          applyHeadingTextScaleToEl(el, nd.w, nd.h);
         renderConnections();
       }
       return;

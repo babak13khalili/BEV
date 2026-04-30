@@ -539,6 +539,8 @@ function renderViewerDepthNode(nd, accent) {
       el.classList.add('is-image-file');
     }
     el.innerHTML = shell?.html || "";
+    if (t === 'heading')
+      B?.applyHeadingTextScaleToEl?.(el, w, h);
     return el;
   }
   el.style.width = `${nd.w || 200}px`;
@@ -703,6 +705,8 @@ function renderOverlayObject(obj) {
       <div class="node-body">
         <div class="shared-heading-text node-content" style="pointer-events:none">${renderTextHTML(obj.text || '')}</div>
       </div>`;
+    const B = typeof BEVCore !== 'undefined' ? BEVCore : null;
+    B?.applyHeadingTextScaleToEl?.(el, obj.w, obj.h);
     return el;
   }
 

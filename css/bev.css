@@ -1735,18 +1735,29 @@ textarea,
   display: none;
 }
 .node.node-heading .node-body {
-  display: inline-block;
-  width: fit-content;
-  height: fit-content;
-  padding: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
 }
-.node.node-heading .node-content {
-  display: inline-block;
-  width: fit-content;
-  max-width: none;
+.node.node-heading .node-content.shared-heading-text {
+  font-size: var(--heading-text-size, 28px);
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  font-family: "Syne", sans-serif;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
   padding: 0;
   margin: 0;
   outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: none;
 }
 .node.node-heading.selected,
 .node.node-heading.multi-selected {
