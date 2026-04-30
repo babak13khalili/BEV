@@ -1721,18 +1721,42 @@ textarea,
   display: inline-block;
   width: fit-content;
   height: fit-content;
-  background: transparent;
-  border: none;
+  background: transparent !important;
+  border: none !important;
   min-width: 0;
-  box-shadow: none;
+  box-shadow: none !important;
+  outline: none;
+  padding: 0;
 }
 .node.node-heading:hover {
-  border-color: transparent;
+  border-color: transparent !important;
+}
+.node.node-heading:focus-within {
+  outline: none;
+  box-shadow: none !important;
 }
 .node.node-heading .node-accent-line,
 .node.node-heading .node-header,
 .node.node-heading .node-settings {
   display: none;
+}
+.node.node-heading .bev-heading-delete {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+  z-index: 6;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.node.node-heading:hover .bev-heading-delete,
+.node.node-heading.selected .bev-heading-delete,
+.node.node-heading.multi-selected .bev-heading-delete,
+.node.node-heading:focus-within .bev-heading-delete {
+  opacity: 1;
+}
+.presentation-object.node.node-heading .bev-heading-delete {
+  top: -18px;
+  right: -4px;
 }
 .node.node-heading .node-body {
   display: block;
@@ -1740,6 +1764,8 @@ textarea,
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 .node.node-heading .node-content.shared-heading-text {
   font-size: var(--heading-text-size, 28px);
@@ -1753,16 +1779,23 @@ textarea,
   color: var(--text);
   padding: 0;
   margin: 0;
-  outline: none;
+  outline: none !important;
+  box-shadow: none !important;
   white-space: pre-wrap;
   overflow-wrap: break-word;
   word-break: break-word;
   max-width: none;
+  cursor: text;
+}
+.node.node-heading .node-content.shared-heading-text:focus,
+.node.node-heading .node-content.shared-heading-text:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 .node.node-heading.selected,
 .node.node-heading.multi-selected {
-  border-color: transparent;
-  box-shadow: none;
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 .node.node-heading.multi-selected::after {
   display: none;

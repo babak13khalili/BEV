@@ -531,7 +531,15 @@ function renderViewerDepthNode(nd, accent) {
     el.innerHTML = `<div class="content">${renderTextHTML(nd.text)}</div>`;
     return el;
   }
-  if (t === 'heading' || isTextNote(t) || t === 'bullet' || t === 'progress' || t === 'embed' || t === 'file') {
+  if (t === 'heading') {
+    const { w, h } = viewerDepthDefaultSize(nd);
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+    el.innerHTML = `<div class="node-body"><div class="shared-heading-text node-content">${renderTextHTML(nd.text || '')}</div></div>`;
+    B?.applyHeadingTextScaleToEl?.(el, w, h);
+    return el;
+  }
+  if (isTextNote(t) || t === 'bullet' || t === 'progress' || t === 'embed' || t === 'file') {
     const { w, h } = viewerDepthDefaultSize(nd);
     el.style.width = `${w}px`;
     el.style.height = `${h}px`;
@@ -539,8 +547,6 @@ function renderViewerDepthNode(nd, accent) {
       el.classList.add('is-image-file');
     }
     el.innerHTML = shell?.html || "";
-    if (t === 'heading')
-      B?.applyHeadingTextScaleToEl?.(el, w, h);
     return el;
   }
   el.style.width = `${nd.w || 200}px`;
@@ -697,14 +703,7 @@ function renderOverlayObject(obj) {
     el.className = 'node node-heading';
     if (obj.w) el.style.width = `${obj.w}px`;
     if (obj.h) el.style.height = `${obj.h}px`;
-    el.innerHTML = `
-      <div class="node-accent-line" style="background:#333"></div>
-      <div class="node-header">
-        <span class="node-type-label">${esc(obj.customTitle || 'Heading')}</span>
-      </div>
-      <div class="node-body">
-        <div class="shared-heading-text node-content" style="pointer-events:none">${renderTextHTML(obj.text || '')}</div>
-      </div>`;
+    el.innerHTML = `<div class="node-body"><div class="shared-heading-text node-content" style="pointer-events:none">${renderTextHTML(obj.text || '')}</div></div>`;
     const B = typeof BEVCore !== 'undefined' ? BEVCore : null;
     B?.applyHeadingTextScaleToEl?.(el, obj.w, obj.h);
     return el;

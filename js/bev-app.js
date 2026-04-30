@@ -4164,16 +4164,13 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
       ? ""
       : `<button class="node-act-btn" type="button" onclick="requestDeletePresentationObject('${obj.id}')">✕</button>`;
     const presCornerResize = viewer ? "" : NODE_RESIZE_CORNER_HANDLES_HTML;
+    const presDelFloating = viewer
+      ? ""
+      : `<button type="button" class="node-act-btn bev-heading-delete" title="Delete heading" aria-label="Delete heading" onclick="requestDeletePresentationObject('${obj.id}')">✕</button>`;
     el.innerHTML = isHeading
-      ? buildNodeShell(obj, {
-          editable: !viewer,
-          accent: presAccent,
-          label: obj.customTitle ?? "Heading",
-          actionsHTML: presDelBtn,
-          settingsHTML: "",
-        }).html +
-        presCornerResize +
-        (viewer ? "" : presentationSpatialHandlesInnerHTML(obj.id))
+      ? `<div class="node-body">${renderSharedTextObjectHTML("heading", obj.text || "", "content node-content", { readOnly: viewer })}</div>${presDelFloating}${presCornerResize}${
+          viewer ? "" : presentationSpatialHandlesInnerHTML(obj.id)
+        }`
       : renderSharedTextNoteShellHTML({
           type: obj.type,
           text: obj.text || "",
@@ -5347,19 +5344,21 @@ function createOverviewItemEl(item) {
       </div>
     </div>`;
   } else {
-    el.innerHTML =
-      renderSharedTextNoteShellHTML({
-        type: item.type,
-        text: item.text || "",
-        label:
-          item.type === "heading"
-            ? item.customTitle ?? "Heading"
-            : "Note",
-        accent: "#333",
-        contentClassName: "content node-content",
-        actionsHTML: `<button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" type="button" onclick="requestDeleteOverviewItemById('${item.id}')">✕</button>`,
-        settingsHTML: `<div class="node-settings"><div class="node-settings-empty">No extra settings</div></div>`,
-      }) + NODE_RESIZE_CORNER_HANDLES_HTML;
+    if (item.type === "heading") {
+      el.innerHTML = `<div class="node-body">${renderSharedTextObjectHTML("heading", item.text || "", "content node-content")}</div>
+<button type="button" class="node-act-btn bev-heading-delete" title="Delete heading" aria-label="Delete heading" onclick="requestDeleteOverviewItemById('${item.id}')">✕</button>${NODE_RESIZE_CORNER_HANDLES_HTML}`;
+    } else {
+      el.innerHTML =
+        renderSharedTextNoteShellHTML({
+          type: item.type,
+          text: item.text || "",
+          label: "Note",
+          accent: "#333",
+          contentClassName: "content node-content",
+          actionsHTML: `<button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" type="button" onclick="requestDeleteOverviewItemById('${item.id}')">✕</button>`,
+          settingsHTML: `<div class="node-settings"><div class="node-settings-empty">No extra settings</div></div>`,
+        }) + NODE_RESIZE_CORNER_HANDLES_HTML;
+    }
     if (usesUnifiedNoteObjectBehavior(item.type)) {
       if (item.w) el.style.width = item.w + "px";
       if (item.h) el.style.height = item.h + "px";
@@ -6632,15 +6631,20 @@ function createNodeEl(nd) {
     <div class="conn-handle" data-node="${nd.id}" data-pos="left"></div>
     <div class="conn-handle" data-node="${nd.id}" data-pos="right"></div>
     ${NODE_RESIZE_CORNER_HANDLES_HTML}`;
-  el.innerHTML = `${buildNodeShell(nd, {
-        editable: true,
-        accent: currentProject?.color || "#333",
-        label: nodeTitle,
-        fileLinkHref,
-        fileLinkLabel,
-        actionsHTML: `<button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" onclick="requestDeleteNodeById('${nd.id}')">✕</button>`,
-        settingsHTML: `<div class="node-settings">${nodeSettingsHTML(nd)}</div>`,
-      }).html}
+  const shellHtml =
+    nd.type === "heading"
+      ? `<div class="node-body">${renderNodeContentHTML(nd, { editable: true })}</div>
+<button type="button" class="node-act-btn bev-heading-delete" title="Delete heading" aria-label="Delete heading" onclick="requestDeleteNodeById('${nd.id}')">✕</button>`
+      : buildNodeShell(nd, {
+          editable: true,
+          accent: currentProject?.color || "#333",
+          label: nodeTitle,
+          fileLinkHref,
+          fileLinkLabel,
+          actionsHTML: `<button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" onclick="requestDeleteNodeById('${nd.id}')">✕</button>`,
+          settingsHTML: `<div class="node-settings">${nodeSettingsHTML(nd)}</div>`,
+        }).html;
+  el.innerHTML = `${shellHtml}
     ${nodeHandleMarkup}`;
 
   if (isSharedNoteNode) {
