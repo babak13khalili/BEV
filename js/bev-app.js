@@ -2777,10 +2777,6 @@ function normalizeNodeDataList(nodeList) {
         ? node.lineAngle
         : 0;
     }
-    if (node.type === "heading") {
-      delete node.w;
-      delete node.h;
-    }
     if (typeof node.customTitle !== "string") node.customTitle = "";
     return node;
   });
@@ -4112,6 +4108,12 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
     const presDelBtn = viewer
       ? ""
       : `<button class="node-act-btn" type="button" onclick="requestDeletePresentationObject('${obj.id}')">✕</button>`;
+    const presCornerResize = viewer
+      ? ""
+      : `<div class="node-resize-handle resize-tl" data-dir="tl"></div>
+      <div class="node-resize-handle resize-tr" data-dir="tr"></div>
+      <div class="node-resize-handle resize-bl" data-dir="bl"></div>
+      <div class="node-resize-handle resize-br" data-dir="br"></div>`;
     el.innerHTML = isHeading
       ? buildNodeShell(obj, {
           editable: !viewer,
@@ -4119,7 +4121,9 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
           label: obj.customTitle ?? "Heading",
           actionsHTML: presDelBtn,
           settingsHTML: "",
-        }).html + (viewer ? "" : presentationSpatialHandlesInnerHTML(obj.id))
+        }).html +
+        presCornerResize +
+        (viewer ? "" : presentationSpatialHandlesInnerHTML(obj.id))
       : renderSharedTextNoteShellHTML({
           type: obj.type,
           text: obj.text || "",
@@ -4136,10 +4140,8 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
       <div class="node-resize-handle resize-tr" data-dir="tr"></div>
       <div class="node-resize-handle resize-bl" data-dir="bl"></div>
       <div class="node-resize-handle resize-br" data-dir="br"></div>${presentationSpatialHandlesInnerHTML(obj.id)}`);
-    if (!isHeading) {
-      if (obj.w) el.style.width = `${obj.w}px`;
-      if (obj.h) el.style.height = `${obj.h}px`;
-    }
+    if (obj.w) el.style.width = `${obj.w}px`;
+    if (obj.h) el.style.height = `${obj.h}px`;
     if (!viewer) {
       bindUnifiedNoteObjectBehavior({
         el,
@@ -4813,6 +4815,21 @@ function getOverviewItemMinSize(item, el) {
       h: Math.max(84, Math.ceil((content?.scrollHeight || 0) + 46)),
     };
   }
+  if (item.type === "heading") {
+    const content = el?.querySelector(".node-content");
+    const text = content?.textContent || item.text || "";
+    const rectW = content?.getBoundingClientRect()?.width;
+    const estimatedWidth = estimateTextMinWidth(text, {
+      min: 24,
+      max: 640,
+      base: 24,
+      charWidth: 10,
+    });
+    return {
+      w: Math.max(160, Math.ceil(rectW || estimatedWidth)),
+      h: Math.max(84, Math.ceil((content?.scrollHeight || 0) + 46)),
+    };
+  }
   if (item.type === "frame") {
     const content = el?.querySelector(".content");
     return {
@@ -4832,7 +4849,11 @@ function getOverviewItemMinSize(item, el) {
 }
 
 function enforceOverviewItemMinSize(item, el) {
-  if (!item || !el || ![...["frame", "line"], "text", "note"].includes(item.type)) return false;
+  if (!item || !el) return false;
+  if (
+    !["frame", "line", "text", "note", "heading"].includes(item.type)
+  )
+    return false;
   const min = getOverviewItemMinSize(item, el);
   let changed = false;
   if (item.type === "line") {
@@ -5218,7 +5239,7 @@ function addOverviewItem(type) {
 function createOverviewItemEl(item) {
   const el = document.createElement("div");
   el.className = `overview-item overview-item-${item.type}`;
-  if (isUnifiedTextNoteType(item.type)) {
+  if (usesUnifiedNoteObjectBehavior(item.type)) {
     el.classList.add("node", `node-${item.type}`);
   }
   if (selectedOverviewItemIds.has(item.id))
@@ -5287,28 +5308,38 @@ function createOverviewItemEl(item) {
     </div>`;
   } else {
     el.innerHTML =
-      item.type === "heading"
-        ? renderSharedTextObjectHTML(item.type, item.text || "", "content")
-        : renderSharedTextNoteShellHTML({
-            type: item.type,
-            text: item.text || "",
-            label: "Note",
-            accent: "#333",
-            contentClassName: "content node-content",
-            actionsHTML: `<button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" type="button" onclick="requestDeleteOverviewItemById('${item.id}')">✕</button>`,
-            settingsHTML: `<div class="node-settings"><div class="node-settings-empty">No extra settings</div></div>`,
-          }) +
-          `<div class="node-resize-handle resize-tl" data-dir="tl"></div><div class="node-resize-handle resize-tr" data-dir="tr"></div><div class="node-resize-handle resize-bl" data-dir="bl"></div><div class="node-resize-handle resize-br" data-dir="br"></div>`;
-    if (isUnifiedTextNoteType(item.type)) {
+      renderSharedTextNoteShellHTML({
+        type: item.type,
+        text: item.text || "",
+        label:
+          item.type === "heading"
+            ? item.customTitle ?? "Heading"
+            : "Note",
+        accent: "#333",
+        contentClassName: "content node-content",
+        actionsHTML: `<button class="node-act-btn node-settings-btn" type="button">⋮</button><button class="node-act-btn" type="button" onclick="requestDeleteOverviewItemById('${item.id}')">✕</button>`,
+        settingsHTML: `<div class="node-settings"><div class="node-settings-empty">No extra settings</div></div>`,
+      }) +
+      `<div class="node-resize-handle resize-tl" data-dir="tl"></div><div class="node-resize-handle resize-tr" data-dir="tr"></div><div class="node-resize-handle resize-bl" data-dir="bl"></div><div class="node-resize-handle resize-br" data-dir="br"></div>`;
+    if (usesUnifiedNoteObjectBehavior(item.type)) {
       if (item.w) el.style.width = item.w + "px";
       if (item.h) el.style.height = item.h + "px";
     }
-    if (isUnifiedTextNoteType(item.type)) {
+    if (usesUnifiedNoteObjectBehavior(item.type)) {
       bindUnifiedNoteObjectBehavior({
         el,
         type: item.type,
+        contentEditableDragMode:
+          item.type === "heading" ? "deferHeading" : "default",
+        beforeDeferHeadingDrag:
+          item.type === "heading" ? () => false : null,
         onCommit: (text) => {
           item.text = text;
+          queueOverviewSave();
+        },
+        onLabelCommit: (label) => {
+          item.customTitle =
+            item.type === "heading" ? label || "Heading" : label;
           queueOverviewSave();
         },
         onPointerDown: (e) => {
@@ -5367,7 +5398,7 @@ function createOverviewItemEl(item) {
     }
   }
   el.addEventListener("mousedown", (e) => {
-    if (isUnifiedTextNoteType(item.type)) return;
+    if (usesUnifiedNoteObjectBehavior(item.type)) return;
     if (
       e.target.closest(".overview-category-btn") ||
       e.target.closest(".overview-category-picker") ||
@@ -5378,12 +5409,6 @@ function createOverviewItemEl(item) {
     )
       return;
     if (e.target.hasAttribute("contenteditable") && !e.altKey) {
-      if (item.type === "heading") {
-        beginHeadingTextDragOrEdit(e, (ev) =>
-          dashboardOverviewItemDragFromPointer(item, el, ev),
-        );
-        return;
-      }
       return;
     }
     dashboardOverviewItemDragFromPointer(item, el, e);
@@ -6556,8 +6581,8 @@ function createNodeEl(nd) {
   el.id = `node-${nd.id}`;
   el.style.left = nd.x + "px";
   el.style.top = nd.y + "px";
-  if (nd.type !== "heading" && nd.w) el.style.width = nd.w + "px";
-  if (nd.type !== "heading" && nd.h) el.style.height = nd.h + "px";
+  if (nd.w) el.style.width = nd.w + "px";
+  if (nd.h) el.style.height = nd.h + "px";
   if (nd.type === "line") {
     el.style.transform = `rotate(${Number(nd.lineAngle) || 0}rad)`;
   }
@@ -6580,14 +6605,7 @@ function createNodeEl(nd) {
   const fileLinkHref = getFileNodeLinkHref(nd);
   const fileLinkLabel = getFileNodeLinkLabel(nd);
   const isSharedNoteNode = usesUnifiedNoteObjectBehavior(nd.type);
-  const nodeHandleMarkup =
-    nd.type === "heading"
-      ? `
-    <div class="conn-handle" data-node="${nd.id}" data-pos="top"></div>
-    <div class="conn-handle" data-node="${nd.id}" data-pos="bottom"></div>
-    <div class="conn-handle" data-node="${nd.id}" data-pos="left"></div>
-    <div class="conn-handle" data-node="${nd.id}" data-pos="right"></div>`
-      : `
+  const nodeHandleMarkup = `
     <div class="conn-handle" data-node="${nd.id}" data-pos="top"></div>
     <div class="conn-handle" data-node="${nd.id}" data-pos="bottom"></div>
     <div class="conn-handle" data-node="${nd.id}" data-pos="left"></div>
@@ -7002,7 +7020,6 @@ function getNodeMinSize(nd, el) {
 
 function enforceNodeMinSize(nd, el) {
   if (!nd || !el) return false;
-  if (nd.type === "heading") return false;
   const min = getNodeMinSize(nd, el);
   let changed = false;
   if ((nd.w || el.offsetWidth) < min.w) {

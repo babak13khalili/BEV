@@ -92,10 +92,19 @@
         h: data.h || 180,
       };
     }
-    return {
+    const textObj = {
       ...base,
       text: data.text ?? textDefaults[type] ?? "New note",
     };
+    if (type === "heading") {
+      if (data.w != null && Number.isFinite(Number(data.w)))
+        textObj.w = Number(data.w);
+      if (data.h != null && Number.isFinite(Number(data.h)))
+        textObj.h = Number(data.h);
+      if (typeof data.customTitle === "string")
+        textObj.customTitle = data.customTitle;
+    }
+    return textObj;
   }
 
   /** Simple line chip used on dashboard + presentation (canvas lines add angle/height via makeNode). */
@@ -315,12 +324,12 @@ ${embedTopbar}
 
   // ---------- Shared viewport navigation (canvas / dashboard / presentation / viewer) ----------
   const NAVIGATION_TUNING = Object.freeze({
-    zoomLerpDesktop: 0.24,
-    zoomLerpMobile: 0.16,
-    wheelZoomSensitivity: 0.0032,
+    zoomLerpDesktop: 0.34,
+    zoomLerpMobile: 0.24,
+    wheelZoomSensitivity: 0.0048,
     wheelPanMultiplier: 1.35,
-    pinchZoomExponentDesktop: 1.08,
-    pinchZoomExponentMobile: 0.24,
+    pinchZoomExponentDesktop: 1.15,
+    pinchZoomExponentMobile: 1.05,
   });
 
   /** Default min/max scale for presentation, shared viewer, and other full deck surfaces. */

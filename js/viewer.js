@@ -692,7 +692,17 @@ function renderOverlayObject(obj) {
   }
 
   if (type === 'heading') {
-    el.innerHTML = `<div class="shared-heading-text" style="pointer-events:none">${renderTextHTML(obj.text || '')}</div>`;
+    el.className = 'node node-heading';
+    if (obj.w) el.style.width = `${obj.w}px`;
+    if (obj.h) el.style.height = `${obj.h}px`;
+    el.innerHTML = `
+      <div class="node-accent-line" style="background:#333"></div>
+      <div class="node-header">
+        <span class="node-type-label">${esc(obj.customTitle || 'Heading')}</span>
+      </div>
+      <div class="node-body">
+        <div class="shared-heading-text node-content" style="pointer-events:none">${renderTextHTML(obj.text || '')}</div>
+      </div>`;
     return el;
   }
 
