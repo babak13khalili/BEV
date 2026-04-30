@@ -3233,6 +3233,70 @@ function adjustResizeOriginAfterContentMin(
   return { x, y };
 }
 
+/**
+ * Illustrator-like heading resize: drag scales `fontSize` uniformly; the
+ * bbox auto-fits the rendered glyphs (writes back `node.w` / `node.h`),
+ * with the opposite corner anchored. Mutates `node` and `el` in place.
+ *
+ * @param {object} node  heading object (gets fontSize/w/h/x/y updated)
+ * @param {HTMLElement} el  rendered .node-heading element
+ * @param {number} dx  pointer delta X in world coords
+ * @param {number} dy  pointer delta Y in world coords
+ * @param {string} dir  one of "tl" | "tr" | "bl" | "br" (or with t/b/l/r)
+ * @param {{w:number,h:number,startX:number,startY:number,fontSize?:number}} start
+ */
+function applyHeadingResizeFromDelta(node, el, dx, dy, dir, start) {
+  const startW = Math.max(1, Number(start?.w) || 1);
+  const startH = Math.max(1, Number(start?.h) || 1);
+  const startX = Number(start?.startX) || 0;
+  const startY = Number(start?.startY) || 0;
+  const startFs =
+    Number(start?.fontSize) || BEVCore.getHeadingFontSizePx(node) || 28;
+
+  const target = applyDirectionalRectResize(
+    dx,
+    dy,
+    dir,
+    startW,
+    startH,
+    startX,
+    startY,
+    HEADING_BBOX_MIN_W,
+    HEADING_BBOX_MIN_H,
+  );
+  const fW = target.w / startW;
+  const fH = target.h / startH;
+  const isCorner = dir.length >= 2;
+  let factor;
+  if (isCorner) {
+    factor = Math.max(fW, fH);
+  } else if (dir === "l" || dir === "r") {
+    factor = fW;
+  } else {
+    factor = fH;
+  }
+  factor = Math.max(0.05, factor);
+  const newFs = Math.max(0.35, startFs * factor);
+  node.fontSize = newFs;
+
+  el.style.setProperty("--heading-text-size", `${newFs}px`);
+  el.style.width = "";
+  el.style.height = "";
+  const newW = Math.max(1, Math.ceil(el.offsetWidth));
+  const newH = Math.max(1, Math.ceil(el.offsetHeight));
+  node.w = newW;
+  node.h = newH;
+
+  let newX = startX;
+  let newY = startY;
+  if (dir.includes("l")) newX = Math.round(startX + (startW - newW));
+  if (dir.includes("t")) newY = Math.round(startY + (startH - newH));
+  node.x = newX;
+  node.y = newY;
+  el.style.left = `${newX}px`;
+  el.style.top = `${newY}px`;
+}
+
 function focusSharedNoteEditor(el) {
   const content = el?.querySelector(".content") || el?.querySelector(".node-content");
   if (!content) return;
@@ -3603,8 +3667,7 @@ function renderDashboard() {
     const el = createOverviewItemEl(item);
     world.appendChild(el);
     enforceOverviewItemMinSize(item, el);
-    if (item.type === "heading")
-      applyHeadingTextScaleToEl(el, item.w, item.h);
+    if (item.type === "heading") applyHeadingTextScaleToEl(el, item);
   });
   visibleProjects.forEach((p) => {
     const nc = p.nodes ? p.nodes.length : 0,
@@ -4188,9 +4251,12 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
         (viewer
           ? ""
           : `${NODE_RESIZE_CORNER_HANDLES_HTML}${presentationSpatialHandlesInnerHTML(obj.id)}`);
-    if (obj.w) el.style.width = `${obj.w}px`;
-    if (obj.h) el.style.height = `${obj.h}px`;
-    if (isHeading) applyHeadingTextScaleToEl(el, obj.w, obj.h);
+    if (!isHeading && obj.w) el.style.width = `${obj.w}px`;
+    if (!isHeading && obj.h) el.style.height = `${obj.h}px`;
+    if (isHeading) {
+      const fs = BEVCore.getHeadingFontSizePx(obj);
+      el.style.setProperty("--heading-text-size", `${fs}px`);
+    }
     if (!viewer) {
       bindUnifiedNoteObjectBehavior({
         el,
@@ -4203,6 +4269,10 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
           : null,
         onCommit: (text) => {
           obj.text = text;
+          if (isHeading) {
+            applyHeadingTextScaleToEl(el, obj);
+            renderPresentationSpatialConnections();
+          }
           queuePresentationSave(currentPresentation);
         },
         onLabelCommit: (label) => {
@@ -4300,7 +4370,9 @@ function renderPresentationWorld() {
   }
   if (!currentPresentation) return;
   (currentPresentation.objects || []).forEach((obj) => {
-    world.appendChild(createPresentationObjectEl(obj));
+    const objEl = createPresentationObjectEl(obj);
+    world.appendChild(objEl);
+    if (obj.type === "heading") applyHeadingTextScaleToEl(objEl, obj);
   });
   (currentPresentation.items || []).forEach((item) => {
     const project = projects.find((entry) => entry.id === item.projectId);
@@ -4549,6 +4621,10 @@ function startPresentationObjectResize(e, obj, dir, el) {
     dir,
     startX: obj.x,
     startY: obj.y,
+    fontSize:
+      obj.type === "heading"
+        ? BEVCore.getHeadingFontSizePx(obj)
+        : undefined,
   };
 }
 
@@ -4775,7 +4851,9 @@ function renderSharedPresentation() {
   if (canvas) canvas.style.display = hasContent ? "" : "none";
   if (!hasContent) return;
   (sharedPresentation.objects || []).forEach((obj) => {
-    world.appendChild(createPresentationObjectEl(obj, { viewer: true }));
+    const objEl = createPresentationObjectEl(obj, { viewer: true });
+    world.appendChild(objEl);
+    if (obj.type === "heading") applyHeadingTextScaleToEl(objEl, obj);
   });
   sharedPresentation.items.forEach((item) => {
     if (!item?.snapshot) return;
@@ -5302,11 +5380,15 @@ function createOverviewItemEl(item) {
         overviewResizeStart = {
           x: e.clientX,
           y: e.clientY,
-          w: item.w || 260,
-          h: item.h || 180,
+          w: item.w || el.offsetWidth || 260,
+          h: item.h || el.offsetHeight || 180,
           dir: h.dataset.dir,
           startX: item.x,
           startY: item.y,
+          fontSize:
+            item.type === "heading"
+              ? BEVCore.getHeadingFontSizePx(item)
+              : undefined,
         };
       }),
     );
@@ -5368,6 +5450,9 @@ function createOverviewItemEl(item) {
           item.type === "heading" ? () => false : null,
         onCommit: (text) => {
           item.text = text;
+          if (item.type === "heading") {
+            applyHeadingTextScaleToEl(el, item);
+          }
           queueOverviewSave();
         },
         onLabelCommit: (label) => {
@@ -5419,6 +5504,10 @@ function createOverviewItemEl(item) {
             dir,
             startX: item.x,
             startY: item.y,
+            fontSize:
+              item.type === "heading"
+                ? BEVCore.getHeadingFontSizePx(item)
+                : undefined,
           };
         },
       });
@@ -6025,6 +6114,10 @@ function setupDashboardEvents() {
         dy = (e.clientY - overviewResizeStart.y) / dashboardScale;
       const dir = overviewResizeStart.dir;
       const isOvHeading = item.type === "heading";
+      if (isOvHeading) {
+        applyHeadingResizeFromDelta(item, el, dx, dy, dir, overviewResizeStart);
+        return;
+      }
       let { w, h, x, y } = applyDirectionalRectResize(
         dx,
         dy,
@@ -6033,14 +6126,12 @@ function setupDashboardEvents() {
         overviewResizeStart.h,
         overviewResizeStart.startX,
         overviewResizeStart.startY,
-        isOvHeading ? HEADING_BBOX_MIN_W : 160,
-        isOvHeading ? HEADING_BBOX_MIN_H : 100,
+        160,
+        100,
       );
-      if (!isOvHeading) {
-        const min = getOverviewItemMinSize(item, el);
-        w = Math.max(w, min.w || 0);
-        h = Math.max(h, min.h || 0);
-      }
+      const min = getOverviewItemMinSize(item, el);
+      w = Math.max(w, min.w || 0);
+      h = Math.max(h, min.h || 0);
       ({ x, y } = adjustResizeOriginAfterContentMin(
         dir,
         overviewResizeStart.startX,
@@ -6058,8 +6149,6 @@ function setupDashboardEvents() {
       el.style.top = item.y + "px";
       el.style.width = item.w + "px";
       el.style.height = item.h + "px";
-      if (item.type === "heading")
-        applyHeadingTextScaleToEl(el, item.w, item.h);
       return;
     }
     if (dashboardResizeProjectId) {
@@ -6562,8 +6651,7 @@ function renderNodes() {
     document.getElementById("canvas-world").appendChild(el);
     enforceNodeMinSize(nd, el);
     syncImageFileNodeSize(nd, el);
-    if (nd.type === "heading")
-      applyHeadingTextScaleToEl(el, nd.w, nd.h);
+    if (nd.type === "heading") applyHeadingTextScaleToEl(el, nd);
   });
 }
 
@@ -6655,6 +6743,10 @@ function createNodeEl(nd) {
         nd.type === "heading" ? (e) => currentTool === "connect" : null,
       onCommit: (text) => {
         nd.text = text;
+        if (nd.type === "heading") {
+          applyHeadingTextScaleToEl(el, nd);
+          renderConnections();
+        }
         autosave();
       },
       onLabelCommit: (label) => {
@@ -6713,6 +6805,10 @@ function createNodeEl(nd) {
           dir,
           startX: nd.x,
           startY: nd.y,
+          fontSize:
+            nd.type === "heading"
+              ? BEVCore.getHeadingFontSizePx(nd)
+              : undefined,
         };
       },
     });
@@ -8358,12 +8454,20 @@ function setupPresentationEvents() {
         const dy = (e.clientY - presentationResizeStart.y) / sc;
         const dir = presentationResizeStart.dir;
         const isPresH = obj.type === "heading";
-        const minPresW = isPresH ? HEADING_BBOX_MIN_W : 180;
-        const minPresH = isPresH
-          ? HEADING_BBOX_MIN_H
-          : obj.type === "frame"
-            ? 140
-            : 84;
+        if (isPresH) {
+          applyHeadingResizeFromDelta(
+            obj,
+            el,
+            dx,
+            dy,
+            dir,
+            presentationResizeStart,
+          );
+          renderPresentationSpatialConnections();
+          return;
+        }
+        const minPresW = 180;
+        const minPresH = obj.type === "frame" ? 140 : 84;
         let { w, h, x, y } = applyDirectionalRectResize(
           dx,
           dy,
@@ -8383,8 +8487,6 @@ function setupPresentationEvents() {
         el.style.height = `${h}px`;
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
-        if (obj.type === "heading")
-          applyHeadingTextScaleToEl(el, w, h);
         renderPresentationSpatialConnections();
         return;
       }
@@ -8662,6 +8764,11 @@ function setupCanvasEvents() {
           dy = (e.clientY - nodeResizeStart.y) / viewScale;
         const dir = nodeResizeStart.dir;
         const isHeading = nd.type === "heading";
+        if (isHeading) {
+          applyHeadingResizeFromDelta(nd, el, dx, dy, dir, nodeResizeStart);
+          renderConnections();
+          return;
+        }
         let { w, h, x, y } = applyDirectionalRectResize(
           dx,
           dy,
@@ -8670,14 +8777,12 @@ function setupCanvasEvents() {
           nodeResizeStart.h,
           nodeResizeStart.startX,
           nodeResizeStart.startY,
-          isHeading ? HEADING_BBOX_MIN_W : 140,
-          isHeading ? HEADING_BBOX_MIN_H : 70,
+          140,
+          70,
         );
-        if (!isHeading) {
-          const min = getNodeMinSize(nd, el);
-          w = Math.max(w, min.w);
-          h = Math.max(h, min.h);
-        }
+        const min = getNodeMinSize(nd, el);
+        w = Math.max(w, min.w);
+        h = Math.max(h, min.h);
         ({ x, y } = adjustResizeOriginAfterContentMin(
           dir,
           nodeResizeStart.startX,
@@ -8698,8 +8803,6 @@ function setupCanvasEvents() {
         el.style.top = nd.y + "px";
         el.style.width = nd.w + "px";
         el.style.height = nd.h + "px";
-        if (nd.type === "heading")
-          applyHeadingTextScaleToEl(el, nd.w, nd.h);
         renderConnections();
       }
       return;

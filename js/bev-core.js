@@ -101,6 +101,8 @@
         textObj.w = Number(data.w);
       if (data.h != null && Number.isFinite(Number(data.h)))
         textObj.h = Number(data.h);
+      const fs = Number(data.fontSize);
+      textObj.fontSize = Number.isFinite(fs) && fs > 0 ? fs : 28;
       if (typeof data.customTitle === "string")
         textObj.customTitle = data.customTitle;
     }
@@ -139,15 +141,62 @@
     return Math.max(0.35, px);
   }
 
-  /** Sets --heading-text-size on a `.node-heading` element from pixel width/height. */
-  function applyHeadingTextScaleToEl(el, w, h) {
+  /**
+   * Resolve the authoritative font-size (px) for a heading node.
+   * Prefers stored `fontSize`; falls back to legacy w/h-derived scale; default 28.
+   */
+  function getHeadingFontSizePx(node) {
+    if (node && typeof node === "object") {
+      const stored = Number(node.fontSize);
+      if (Number.isFinite(stored) && stored > 0)
+        return Math.max(0.35, stored);
+      const px = headingContentFontSizePx(node.w, node.h);
+      if (px != null) return Math.max(0.35, px);
+    }
+    return 28;
+  }
+
+  /**
+   * Apply font-size to a `.node-heading` element so its bbox hugs the glyph
+   * extents (Illustrator-like). Accepts either:
+   *   - (el, node)        prefer stored `node.fontSize`; auto-fit + write back w/h
+   *   - (el, fontSizePx)  number → set font-size directly
+   *   - (el, w, h)        legacy: derive font-size from w/h reference
+   * In all cases, inline width/height are cleared so CSS `max-content` lets
+   * the element shrink to the actual rendered text.
+   */
+  function applyHeadingTextScaleToEl(el, a, b) {
     if (!el || !el.classList.contains("node-heading")) return;
-    const px = headingContentFontSizePx(w, h);
-    if (px == null) {
+    let fontSize = null;
+    let node = null;
+    if (b !== undefined) {
+      fontSize = headingContentFontSizePx(a, b);
+    } else if (typeof a === "number") {
+      fontSize = a;
+    } else if (a && typeof a === "object") {
+      node = a;
+      fontSize = getHeadingFontSizePx(node);
+    }
+    if (
+      fontSize == null ||
+      !Number.isFinite(fontSize) ||
+      fontSize <= 0
+    ) {
       el.style.removeProperty("--heading-text-size");
       return;
     }
+    const px = Math.max(0.35, fontSize);
     el.style.setProperty("--heading-text-size", `${px}px`);
+    el.style.width = "";
+    el.style.height = "";
+    if (node) {
+      const w = Math.max(1, Math.ceil(el.offsetWidth));
+      const h = Math.max(1, Math.ceil(el.offsetHeight));
+      node.w = w;
+      node.h = h;
+      const stored = Number(node.fontSize);
+      if (!Number.isFinite(stored) || stored <= 0) node.fontSize = px;
+    }
   }
 
   function escapeHTML(value) {
@@ -903,6 +952,7 @@ ${embedTopbar}
     buildNodeShell,
     buildReadonlyNodeShell,
     headingContentFontSizePx,
+    getHeadingFontSizePx,
     applyHeadingTextScaleToEl,
   };
 })(typeof window !== "undefined" ? window : globalThis);
