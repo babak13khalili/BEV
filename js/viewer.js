@@ -532,11 +532,8 @@ function renderViewerDepthNode(nd, accent) {
     return el;
   }
   if (t === 'heading') {
-    const { w, h } = viewerDepthDefaultSize(nd);
-    el.style.width = `${w}px`;
-    el.style.height = `${h}px`;
-    el.innerHTML = `<div class="node-body"><div class="shared-heading-text node-content">${renderTextHTML(nd.text || '')}</div></div>`;
-    B?.applyHeadingTextScaleToEl?.(el, w, h);
+    el.innerHTML = `<div class="shared-heading-text node-content">${renderTextHTML(nd.text || '')}</div>`;
+    B?.applyHeadingTextScaleToEl?.(el, nd);
     return el;
   }
   if (isTextNote(t) || t === 'bullet' || t === 'progress' || t === 'embed' || t === 'file') {
@@ -701,11 +698,9 @@ function renderOverlayObject(obj) {
 
   if (type === 'heading') {
     el.className = 'node node-heading';
-    if (obj.w) el.style.width = `${obj.w}px`;
-    if (obj.h) el.style.height = `${obj.h}px`;
-    el.innerHTML = `<div class="node-body"><div class="shared-heading-text node-content" style="pointer-events:none">${renderTextHTML(obj.text || '')}</div></div>`;
+    el.innerHTML = `<div class="shared-heading-text node-content" style="pointer-events:none">${renderTextHTML(obj.text || '')}</div>`;
     const B = typeof BEVCore !== 'undefined' ? BEVCore : null;
-    B?.applyHeadingTextScaleToEl?.(el, obj.w, obj.h);
+    B?.applyHeadingTextScaleToEl?.(el, obj);
     return el;
   }
 

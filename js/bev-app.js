@@ -21,6 +21,7 @@ const {
   renderNodeContentHTML,
   buildNodeShell,
   applyHeadingTextScaleToEl,
+  getHeadingFontSizePx,
 } = BEVCore;
 const isMobileViewport = bevIsMobileViewport;
 
@@ -3234,6 +3235,16 @@ function adjustResizeOriginAfterContentMin(
 }
 
 /**
+ * Re-fit a heading bbox to its rendered glyphs after a text edit and
+ * (optionally) refresh connection lines that anchor on it.
+ */
+function syncHeadingTextLive(node, el, renderConn) {
+  if (!node || node.type !== "heading" || !el) return;
+  applyHeadingTextScaleToEl(el, node);
+  if (typeof renderConn === "function") renderConn();
+}
+
+/**
  * Illustrator-like heading resize: drag scales `fontSize` uniformly; the
  * bbox auto-fits the rendered glyphs (writes back `node.w` / `node.h`),
  * with the opposite corner anchored. Mutates `node` and `el` in place.
@@ -3251,7 +3262,7 @@ function applyHeadingResizeFromDelta(node, el, dx, dy, dir, start) {
   const startX = Number(start?.startX) || 0;
   const startY = Number(start?.startY) || 0;
   const startFs =
-    Number(start?.fontSize) || BEVCore.getHeadingFontSizePx(node) || 28;
+    Number(start?.fontSize) || getHeadingFontSizePx(node) || 28;
 
   const target = applyDirectionalRectResize(
     dx,
@@ -4235,7 +4246,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
       ? ""
       : `<button type="button" class="node-act-btn bev-heading-delete" title="Delete heading" aria-label="Delete heading" onclick="requestDeletePresentationObject('${obj.id}')">✕</button>`;
     el.innerHTML = isHeading
-      ? `<div class="node-body">${renderSharedTextObjectHTML("heading", obj.text || "", "content node-content", { readOnly: viewer })}</div>${presDelFloating}${presCornerResize}${
+      ? `${renderSharedTextObjectHTML("heading", obj.text || "", "content node-content", { readOnly: viewer })}${presDelFloating}${presCornerResize}${
           viewer ? "" : presentationSpatialHandlesInnerHTML(obj.id)
         }`
       : renderSharedTextNoteShellHTML({
@@ -4254,8 +4265,10 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
     if (!isHeading && obj.w) el.style.width = `${obj.w}px`;
     if (!isHeading && obj.h) el.style.height = `${obj.h}px`;
     if (isHeading) {
-      const fs = BEVCore.getHeadingFontSizePx(obj);
-      el.style.setProperty("--heading-text-size", `${fs}px`);
+      el.style.setProperty(
+        "--heading-text-size",
+        `${getHeadingFontSizePx(obj)}px`,
+      );
     }
     if (!viewer) {
       bindUnifiedNoteObjectBehavior({
@@ -4270,8 +4283,7 @@ function createPresentationObjectEl(obj, { viewer = false } = {}) {
         onCommit: (text) => {
           obj.text = text;
           if (isHeading) {
-            applyHeadingTextScaleToEl(el, obj);
-            renderPresentationSpatialConnections();
+            syncHeadingTextLive(obj, el, renderPresentationSpatialConnections);
           }
           queuePresentationSave(currentPresentation);
         },
@@ -4622,9 +4634,7 @@ function startPresentationObjectResize(e, obj, dir, el) {
     startX: obj.x,
     startY: obj.y,
     fontSize:
-      obj.type === "heading"
-        ? BEVCore.getHeadingFontSizePx(obj)
-        : undefined,
+      obj.type === "heading" ? getHeadingFontSizePx(obj) : undefined,
   };
 }
 
@@ -4934,12 +4944,6 @@ function getOverviewItemMinSize(item, el) {
       h: Math.max(84, Math.ceil((content?.scrollHeight || 0) + 46)),
     };
   }
-  if (item.type === "heading") {
-    return {
-      w: HEADING_BBOX_MIN_W,
-      h: HEADING_BBOX_MIN_H,
-    };
-  }
   if (item.type === "frame") {
     const content = el?.querySelector(".content");
     return {
@@ -4960,10 +4964,8 @@ function getOverviewItemMinSize(item, el) {
 
 function enforceOverviewItemMinSize(item, el) {
   if (!item || !el) return false;
-  if (
-    !["frame", "line", "text", "note", "heading"].includes(item.type)
-  )
-    return false;
+  if (item.type === "heading") return false;
+  if (!["frame", "line", "text", "note"].includes(item.type)) return false;
   const min = getOverviewItemMinSize(item, el);
   let changed = false;
   if (item.type === "line") {
@@ -5386,9 +5388,7 @@ function createOverviewItemEl(item) {
           startX: item.x,
           startY: item.y,
           fontSize:
-            item.type === "heading"
-              ? BEVCore.getHeadingFontSizePx(item)
-              : undefined,
+            item.type === "heading" ? getHeadingFontSizePx(item) : undefined,
         };
       }),
     );
@@ -5422,7 +5422,7 @@ function createOverviewItemEl(item) {
     </div>`;
   } else {
     if (item.type === "heading") {
-      el.innerHTML = `<div class="node-body">${renderSharedTextObjectHTML("heading", item.text || "", "content node-content")}</div>
+      el.innerHTML = `${renderSharedTextObjectHTML("heading", item.text || "", "content node-content")}
 <button type="button" class="node-act-btn bev-heading-delete" title="Delete heading" aria-label="Delete heading" onclick="requestDeleteOverviewItemById('${item.id}')">✕</button>${NODE_RESIZE_CORNER_HANDLES_HTML}`;
     } else {
       el.innerHTML =
@@ -5450,9 +5450,7 @@ function createOverviewItemEl(item) {
           item.type === "heading" ? () => false : null,
         onCommit: (text) => {
           item.text = text;
-          if (item.type === "heading") {
-            applyHeadingTextScaleToEl(el, item);
-          }
+          syncHeadingTextLive(item, el);
           queueOverviewSave();
         },
         onLabelCommit: (label) => {
@@ -5505,9 +5503,7 @@ function createOverviewItemEl(item) {
             startX: item.x,
             startY: item.y,
             fontSize:
-              item.type === "heading"
-                ? BEVCore.getHeadingFontSizePx(item)
-                : undefined,
+              item.type === "heading" ? getHeadingFontSizePx(item) : undefined,
           };
         },
       });
@@ -6719,7 +6715,7 @@ function createNodeEl(nd) {
     ${NODE_RESIZE_CORNER_HANDLES_HTML}`;
   const shellHtml =
     nd.type === "heading"
-      ? `<div class="node-body">${renderNodeContentHTML(nd, { editable: true })}</div>
+      ? `${renderNodeContentHTML(nd, { editable: true })}
 <button type="button" class="node-act-btn bev-heading-delete" title="Delete heading" aria-label="Delete heading" onclick="requestDeleteNodeById('${nd.id}')">✕</button>`
       : buildNodeShell(nd, {
           editable: true,
@@ -6743,10 +6739,7 @@ function createNodeEl(nd) {
         nd.type === "heading" ? (e) => currentTool === "connect" : null,
       onCommit: (text) => {
         nd.text = text;
-        if (nd.type === "heading") {
-          applyHeadingTextScaleToEl(el, nd);
-          renderConnections();
-        }
+        syncHeadingTextLive(nd, el, renderConnections);
         autosave();
       },
       onLabelCommit: (label) => {
@@ -6806,9 +6799,7 @@ function createNodeEl(nd) {
           startX: nd.x,
           startY: nd.y,
           fontSize:
-            nd.type === "heading"
-              ? BEVCore.getHeadingFontSizePx(nd)
-              : undefined,
+            nd.type === "heading" ? getHeadingFontSizePx(nd) : undefined,
         };
       },
     });
@@ -7010,12 +7001,6 @@ function getNodeMinSize(nd, el) {
   const headerHeight = el?.querySelector(".node-header")?.offsetHeight || 28;
   const body = el?.querySelector(".node-body");
   const bodyHeight = body?.scrollHeight || 0;
-  if (nd.type === "heading") {
-    return {
-      w: HEADING_BBOX_MIN_W,
-      h: HEADING_BBOX_MIN_H,
-    };
-  }
   if (nd.type === "line") {
     return {
       w: LINE_MIN_LENGTH,
@@ -7121,6 +7106,7 @@ function getNodeMinSize(nd, el) {
 
 function enforceNodeMinSize(nd, el) {
   if (!nd || !el) return false;
+  if (nd.type === "heading") return false;
   const min = getNodeMinSize(nd, el);
   let changed = false;
   if ((nd.w || el.offsetWidth) < min.w) {

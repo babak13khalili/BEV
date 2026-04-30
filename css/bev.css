@@ -1760,32 +1760,27 @@ textarea,
   top: -18px;
   right: -4px;
 }
-.node.node-heading .node-body {
-  display: block;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-.node.node-heading .node-content.shared-heading-text {
+.node.node-heading > .node-content.shared-heading-text {
   font-size: var(--heading-text-size, 28px);
-  display: block;
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
+  display: inline-block;
+  width: max-content !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  box-sizing: content-box;
   font-family: "Syne", sans-serif;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.05;
   color: var(--text);
-  padding: 0;
-  margin: 0;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
   outline: none !important;
   box-shadow: none !important;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  word-break: break-word;
+  background: transparent !important;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
   max-width: none;
   cursor: text;
 }

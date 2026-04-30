@@ -158,30 +158,22 @@
 
   /**
    * Apply font-size to a `.node-heading` element so its bbox hugs the glyph
-   * extents (Illustrator-like). Accepts either:
-   *   - (el, node)        prefer stored `node.fontSize`; auto-fit + write back w/h
-   *   - (el, fontSizePx)  number → set font-size directly
-   *   - (el, w, h)        legacy: derive font-size from w/h reference
-   * In all cases, inline width/height are cleared so CSS `max-content` lets
-   * the element shrink to the actual rendered text.
+   * extents (Illustrator-like). Accepts a node object (preferred — auto-fits
+   * and writes back `node.w` / `node.h` / `node.fontSize`) or a raw px value.
+   * Inline width/height are cleared so CSS `max-content` lets the element
+   * shrink to the actual rendered text.
    */
-  function applyHeadingTextScaleToEl(el, a, b) {
+  function applyHeadingTextScaleToEl(el, nodeOrFontSize) {
     if (!el || !el.classList.contains("node-heading")) return;
-    let fontSize = null;
+    let fontSize;
     let node = null;
-    if (b !== undefined) {
-      fontSize = headingContentFontSizePx(a, b);
-    } else if (typeof a === "number") {
-      fontSize = a;
-    } else if (a && typeof a === "object") {
-      node = a;
+    if (typeof nodeOrFontSize === "number") {
+      fontSize = nodeOrFontSize;
+    } else if (nodeOrFontSize && typeof nodeOrFontSize === "object") {
+      node = nodeOrFontSize;
       fontSize = getHeadingFontSizePx(node);
     }
-    if (
-      fontSize == null ||
-      !Number.isFinite(fontSize) ||
-      fontSize <= 0
-    ) {
+    if (!Number.isFinite(fontSize) || fontSize <= 0) {
       el.style.removeProperty("--heading-text-size");
       return;
     }
@@ -951,7 +943,6 @@ ${embedTopbar}
     renderNodeContentHTML,
     buildNodeShell,
     buildReadonlyNodeShell,
-    headingContentFontSizePx,
     getHeadingFontSizePx,
     applyHeadingTextScaleToEl,
   };
