@@ -32,18 +32,36 @@ After you know your GitHub Pages URL, add the domain in Firebase:
 2. Add:
    - `<your-github-username>.github.io`
 
-For Firestore, this app reads and writes per signed-in user under:
+## Cross-device sync
 
-- `users/{uid}/projects/{projectId}`
-- `users/{uid}/presentations/{presentationId}`
-- `users/{uid}/meta/{docId}`
-- `users/{uid}/image_assets/{assetId}`
+Everything that should follow the user across devices lives in Firestore
+under the signed-in user's UID. Sign in on any device with the same Google
+account and the app loads + listens to the same data via `onSnapshot`, so
+edits propagate live (Miro-style) without a refresh.
 
-Shared viewer links read from:
+```
+users/{uid}/
+  projects/{projectId}              ← canvas projects (nodes + connections)
+  presentations/{presentationId}    ← presentation decks (items + objects)
+  image_assets/{assetId}            ← image blobs split out of projects
+  meta/dashboard                    ← dashboard overview cards + lines
+  meta/workspace                    ← categories, sort order, UI prefs
+  meta/todosDaily                   ← Daily To-Do widget state
+  meta/todosGeneral                 ← General To-Do widget state
 
-- `public_presentations/{shareToken}`
+public_presentations/{shareToken}   ← anonymous viewer links
+```
 
-If your Firestore rules are still locked down, start with rules that allow each signed-in user to access only their own data.
+Only two things stay in `localStorage`, by design:
+
+- `bev_fb_config` — Firebase project config (needed before any auth happens).
+- `bev_last_view` — last screen + project the tab was on (per-device tab state).
+
+On the first sign-in after upgrading from an older build, any legacy
+`bev_workspace_prefs` / `bev_daily_todos` / `bev_general_todos` payloads are
+migrated to `meta/*` once and then removed from `localStorage`.
+
+### Firestore rules
 
 ```txt
 rules_version = '2';

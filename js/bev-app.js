@@ -77,6 +77,19 @@ let dashboardDragOffset = { x: 0, y: 0 },
   projectSaveTimer = null;
 let dashboardResizeProjectId = null,
   dashboardResizeStart = null;
+/**
+ * Cross-device sync infrastructure:
+ *  - `metaSaveTimers` : debounced writes for meta/* docs (workspace, todos…)
+ *  - `pendingProjectSaveIds`: project ids with a queued local save (so we
+ *    skip remote snapshots that would clobber unsaved local edits)
+ *  - `realtimeUnsubscribers`: cleanup hooks for active onSnapshot listeners
+ */
+const metaSaveTimers = Object.create(null);
+const pendingProjectSaveIds = new Set();
+const pendingPresentationSaveIds = new Set();
+let pendingDashboardSave = false;
+let realtimeUnsubscribers = [];
+let beforeUnloadGuardInstalled = false;
 let presentationSaveTimer = null,
   presentationDragItemId = null,
   presentationDragOffset = { x: 0, y: 0 },
@@ -533,11 +546,18 @@ async function signInWithGoogle() {
 }
 
 async function signOut() {
+  // Flush any debounced writes so unsaved edits are not lost when the user
+  // hops between accounts or devices.
+  try {
+    await flushPendingMetaSaves();
+  } catch {}
+  teardownRealtimeSync();
   await fbAuth.signOut();
   projects = [];
   presentations = [];
   currentProject = null;
   currentPresentation = null;
+  overviewItems = [];
   saveLastView("dashboard");
   show("auth");
 }
@@ -552,7 +572,8 @@ function onSignedIn() {
     av.textContent = (currentUser.displayName ||
       currentUser.email ||
       "?")[0].toUpperCase();
-  loadWorkspacePrefs();
+  // Workspace prefs and todo widget state are loaded from Firestore inside
+  // loadProjects(); these calls only wire DOM event listeners.
   setupDailyTodoWidget();
   setupGeneralTodoWidget();
   initColorSwatches();
@@ -563,18 +584,37 @@ function onSignedIn() {
 }
 
 // ===================== FIRESTORE =====================
+/**
+ * Cloud schema (single source of truth for cross-device sync):
+ *   users/{uid}/projects/{projectId}
+ *   users/{uid}/presentations/{presentationId}
+ *   users/{uid}/image_assets/{assetId}
+ *   users/{uid}/meta/dashboard       — overview cards + lines
+ *   users/{uid}/meta/workspace       — categories, sort, UI prefs
+ *   users/{uid}/meta/todosDaily      — daily todo widget state
+ *   users/{uid}/meta/todosGeneral    — general todo widget state
+ *
+ * Anything that should follow the user across devices lives here. Only
+ * device-bootstrap (`bev_fb_config`) and per-tab navigation (`bev_last_view`)
+ * remain in localStorage.
+ */
+const META_DOC_DASHBOARD = "dashboard";
+const META_DOC_WORKSPACE = "workspace";
+const META_DOC_TODOS_DAILY = "todosDaily";
+const META_DOC_TODOS_GENERAL = "todosGeneral";
+
 const pRef = () =>
   fbDb.collection("users").doc(currentUser.uid).collection("projects");
 const presentationRef = () =>
   fbDb.collection("users").doc(currentUser.uid).collection("presentations");
 const imageAssetRef = () =>
   fbDb.collection("users").doc(currentUser.uid).collection("image_assets");
-const dashboardRef = () =>
+const metaRef = (docId) =>
   fbDb
     .collection("users")
     .doc(currentUser.uid)
     .collection("meta")
-    .doc("dashboard");
+    .doc(docId);
 const publicPresentationRef = (token = null) => {
   const coll = fbDb.collection("public_presentations");
   return token ? coll.doc(token) : coll;
@@ -961,6 +1001,7 @@ async function deletePresentationFromFirestore(presentation) {
 async function savePresentationToFirestore(presentation) {
   if (!presentation || !currentUser) return false;
   presentation.updatedAt = Date.now();
+  pendingPresentationSaveIds.add(presentation.id);
   setSyncStatus("syncing");
   try {
     await presentationRef().doc(presentation.id).set(
@@ -983,17 +1024,20 @@ async function savePresentationToFirestore(presentation) {
     setSyncStatus("error");
     showToast("Presentation save failed: " + e.message);
     return false;
+  } finally {
+    pendingPresentationSaveIds.delete(presentation.id);
   }
 }
 
 function queuePresentationSave(presentation = currentPresentation) {
   if (!presentation) return;
   captureHistory();
+  pendingPresentationSaveIds.add(presentation.id);
   if (presentationSaveTimer) clearTimeout(presentationSaveTimer);
-  presentationSaveTimer = setTimeout(
-    () => savePresentationToFirestore(presentation),
-    300,
-  );
+  presentationSaveTimer = setTimeout(() => {
+    presentationSaveTimer = null;
+    savePresentationToFirestore(presentation);
+  }, 300);
 }
 
 async function syncPublishedPresentationsForProject(project) {
@@ -1170,17 +1214,27 @@ async function loadProjects() {
   show("loading");
   setSyncStatus("syncing");
   try {
-    const [snap, dashboardSnap, imageAssetSnap, presentationSnap] =
-      await promiseWithTimeout(
-        Promise.all([
-          pRef().orderBy("created", "asc").get(),
-          dashboardRef().get(),
-          imageAssetRef().get(),
-          presentationRef().orderBy("created", "asc").get(),
-        ]),
-        60000,
-        "Loading timed out — check your connection and try again.",
-      );
+    const [
+      snap,
+      dashboardSnap,
+      imageAssetSnap,
+      presentationSnap,
+      workspaceSnap,
+      dailyTodosSnap,
+      generalTodosSnap,
+    ] = await promiseWithTimeout(
+      Promise.all([
+        pRef().orderBy("created", "asc").get(),
+        metaRef(META_DOC_DASHBOARD).get(),
+        imageAssetRef().get(),
+        presentationRef().orderBy("created", "asc").get(),
+        metaRef(META_DOC_WORKSPACE).get(),
+        metaRef(META_DOC_TODOS_DAILY).get(),
+        metaRef(META_DOC_TODOS_GENERAL).get(),
+      ]),
+      60000,
+      "Loading timed out — check your connection and try again.",
+    );
     const imageAssetMap = buildImageAssetMap(imageAssetSnap.docs);
     projects = snap.docs.map((d) => {
       const project = { id: d.id, ...d.data() };
@@ -1194,9 +1248,18 @@ async function loadProjects() {
     overviewItems = dashboardSnap.exists
       ? normalizeOverviewItemDataList(dashboardSnap.data().items || [])
       : [];
+
+    await applyMetaSnapshotsWithMigration({
+      workspaceSnap,
+      dailyTodosSnap,
+      generalTodosSnap,
+    });
+
     syncPresentationItemsWithProjects();
     if (!projects.length) await seedDefaultProject();
     setSyncStatus("synced");
+    installRealtimeSync();
+    installBeforeUnloadGuard();
     const lastView = loadLastView();
     const lastProjectId =
       lastView?.screen === "canvas" ? lastView.projectId : null;
@@ -1231,11 +1294,474 @@ async function loadProjects() {
   }
 }
 
+/**
+ * Apply meta/* docs to in-memory state, falling back to (and migrating away
+ * from) any legacy localStorage payloads from older builds. After this runs,
+ * each meta doc exists in Firestore and the matching localStorage key is
+ * cleared, so the next device sign-in sees the cloud copy as the only truth.
+ */
+async function applyMetaSnapshotsWithMigration(snaps) {
+  const { workspaceSnap, dailyTodosSnap, generalTodosSnap } = snaps;
+
+  if (workspaceSnap.exists) {
+    applyWorkspacePrefs(workspaceSnap.data());
+    localStorage.removeItem("bev_workspace_prefs");
+  } else {
+    const legacy = readLegacyJSON("bev_workspace_prefs");
+    if (legacy) {
+      applyWorkspacePrefs(legacy);
+      try {
+        await metaRef(META_DOC_WORKSPACE).set(serializeWorkspacePrefs());
+        localStorage.removeItem("bev_workspace_prefs");
+      } catch {}
+    } else {
+      applyWorkspacePrefs(null);
+    }
+  }
+
+  if (dailyTodosSnap.exists) {
+    applyDailyTodoState(dailyTodosSnap.data());
+    localStorage.removeItem("bev_daily_todos");
+  } else {
+    const legacy = readLegacyJSON("bev_daily_todos");
+    if (legacy) {
+      applyDailyTodoState(legacy);
+      try {
+        await metaRef(META_DOC_TODOS_DAILY).set(serializeDailyTodoState());
+        localStorage.removeItem("bev_daily_todos");
+      } catch {}
+    } else {
+      applyDailyTodoState(null);
+    }
+  }
+
+  if (generalTodosSnap.exists) {
+    applyGeneralTodoState(generalTodosSnap.data());
+    localStorage.removeItem("bev_general_todos");
+  } else {
+    const legacy = readLegacyJSON("bev_general_todos");
+    if (legacy) {
+      applyGeneralTodoState(legacy);
+      try {
+        await metaRef(META_DOC_TODOS_GENERAL).set(serializeGeneralTodoState());
+        localStorage.removeItem("bev_general_todos");
+      } catch {}
+    } else {
+      applyGeneralTodoState(null);
+    }
+  }
+
+  // Now that cloud-backed state is loaded, refresh widgets that were set up
+  // (with default state) before loadProjects().
+  if (typeof renderDailyTodoWidget === "function") renderDailyTodoWidget();
+  if (typeof renderGeneralTodoWidget === "function") renderGeneralTodoWidget();
+}
+
+function readLegacyJSON(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Generic debounced writer for any meta/* doc. The serializer is invoked at
+ * flush time (not enqueue time) so the write captures the latest in-memory
+ * state, even if many edits happened during the debounce window.
+ *
+ *   docId          one of META_DOC_* ids
+ *   serializer     () => Object — the latest payload to persist
+ *   options.delay  debounce delay in ms (default 300)
+ */
+function scheduleMetaSave(docId, serializer, options = {}) {
+  if (!currentUser || !fbDb) return;
+  const delay = typeof options.delay === "number" ? options.delay : 300;
+  setSyncStatus("syncing");
+  if (metaSaveTimers[docId]) clearTimeout(metaSaveTimers[docId]);
+  metaSaveTimers[docId] = setTimeout(async () => {
+    metaSaveTimers[docId] = null;
+    try {
+      await metaRef(docId).set(serializer());
+      setSyncStatus("synced");
+    } catch (e) {
+      setSyncStatus("error");
+      showToast(`Save failed (${docId}): ${e.message}`);
+    }
+  }, delay);
+}
+
+/**
+ * Flush all queued meta + project + presentation saves immediately. Used on
+ * sign-out and as best-effort on page hide / before unload so an interrupted
+ * session doesn't lose the last few edits.
+ */
+async function flushPendingMetaSaves() {
+  const tasks = [];
+  for (const docId of Object.keys(metaSaveTimers)) {
+    if (!metaSaveTimers[docId]) continue;
+    clearTimeout(metaSaveTimers[docId]);
+    metaSaveTimers[docId] = null;
+    const serializer = META_SERIALIZERS[docId];
+    if (!serializer) continue;
+    tasks.push(metaRef(docId).set(serializer()).catch(() => {}));
+  }
+  if (overviewSaveTimer) {
+    clearTimeout(overviewSaveTimer);
+    overviewSaveTimer = null;
+    tasks.push(saveOverviewToFirestore().catch(() => {}));
+  }
+  if (projectSaveTimer && currentProject) {
+    clearTimeout(projectSaveTimer);
+    projectSaveTimer = null;
+    tasks.push(saveToFirestore(currentProject).catch(() => {}));
+  }
+  if (saveTimer && currentProject) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    tasks.push(saveToFirestore(currentProject).catch(() => {}));
+  }
+  if (presentationSaveTimer && currentPresentation) {
+    clearTimeout(presentationSaveTimer);
+    presentationSaveTimer = null;
+    tasks.push(savePresentationToFirestore(currentPresentation).catch(() => {}));
+  }
+  if (tasks.length) await Promise.all(tasks);
+}
+
+const META_SERIALIZERS = {
+  [META_DOC_WORKSPACE]: () => serializeWorkspacePrefs(),
+  [META_DOC_TODOS_DAILY]: () => serializeDailyTodoState(),
+  [META_DOC_TODOS_GENERAL]: () => serializeGeneralTodoState(),
+};
+
+function hasPendingSaves() {
+  if (overviewSaveTimer || projectSaveTimer || saveTimer || presentationSaveTimer)
+    return true;
+  for (const docId of Object.keys(metaSaveTimers)) {
+    if (metaSaveTimers[docId]) return true;
+  }
+  return false;
+}
+
+/**
+ * Real-time sync via Firestore onSnapshot listeners. Fires on any change to
+ * the user's data — including edits made on another device — so the UI stays
+ * up to date without page refreshes.
+ *
+ * Self-originated writes are skipped (`metadata.hasPendingWrites === true`)
+ * so we don't fight our own debounced saves. Re-renders are deferred while
+ * the user is actively interacting (typing in a contenteditable, dragging,
+ * etc.) to avoid clobbering in-progress edits.
+ */
+function installRealtimeSync() {
+  teardownRealtimeSync();
+  if (!currentUser || !fbDb) return;
+
+  realtimeUnsubscribers.push(
+    pRef().onSnapshot(
+      { includeMetadataChanges: false },
+      (snap) => applyProjectsSnapshot(snap),
+      (err) => console.warn("[BEV] projects listener error", err),
+    ),
+  );
+
+  realtimeUnsubscribers.push(
+    presentationRef().onSnapshot(
+      { includeMetadataChanges: false },
+      (snap) => applyPresentationsSnapshot(snap),
+      (err) => console.warn("[BEV] presentations listener error", err),
+    ),
+  );
+
+  realtimeUnsubscribers.push(
+    metaRef(META_DOC_DASHBOARD).onSnapshot(
+      { includeMetadataChanges: false },
+      (doc) => applyDashboardSnapshot(doc),
+      (err) => console.warn("[BEV] dashboard listener error", err),
+    ),
+  );
+
+  realtimeUnsubscribers.push(
+    metaRef(META_DOC_WORKSPACE).onSnapshot(
+      { includeMetadataChanges: false },
+      (doc) => applyWorkspaceSnapshot(doc),
+      (err) => console.warn("[BEV] workspace listener error", err),
+    ),
+  );
+
+  realtimeUnsubscribers.push(
+    metaRef(META_DOC_TODOS_DAILY).onSnapshot(
+      { includeMetadataChanges: false },
+      (doc) => applyDailyTodoSnapshot(doc),
+      (err) => console.warn("[BEV] dailyTodos listener error", err),
+    ),
+  );
+
+  realtimeUnsubscribers.push(
+    metaRef(META_DOC_TODOS_GENERAL).onSnapshot(
+      { includeMetadataChanges: false },
+      (doc) => applyGeneralTodoSnapshot(doc),
+      (err) => console.warn("[BEV] generalTodos listener error", err),
+    ),
+  );
+
+  realtimeUnsubscribers.push(
+    imageAssetRef().onSnapshot(
+      { includeMetadataChanges: false },
+      (snap) => applyImageAssetsSnapshot(snap),
+      (err) => console.warn("[BEV] image_assets listener error", err),
+    ),
+  );
+}
+
+function teardownRealtimeSync() {
+  while (realtimeUnsubscribers.length) {
+    try {
+      realtimeUnsubscribers.pop()();
+    } catch {}
+  }
+}
+
+/**
+ * True when the user is in the middle of an edit/drag — we postpone full
+ * re-renders that would steal focus or interrupt the gesture.
+ */
+function isUserInteracting() {
+  if (
+    isDragging ||
+    isPanning ||
+    isResizingNode ||
+    dashboardDragProjectId ||
+    dashboardResizeProjectId ||
+    presentationDragItemId ||
+    presentationDragObjectId ||
+    presentationResizeObjectId ||
+    presentationResizeItemId
+  ) {
+    return true;
+  }
+  const active = document.activeElement;
+  if (!active) return false;
+  if (active.isContentEditable) return true;
+  const tag = active.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+function reRenderCurrentScreen() {
+  if (isUserInteracting()) return;
+  if (currentScreenName === "dashboard") {
+    renderDashboard();
+  } else if (currentScreenName === "canvas" && currentProject) {
+    renderAll();
+    updateCanvasPathbar();
+  } else if (currentScreenName === "presentation") {
+    renderPresentationScreen();
+  }
+}
+
+function applyProjectsSnapshot(snap) {
+  let touchedCurrent = false;
+  let mutated = false;
+  snap.docChanges().forEach((change) => {
+    if (change.doc.metadata.hasPendingWrites) return;
+    const id = change.doc.id;
+    if (pendingProjectSaveIds.has(id)) return;
+
+    if (change.type === "added" || change.type === "modified") {
+      const incoming = { id, ...change.doc.data() };
+      incoming.nodes = normalizeNodeDataList(incoming.nodes || []);
+      const idx = projects.findIndex((p) => p.id === id);
+      if (idx >= 0) {
+        const local = projects[idx];
+        // Keep already-hydrated image src values when remote sends src:null.
+        if (Array.isArray(local.nodes) && Array.isArray(incoming.nodes)) {
+          const localById = new Map(local.nodes.map((n) => [n.id, n]));
+          incoming.nodes = incoming.nodes.map((node) => {
+            if (
+              node?.type === "file" &&
+              node.fileKind === "image" &&
+              node.assetId &&
+              !node.src
+            ) {
+              const prev = localById.get(node.id);
+              if (prev?.src) return { ...node, src: prev.src };
+            }
+            return node;
+          });
+        }
+        projects[idx] = incoming;
+      } else {
+        projects.push(incoming);
+      }
+      if (currentProject?.id === id) {
+        currentProject = projects.find((p) => p.id === id) || null;
+        if (currentProject) {
+          nodes = currentProject.nodes;
+          connections = currentProject.connections || [];
+        }
+        touchedCurrent = true;
+      }
+      mutated = true;
+    } else if (change.type === "removed") {
+      const before = projects.length;
+      projects = projects.filter((p) => p.id !== id);
+      if (projects.length !== before) mutated = true;
+      if (currentProject?.id === id) {
+        currentProject = null;
+        nodes = [];
+        connections = [];
+        touchedCurrent = true;
+        if (currentScreenName === "canvas") {
+          show("dashboard");
+          saveLastView("dashboard");
+        }
+      }
+    }
+  });
+  if (mutated) {
+    syncPresentationItemsWithProjects();
+    reRenderCurrentScreen();
+  } else if (touchedCurrent) {
+    reRenderCurrentScreen();
+  }
+}
+
+function applyPresentationsSnapshot(snap) {
+  let mutated = false;
+  let touchedCurrent = false;
+  snap.docChanges().forEach((change) => {
+    if (change.doc.metadata.hasPendingWrites) return;
+    const id = change.doc.id;
+    if (pendingPresentationSaveIds.has(id)) return;
+
+    if (change.type === "added" || change.type === "modified") {
+      const incoming = normalizePresentationData({
+        id,
+        ...change.doc.data(),
+      });
+      const idx = presentations.findIndex((p) => p.id === id);
+      if (idx >= 0) presentations[idx] = incoming;
+      else presentations.push(incoming);
+      if (currentPresentation?.id === id) {
+        currentPresentation = presentations.find((p) => p.id === id) || null;
+        touchedCurrent = true;
+      }
+      mutated = true;
+    } else if (change.type === "removed") {
+      presentations = presentations.filter((p) => p.id !== id);
+      if (currentPresentation?.id === id) {
+        currentPresentation = null;
+        touchedCurrent = true;
+        if (currentScreenName === "presentation") {
+          show("dashboard");
+          saveLastView("dashboard");
+        }
+      }
+      mutated = true;
+    }
+  });
+  if (mutated) {
+    syncPresentationItemsWithProjects();
+    reRenderCurrentScreen();
+  } else if (touchedCurrent) {
+    reRenderCurrentScreen();
+  }
+}
+
+function applyDashboardSnapshot(doc) {
+  if (doc.metadata.hasPendingWrites || pendingDashboardSave) return;
+  if (!doc.exists) {
+    overviewItems = [];
+  } else {
+    overviewItems = normalizeOverviewItemDataList(doc.data().items || []);
+  }
+  if (currentScreenName === "dashboard") reRenderCurrentScreen();
+}
+
+function applyWorkspaceSnapshot(doc) {
+  if (doc.metadata.hasPendingWrites) return;
+  if (metaSaveTimers[META_DOC_WORKSPACE]) return;
+  if (!doc.exists) return;
+  applyWorkspacePrefs(doc.data());
+  if (currentScreenName === "dashboard" && !isUserInteracting()) {
+    renderDashboard();
+    if (workspaceMenuOpen) renderWorkspaceMenu();
+  }
+}
+
+function applyDailyTodoSnapshot(doc) {
+  if (doc.metadata.hasPendingWrites) return;
+  if (metaSaveTimers[META_DOC_TODOS_DAILY]) return;
+  if (!doc.exists) return;
+  applyDailyTodoState(doc.data());
+  if (!isUserInteracting()) renderDailyTodoWidget();
+}
+
+function applyGeneralTodoSnapshot(doc) {
+  if (doc.metadata.hasPendingWrites) return;
+  if (metaSaveTimers[META_DOC_TODOS_GENERAL]) return;
+  if (!doc.exists) return;
+  applyGeneralTodoState(doc.data());
+  if (!isUserInteracting()) renderGeneralTodoWidget();
+}
+
+function applyImageAssetsSnapshot(snap) {
+  let touched = false;
+  snap.docChanges().forEach((change) => {
+    if (change.doc.metadata.hasPendingWrites) return;
+    const data = change.doc.data() || {};
+    const projectId = data.projectId;
+    const nodeId = data.nodeId;
+    if (!projectId || !nodeId) return;
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+    const node = (project.nodes || []).find((n) => n.id === nodeId);
+    if (!node) return;
+    if (change.type === "removed") {
+      // Image asset deleted upstream — drop the cached src.
+      if (node.src) {
+        node.src = null;
+        touched = true;
+      }
+    } else if (data.src && node.src !== data.src) {
+      node.src = data.src;
+      if (data.mime) node.mime = data.mime;
+      if (data.size) node.size = data.size;
+      touched = true;
+    }
+  });
+  if (touched) reRenderCurrentScreen();
+}
+
+function installBeforeUnloadGuard() {
+  if (beforeUnloadGuardInstalled) return;
+  beforeUnloadGuardInstalled = true;
+  window.addEventListener("beforeunload", (e) => {
+    if (!hasPendingSaves()) return;
+    // Best-effort flush; the browser may not wait for async work to complete.
+    flushPendingMetaSaves();
+    e.preventDefault();
+    e.returnValue = "";
+    return "";
+  });
+  // pagehide fires reliably on mobile/tab close even when beforeunload doesn't.
+  window.addEventListener("pagehide", () => {
+    if (hasPendingSaves()) flushPendingMetaSaves();
+  });
+}
+
 async function saveToFirestore(p) {
+  if (!p || !currentUser) return;
+  pendingProjectSaveIds.add(p.id);
   setSyncStatus("syncing");
   setSaveStatus("saving");
   try {
     const { id, ...data } = sanitizeProjectForSave(p);
+    data.updatedAt = Date.now();
     await pRef().doc(id).set(data);
     try {
       await syncPublishedPresentationsForProject(p);
@@ -1257,6 +1783,8 @@ async function saveToFirestore(p) {
     } else {
       showToast("Save failed: " + message);
     }
+  } finally {
+    pendingProjectSaveIds.delete(p.id);
   }
 }
 
@@ -1272,26 +1800,41 @@ async function deleteFromFirestore(id) {
 }
 
 async function saveOverviewToFirestore() {
+  pendingDashboardSave = true;
   setSyncStatus("syncing");
   try {
-    await dashboardRef().set({ items: overviewItems }, { merge: true });
+    await metaRef(META_DOC_DASHBOARD).set(
+      { items: overviewItems, updatedAt: Date.now() },
+      { merge: true },
+    );
     setSyncStatus("synced");
   } catch (e) {
     setSyncStatus("error");
     showToast("Overview save failed: " + e.message);
+  } finally {
+    pendingDashboardSave = false;
   }
 }
 
 function queueProjectSave(p) {
+  if (!p) return;
   captureHistory();
+  pendingProjectSaveIds.add(p.id);
   if (projectSaveTimer) clearTimeout(projectSaveTimer);
-  projectSaveTimer = setTimeout(() => saveToFirestore(p), 300);
+  projectSaveTimer = setTimeout(() => {
+    projectSaveTimer = null;
+    saveToFirestore(p);
+  }, 300);
 }
 
 function queueOverviewSave() {
   captureHistory();
+  pendingDashboardSave = true;
   if (overviewSaveTimer) clearTimeout(overviewSaveTimer);
-  overviewSaveTimer = setTimeout(() => saveOverviewToFirestore(), 300);
+  overviewSaveTimer = setTimeout(() => {
+    overviewSaveTimer = null;
+    saveOverviewToFirestore();
+  }, 300);
 }
 
 function statusSlug(status) {
@@ -1515,22 +2058,23 @@ function syncWorkspaceMenuVisibility() {
     ?.classList.toggle("workspace-menu-open", workspaceMenuOpen);
 }
 
-function saveWorkspacePrefs() {
-  localStorage.setItem(
-    "bev_workspace_prefs",
-    JSON.stringify({
-      categories: workspaceCategories,
-      sort: workspaceSort,
-      uiPrefs: workspaceUIPrefs,
-    }),
-  );
+/**
+ * Workspace prefs (categories, sort, UI toggles) live at
+ * users/{uid}/meta/workspace. Saves are debounced to coalesce rapid edits in
+ * the workspace menu, but flushed on logout / page hide via
+ * `flushPendingMetaSaves`.
+ */
+function serializeWorkspacePrefs() {
+  return {
+    categories: workspaceCategories,
+    sort: workspaceSort,
+    uiPrefs: workspaceUIPrefs,
+    updatedAt: Date.now(),
+  };
 }
 
-function loadWorkspacePrefs() {
-  try {
-    const raw = localStorage.getItem("bev_workspace_prefs");
-    if (!raw) return;
-    const prefs = JSON.parse(raw);
+function applyWorkspacePrefs(prefs) {
+  if (prefs && typeof prefs === "object") {
     if (Array.isArray(prefs.categories) && prefs.categories.length) {
       workspaceCategories = prefs.categories.map((category, index) => ({
         id: category.id || `cat-loaded-${index}`,
@@ -1545,7 +2089,6 @@ function loadWorkspacePrefs() {
         enabled: category.enabled !== false,
       }));
     } else if (prefs.categoryMap) {
-      const disabled = Array.isArray(prefs.categoryFilters) ? [] : [];
       workspaceCategories = Object.entries(prefs.categoryMap).map(
         ([color, label], index) => ({
           id: `cat-migrated-${index}`,
@@ -1557,23 +2100,28 @@ function loadWorkspacePrefs() {
         }),
       );
     }
-    workspaceSort = prefs.sort || "created-desc";
-    workspaceUIPrefs = {
-      showZoomControls: prefs.uiPrefs?.showZoomControls !== false,
-      showMinimap: prefs.uiPrefs?.showMinimap !== false,
-    };
-  } catch {}
-  if (!workspaceCategories.length) {
-    workspaceCategories = DEFAULT_WORKSPACE_CATEGORIES.map(
-      (category) => ({
-        ...category,
-      }),
-    );
+    if (typeof prefs.sort === "string") workspaceSort = prefs.sort;
+    if (prefs.uiPrefs && typeof prefs.uiPrefs === "object") {
+      workspaceUIPrefs = {
+        showZoomControls: prefs.uiPrefs.showZoomControls !== false,
+        showMinimap: prefs.uiPrefs.showMinimap !== false,
+      };
+    }
   }
+  if (!workspaceCategories.length) {
+    workspaceCategories = DEFAULT_WORKSPACE_CATEGORIES.map((category) => ({
+      ...category,
+    }));
+  }
+  if (!workspaceSort) workspaceSort = "created-desc";
   selectedColor = getCategoryColorList().includes(selectedColor)
     ? selectedColor
     : getDefaultCategoryColor();
   applyWorkspaceUIPrefs();
+}
+
+function saveWorkspacePrefs() {
+  scheduleMetaSave(META_DOC_WORKSPACE, serializeWorkspacePrefs);
 }
 
 function getTodayDateKey() {
@@ -1619,11 +2167,38 @@ function getDailyTodoItems(dateKey = dailyTodoState.currentDate) {
   return dailyTodoState.entries[key];
 }
 
+function serializeDailyTodoState() {
+  return {
+    open: !!dailyTodoState.open,
+    currentDate: dailyTodoState.currentDate || getTodayDateKey(),
+    entries:
+      dailyTodoState.entries && typeof dailyTodoState.entries === "object"
+        ? dailyTodoState.entries
+        : {},
+    updatedAt: Date.now(),
+  };
+}
+
+function applyDailyTodoState(data) {
+  if (data && typeof data === "object") {
+    dailyTodoState = {
+      open: data.open === true,
+      currentDate: data.currentDate || getTodayDateKey(),
+      entries:
+        data.entries && typeof data.entries === "object" ? data.entries : {},
+    };
+  } else {
+    dailyTodoState = {
+      open: false,
+      currentDate: getTodayDateKey(),
+      entries: {},
+    };
+  }
+  syncDailyTodoSelection();
+}
+
 function saveDailyTodoState() {
-  localStorage.setItem(
-    "bev_daily_todos",
-    JSON.stringify(dailyTodoState),
-  );
+  scheduleMetaSave(META_DOC_TODOS_DAILY, serializeDailyTodoState);
 }
 
 function syncDailyTodoSelection(dateKey = dailyTodoState.currentDate) {
@@ -1800,11 +2375,34 @@ function getGeneralTodoItems() {
   return generalTodoState.items;
 }
 
+function serializeGeneralTodoState() {
+  return {
+    open: !!generalTodoState.open,
+    items: Array.isArray(generalTodoState.items) ? generalTodoState.items : [],
+    showDone: generalTodoState.showDone !== false,
+    updatedAt: Date.now(),
+  };
+}
+
+function applyGeneralTodoState(data) {
+  if (data && typeof data === "object") {
+    generalTodoState = {
+      open: data.open === true,
+      items: Array.isArray(data.items) ? data.items : [],
+      showDone: data.showDone !== false,
+    };
+  } else {
+    generalTodoState = {
+      open: false,
+      items: [],
+      showDone: true,
+    };
+  }
+  syncGeneralTodoSelection();
+}
+
 function saveGeneralTodoState() {
-  localStorage.setItem(
-    "bev_general_todos",
-    JSON.stringify(generalTodoState),
-  );
+  scheduleMetaSave(META_DOC_TODOS_GENERAL, serializeGeneralTodoState);
 }
 
 function syncGeneralTodoSelection() {
@@ -2152,23 +2750,8 @@ function renderGeneralTodoWidget() {
 function setupGeneralTodoWidget() {
   if (generalTodoInitialized) return;
   generalTodoInitialized = true;
-  try {
-    const saved = localStorage.getItem("bev_general_todos");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      generalTodoState = {
-        open: parsed?.open === true,
-        items: Array.isArray(parsed?.items) ? parsed.items : [],
-        showDone: parsed?.showDone !== false,
-      };
-    }
-  } catch {
-    generalTodoState = {
-      open: false,
-      items: [],
-      showDone: true,
-    };
-  }
+  // State arrives via applyGeneralTodoState() during loadProjects(); this
+  // hook only wires DOM listeners.
   const toggle = document.getElementById("general-todo-toggle");
   const add = document.getElementById("general-todo-add");
   const visibilityBtn = document.getElementById("general-todo-visibility");
@@ -2340,26 +2923,11 @@ function renderDailyTodoWidget() {
 function setupDailyTodoWidget() {
   if (dailyTodoInitialized) return;
   dailyTodoInitialized = true;
-  try {
-    const saved = localStorage.getItem("bev_daily_todos");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      dailyTodoState = {
-        open: parsed?.open === true,
-        currentDate: parsed?.currentDate || getTodayDateKey(),
-        entries: parsed?.entries && typeof parsed.entries === "object"
-          ? parsed.entries
-          : {},
-      };
-    } else {
-      dailyTodoState.currentDate = getTodayDateKey();
-    }
-  } catch {
-    dailyTodoState = {
-      open: false,
-      currentDate: getTodayDateKey(),
-      entries: {},
-    };
+  // State now arrives via applyDailyTodoState() during loadProjects(); no
+  // localStorage fallback here. Just guarantee a sane currentDate before any
+  // event handler fires.
+  if (!dailyTodoState.currentDate) {
+    dailyTodoState.currentDate = getTodayDateKey();
   }
   const toggle = document.getElementById("daily-todo-toggle");
   const today = document.getElementById("daily-todo-today");
@@ -3562,8 +4130,12 @@ function autosave() {
     currentProject.name = t.textContent.trim() || currentProject.name;
   captureHistory();
   setSaveStatus("saving");
+  pendingProjectSaveIds.add(currentProject.id);
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => saveToFirestore(currentProject), 1200);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    saveToFirestore(currentProject);
+  }, 1200);
 }
 
 function updateCanvasPathbar() {
