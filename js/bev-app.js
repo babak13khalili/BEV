@@ -83,6 +83,9 @@ let dashboardResizeProjectId = null,
  *  - `pendingProjectSaveIds`: project ids with a queued local save (so we
  *    skip remote snapshots that would clobber unsaved local edits)
  *  - `realtimeUnsubscribers`: cleanup hooks for active onSnapshot listeners
+ *  - `firstSnapshotSeen`: per-listener flag — the very first onSnapshot
+ *    callback echoes the same docs we just loaded via `.get()`, so we skip
+ *    it to avoid clobbering the canvas working copy and image hydration.
  */
 const metaSaveTimers = Object.create(null);
 const pendingProjectSaveIds = new Set();
@@ -90,6 +93,7 @@ const pendingPresentationSaveIds = new Set();
 let pendingDashboardSave = false;
 let realtimeUnsubscribers = [];
 let beforeUnloadGuardInstalled = false;
+const firstSnapshotSeen = Object.create(null);
 let presentationSaveTimer = null,
   presentationDragItemId = null,
   presentationDragOffset = { x: 0, y: 0 },
@@ -1461,61 +1465,40 @@ function installRealtimeSync() {
   teardownRealtimeSync();
   if (!currentUser || !fbDb) return;
 
-  realtimeUnsubscribers.push(
-    pRef().onSnapshot(
-      { includeMetadataChanges: false },
-      (snap) => applyProjectsSnapshot(snap),
-      (err) => console.warn("[BEV] projects listener error", err),
-    ),
-  );
+  // Reset first-snapshot flags every install. The first snapshot from each
+  // listener echoes the same data we just fetched with `.get()` during
+  // `loadProjects`; processing it would needlessly rebuild state and could
+  // clobber the canvas working copy. We let it pass once and start applying
+  // updates from the *next* event, which carries real cross-device edits.
+  for (const k of Object.keys(firstSnapshotSeen)) delete firstSnapshotSeen[k];
 
-  realtimeUnsubscribers.push(
-    presentationRef().onSnapshot(
-      { includeMetadataChanges: false },
-      (snap) => applyPresentationsSnapshot(snap),
-      (err) => console.warn("[BEV] presentations listener error", err),
-    ),
-  );
+  function attach(key, ref, handler) {
+    realtimeUnsubscribers.push(
+      ref.onSnapshot(
+        { includeMetadataChanges: false },
+        (payload) => {
+          if (!firstSnapshotSeen[key]) {
+            firstSnapshotSeen[key] = true;
+            return;
+          }
+          handler(payload);
+        },
+        (err) => console.warn(`[BEV] ${key} listener error`, err),
+      ),
+    );
+  }
 
-  realtimeUnsubscribers.push(
-    metaRef(META_DOC_DASHBOARD).onSnapshot(
-      { includeMetadataChanges: false },
-      (doc) => applyDashboardSnapshot(doc),
-      (err) => console.warn("[BEV] dashboard listener error", err),
-    ),
+  attach("projects", pRef(), applyProjectsSnapshot);
+  attach("presentations", presentationRef(), applyPresentationsSnapshot);
+  attach("dashboard", metaRef(META_DOC_DASHBOARD), applyDashboardSnapshot);
+  attach("workspace", metaRef(META_DOC_WORKSPACE), applyWorkspaceSnapshot);
+  attach("todosDaily", metaRef(META_DOC_TODOS_DAILY), applyDailyTodoSnapshot);
+  attach(
+    "todosGeneral",
+    metaRef(META_DOC_TODOS_GENERAL),
+    applyGeneralTodoSnapshot,
   );
-
-  realtimeUnsubscribers.push(
-    metaRef(META_DOC_WORKSPACE).onSnapshot(
-      { includeMetadataChanges: false },
-      (doc) => applyWorkspaceSnapshot(doc),
-      (err) => console.warn("[BEV] workspace listener error", err),
-    ),
-  );
-
-  realtimeUnsubscribers.push(
-    metaRef(META_DOC_TODOS_DAILY).onSnapshot(
-      { includeMetadataChanges: false },
-      (doc) => applyDailyTodoSnapshot(doc),
-      (err) => console.warn("[BEV] dailyTodos listener error", err),
-    ),
-  );
-
-  realtimeUnsubscribers.push(
-    metaRef(META_DOC_TODOS_GENERAL).onSnapshot(
-      { includeMetadataChanges: false },
-      (doc) => applyGeneralTodoSnapshot(doc),
-      (err) => console.warn("[BEV] generalTodos listener error", err),
-    ),
-  );
-
-  realtimeUnsubscribers.push(
-    imageAssetRef().onSnapshot(
-      { includeMetadataChanges: false },
-      (snap) => applyImageAssetsSnapshot(snap),
-      (err) => console.warn("[BEV] image_assets listener error", err),
-    ),
-  );
+  attach("imageAssets", imageAssetRef(), applyImageAssetsSnapshot);
 }
 
 function teardownRealtimeSync() {
@@ -1564,12 +1547,21 @@ function reRenderCurrentScreen() {
 }
 
 function applyProjectsSnapshot(snap) {
-  let touchedCurrent = false;
   let mutated = false;
+  let touchedNonCurrent = false;
   snap.docChanges().forEach((change) => {
     if (change.doc.metadata.hasPendingWrites) return;
     const id = change.doc.id;
     if (pendingProjectSaveIds.has(id)) return;
+
+    // Don't mutate the project the user is currently editing on the canvas.
+    // The canvas operates on `nodes` / `connections` deep-clones produced by
+    // `openProject`; replacing them mid-edit would lose unsaved typing /
+    // dragging and break image hydration. The user can refresh (or leave +
+    // re-enter the project) to pick up other-device edits explicitly.
+    if (currentProject?.id === id && currentScreenName === "canvas") {
+      return;
+    }
 
     if (change.type === "added" || change.type === "modified") {
       const incoming = { id, ...change.doc.data() };
@@ -1597,15 +1589,8 @@ function applyProjectsSnapshot(snap) {
       } else {
         projects.push(incoming);
       }
-      if (currentProject?.id === id) {
-        currentProject = projects.find((p) => p.id === id) || null;
-        if (currentProject) {
-          nodes = currentProject.nodes;
-          connections = currentProject.connections || [];
-        }
-        touchedCurrent = true;
-      }
       mutated = true;
+      touchedNonCurrent = true;
     } else if (change.type === "removed") {
       const before = projects.length;
       projects = projects.filter((p) => p.id !== id);
@@ -1614,7 +1599,6 @@ function applyProjectsSnapshot(snap) {
         currentProject = null;
         nodes = [];
         connections = [];
-        touchedCurrent = true;
         if (currentScreenName === "canvas") {
           show("dashboard");
           saveLastView("dashboard");
@@ -1624,19 +1608,27 @@ function applyProjectsSnapshot(snap) {
   });
   if (mutated) {
     syncPresentationItemsWithProjects();
-    reRenderCurrentScreen();
-  } else if (touchedCurrent) {
-    reRenderCurrentScreen();
+    if (touchedNonCurrent) reRenderCurrentScreen();
   }
 }
 
 function applyPresentationsSnapshot(snap) {
   let mutated = false;
-  let touchedCurrent = false;
+  let touchedNonCurrent = false;
   snap.docChanges().forEach((change) => {
     if (change.doc.metadata.hasPendingWrites) return;
     const id = change.doc.id;
     if (pendingPresentationSaveIds.has(id)) return;
+
+    // Skip remote updates for the presentation the user is currently
+    // viewing on the presentation screen — same reasoning as canvas: avoid
+    // disrupting an in-progress edit / drag.
+    if (
+      currentPresentation?.id === id &&
+      currentScreenName === "presentation"
+    ) {
+      return;
+    }
 
     if (change.type === "added" || change.type === "modified") {
       const incoming = normalizePresentationData({
@@ -1646,16 +1638,12 @@ function applyPresentationsSnapshot(snap) {
       const idx = presentations.findIndex((p) => p.id === id);
       if (idx >= 0) presentations[idx] = incoming;
       else presentations.push(incoming);
-      if (currentPresentation?.id === id) {
-        currentPresentation = presentations.find((p) => p.id === id) || null;
-        touchedCurrent = true;
-      }
       mutated = true;
+      touchedNonCurrent = true;
     } else if (change.type === "removed") {
       presentations = presentations.filter((p) => p.id !== id);
       if (currentPresentation?.id === id) {
         currentPresentation = null;
-        touchedCurrent = true;
         if (currentScreenName === "presentation") {
           show("dashboard");
           saveLastView("dashboard");
@@ -1666,9 +1654,7 @@ function applyPresentationsSnapshot(snap) {
   });
   if (mutated) {
     syncPresentationItemsWithProjects();
-    reRenderCurrentScreen();
-  } else if (touchedCurrent) {
-    reRenderCurrentScreen();
+    if (touchedNonCurrent) reRenderCurrentScreen();
   }
 }
 
